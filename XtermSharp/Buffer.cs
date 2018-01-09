@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using NStack;
 
 namespace XtermSharp
@@ -11,6 +12,7 @@ namespace XtermSharp
 		public int YDisp, YBase;
 		public int X, Y;
 		public int ScrollBottom, ScrollTop;
+		BitArray tabStops;
 		public bool [] Tabs;
 		public int SavedX, SavedY;
 		public ITerminal Terminal { get; private set; }
@@ -112,7 +114,46 @@ namespace XtermSharp
 		/// <param name="index">Index to start setting tabs stops from.</param>
 		public void SetupTabStops (int index = -1)
 		{
-			
+			int cols = Terminal.Cols;
+
+			if (index != -1 && tabStops != null) {
+				if (!tabStops [index])
+					index = PreviousTabStop (index);
+			} else 
+				tabStops = new BitArray (cols);
+
+			int tabStopWidth = Terminal.Options.TabStopWidth ?? 8;
+			for (int i = 0; i < cols; i += tabStopWidth)
+				tabStops [i] = true;
+		}
+
+		/// <summary>
+		/// Move the cursor to the previous tab stop from the given position (default is current).
+		/// </summary>
+		/// <returns>The tab stop.</returns>
+		/// <param name="index">The position to move the cursor to the previous tab stop.</param>
+		public int PreviousTabStop (int index = -1)
+		{
+			if (index == -1)
+				index = X;
+			while (index > 0 && tabStops [--index])
+				;
+			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
+		}
+
+		/// <summary>
+		/// Move the cursor one tab stop forward from the given position (default is current).
+		/// </summary>
+		/// <returns>The tab stop.</returns>
+		/// <param name="index">The position to move the cursor one tab stop forward.</param>
+		public int NextTabStop (int index = -1)
+		{
+			if (index == -1) 
+				index = X;
+			while (index < Terminal.Cols && !tabStops [++index])
+				;
+			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
 		}
 	}
+
 }

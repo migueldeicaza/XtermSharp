@@ -5,6 +5,7 @@ namespace XtermSharp {
 	{
 		bool Rows { get; }
 		int? Scrollback { get; }
+		int? TabStopWidth { get; }
 	}
 
 	public interface ITerminal {
@@ -12,6 +13,5 @@ namespace XtermSharp {
 		int Cols { get; }
 		ITerminalOptions Options { get; }
 		CharData [] BlankLine (bool erase, bool isWrapped, int cols);
-		int? TabStopWidth { get; }
 	}
 }
