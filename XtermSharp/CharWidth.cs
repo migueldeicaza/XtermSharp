@@ -1,9 +1,9 @@
 ﻿using System;
 namespace XtermSharp {
-	public class CharWidth {
+	public static class RuneHelper {
 		// extracted from https://www.cl.cam.ac.uk/%7Emgk25/ucs/wcwidth.c
 
-		int [,] interval = new int [,] {
+		static uint [,] combining = new uint [,] {
 			{ 0x0300, 0x036F }, { 0x0483, 0x0486 }, { 0x0488, 0x0489 },
 			{ 0x0591, 0x05BD }, { 0x05BF, 0x05BF }, { 0x05C1, 0x05C2 },
 			{ 0x05C4, 0x05C5 }, { 0x05C7, 0x05C7 }, { 0x0600, 0x0603 },
@@ -47,9 +47,6 @@ namespace XtermSharp {
 			{ 0x3099, 0x309A }, { 0xA806, 0xA806 }, { 0xA80B, 0xA80B },
 			{ 0xA825, 0xA826 }, { 0xFB1E, 0xFB1E }, { 0xFE00, 0xFE0F },
 			{ 0xFE20, 0xFE23 }, { 0xFEFF, 0xFEFF }, { 0xFFF9, 0xFFFB },
-		};
-
-		int [,] intervalHigh = new int [,] {
 			{ 0x10A01, 0x10A03 }, { 0x10A05, 0x10A06 }, { 0x10A0C, 0x10A0F },
 			{ 0x10A38, 0x10A3A }, { 0x10A3F, 0x10A3F }, { 0x1D167, 0x1D169 },
 			{ 0x1D173, 0x1D182 }, { 0x1D185, 0x1D18B }, { 0x1D1AA, 0x1D1AD },
@@ -57,9 +54,55 @@ namespace XtermSharp {
 			{ 0xE0100, 0xE01EF }
 		};
 
-		public CharWidth ()
+		static int bisearch (uint rune, uint [,] table, int max) 
 		{
-			
+			int min = 0;
+			int mid;
+
+			if (rune < table [0,0]|| rune> table[max,1])
+				return 0;
+			while (max >= min) {
+				mid = (min + max) / 2;
+				if (rune > table [mid,1])
+					min = mid + 1;
+				else if (rune < table [mid,0])
+					max = mid - 1;
+				else
+					return 1;
+			}
+
+			return 0;
+		}
+
+		// 
+		// Returns the number of columns/characters that a rune uses
+		//
+		public static int ConsoleWidth (this uint rune)
+		{
+			if (rune < 32)
+				return 0;
+			if (rune < 127)
+				return 1;
+			if (rune >= 0x7f && rune <= 0xa0)
+				return 0;
+			/* binary search in table of non-spacing characters */
+			if (bisearch (rune, combining, combining.GetLength (0)) != 0)
+				return 0;
+			/* if we arrive here, ucs is not a combining or C0/C1 control character */
+			return 1 +
+				((rune >= 0x1100 &&
+				 (rune <= 0x115f ||                    /* Hangul Jamo init. consonants */
+				rune == 0x2329 || rune == 0x232a ||
+				(rune >= 0x2e80 && rune <= 0xa4cf &&
+				rune != 0x303f) ||                  /* CJK ... Yi */
+				(rune >= 0xac00 && rune <= 0xd7a3) || /* Hangul Syllables */
+				(rune >= 0xf900 && rune <= 0xfaff) || /* CJK Compatibility Ideographs */
+				(rune >= 0xfe10 && rune <= 0xfe19) || /* Vertical forms */
+				(rune >= 0xfe30 && rune <= 0xfe6f) || /* CJK Compatibility Forms */
+				(rune >= 0xff00 && rune <= 0xff60) || /* Fullwidth Forms */
+				(rune >= 0xffe0 && rune <= 0xffe6) ||
+				(rune >= 0x20000 && rune <= 0x2fffd) ||
+				  (rune >= 0x30000 && rune <= 0x3fffd))) ? 1 : 0);
 		}
 	}
 }
