@@ -6,8 +6,12 @@
 
   <ItemGroup>
     <Folder Include="Utils\" />
+    <Folder Include="Renderer\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="NStack.Core" Version="0.4.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Renderer.cs" />
   </ItemGroup>
 </Project>

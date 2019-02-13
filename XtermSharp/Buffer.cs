@@ -74,7 +74,7 @@ namespace XtermSharp
 		/// <summary>
 		/// Fills the buffer's viewport with blank lines.
 		/// </summary>
-		public void FillViewportRows ()
+		public void FillViewportRows (int? attribute = null)
 		{
 			// TODO: limitation in original, this does not cope with partial fills, it is either zero or nothing
 			if (lines.Length != 0)

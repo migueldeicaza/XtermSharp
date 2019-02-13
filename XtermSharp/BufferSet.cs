@@ -1,4 +1,7 @@
-﻿using System;
+﻿//
+// At: 857ae4b702b17381f6b862909a3570a6c3ab30b4
+//
+using System;
 namespace XtermSharp {
 
 	/// <summary>
@@ -24,15 +27,20 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
-		/// Raised when a buffer is activated, the parameters is the buffer that was activated.
+		/// Raised when a buffer is activated, the parameters is the buffer that was activated and the second parameter is the Inactive buffer.
 		/// </summary>
-		public event Action<Buffer> Activated;
+		public event Action<Buffer, Buffer> Activated;
 
 		/// <summary>
 		/// Sets the normal Buffer of the BufferSet as its currently active Buffer
 		/// </summary>
 		public void ActivateNormalBuffer ()
 		{
+			if (Active == Normal)
+				return;
+			Normal.X = Alt.X;
+			Normal.Y = Alt.Y;
+
 			// The alt buffer should always be cleared when we switch to the normal
 			// buffer. This frees up memory since the alt buffer should always be new
 			// when activated.
@@ -41,21 +49,26 @@ namespace XtermSharp {
 
 			Active = Normal;
 			if (Activated != null)
-				Activated (Normal);
+				Activated (Normal, Alt);
 		}
 
 		/// <summary>
 		/// Sets the alt Buffer of the BufferSet as its currently active Buffer
 		/// </summary>
-		public void ActivateAltBuffert ()
+		/// <param name="fillAttr">Attribute to fill the screen with</param>
+		public void ActivateAltBuffert (int? fillAttr)
 		{
+			if (Active == Alt)
+				return;
+			Alt.X = Normal.X;
+			Alt.Y = Normal.Y;
 			// Since the alt buffer is always cleared when the normal buffer is
 			// activated, we want to fill it when switching to it.
 
-			Alt.FillViewportRows ();
+			Alt.FillViewportRows (fillAttr);
 			Active = Alt;
 			if (Activated != null)
-				Activated (Alt);
+				Activated (Alt, Normal);
 		}
 
 		/// <summary>
