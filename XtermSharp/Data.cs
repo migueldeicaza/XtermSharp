@@ -1,7 +1,7 @@
 ﻿using System;
 
 namespace XtermSharp {
-	public struct 	CharData {
+	public struct 		CharData {
 		public int Attribute;
 		public Rune Rune;
 		public int Width;
