@@ -1,22 +1,31 @@
-﻿using System;
+﻿//
+// This could use an audit for the use of Rune when dealing with "code" values,
+// in particular in Execute code paths
+//
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using NStack;
+
 namespace Application {
 
-	interface IDcsHandler {
+	public interface IDcsHandler {
 		void Hook (string collect, int [] parameters, int flag);
 		void Put (int [] data, int start, int end);
 		void Unhook ();
 	}
 
 	// Dummy DCS Handler as defaulta fallback
-	public class DscDummy : IDcsHandler {
+	class DcsDummy : IDcsHandler {
 		public void Hook (string collect, int [] parameters, int flag) { }
 		public void Put (int [] data, int start, int end) { }
 		public void Unhook () { }
 	}
 
 	public enum ParserState {
-		Ground,
-		Escape,
+		Invalid = -1,
+		Ground = 0,
+		Escape, 
 		EscapeIntermediate,
 		CsiEntry,
 		CsiParam,
@@ -47,25 +56,25 @@ namespace Application {
 		/// <summary>
 		/// Print buffer start index (-1 for not set)
 		/// </summary>
-		int Print;
+		public int Print;
 		/// <summary>
 		///  Buffer start index (-1 for not set)
 		/// </summary>
-		int Dcs;
+		public int Dcs;
 		/// <summary>
 		/// Osc string buffer
 		/// </summary>
-		int Osc;
+		public string Osc;
 		/// <summary>
 		/// Collect buffer with intermediate characters
 		/// </summary>
-		string Collect;
+		public string Collect;
 		/// <summary>
 		/// Parameters buffer
 		/// </summary>
-		int [] Parameters;
+		public int [] Parameters;
 		// should abort (default: false)
-		bool Abort;
+		public bool Abort;
 
 	}
 
@@ -81,7 +90,7 @@ namespace Application {
 	// NOTE: The parameter element notation is currently not supported.
 	// TODO: implement error recovery hook via error handler return values
 	// 
-	public class EscapeSequenceParser {
+	public class EscapeSequenceParser : IDisposable {
 
 
 		enum ParserAction {
@@ -112,19 +121,23 @@ namespace Application {
 				table = new byte [length];
 			}
 
-			public void Add (int code, ParserState state, ParserAction action, ParserState next = -1)
+			public void Add (int code, ParserState state, ParserAction action, ParserState next = ParserState.Invalid)
 			{
-				table [state << 8 | code] = action << 4 | (next == -1) ? state : next);
+				table [(int)state << 8 | code] = (byte)((int)action << 4 | (int)(next == ParserState.Invalid ? state : next));
 			}
 
-			public void Add (int [] codes, ParserState state, ParserAcction action, ParserState next = -1)
+			public void Add (int [] codes, ParserState state, ParserAction action, ParserState next = ParserState.Invalid)
 			{
 				foreach (var c in codes)
 					Add (c, state, action, next);
 			}
+
+			public byte this [int idx] {
+				get => table [idx];
+			}
 		}
-		const int [] PRINTABLES = r (0x20, 0x7f);
-		const int [] EXECUTABLES = r (0x00, 0x19).Concat (r (0x1c, 0x20)).ToArray ();
+		static int [] PRINTABLES = r (0x20, 0x7f);
+		static int [] EXECUTABLES = r (0x00, 0x19).Concat (r (0x1c, 0x20)).ToArray ();
 
 		static int [] r (int low, int high)
 		{
@@ -135,14 +148,24 @@ namespace Application {
 			return arr;
 		}
 
+		static ParserState [] r (ParserState low, ParserState high)
+		{
+			var c = high - low;
+			var arr = new ParserState [c];
+			while (c-- > 0)
+				arr [c] = --high;
+			return arr;
+		}
+
+		const int NonAsciiPrintable = 0xa0;
+
 		static TransitionTable BuildVt500TransitionTable ()
 		{
-			const int NonAsciiPrintable = 0xa0;
 			var table = new TransitionTable (4095);
 			var states = r (ParserState.Ground, ParserState.DcsPassthrough + 1);
 
 			// table with default transition
-		    	for (var state in states) {
+			foreach (var state in states) {
 				for (var code = 0; code <= NonAsciiPrintable; ++code)
 					table.Add (code, state, ParserAction.Error, ParserState.Ground);
 			}
@@ -150,14 +173,14 @@ namespace Application {
 			table.Add (PRINTABLES, ParserState.Ground, ParserAction.Print, ParserState.Ground);
 
 			// global anwyhere rules
-		    	for (var state in states) {
-				table.Add (new { 0x18, 0x1a, 0x99, 0x9a }, state, ParserAction.Execute, ParserState.Ground);
+			foreach (var state in states) {
+				table.Add (new int [] { 0x18, 0x1a, 0x99, 0x9a }, state, ParserAction.Execute, ParserState.Ground);
 				table.Add (r (0x80, 0x90), state, ParserAction.Execute, ParserState.Ground);
 				table.Add (r (0x90, 0x98), state, ParserAction.Execute, ParserState.Ground);
 				table.Add (0x9c, state, ParserAction.Ignore, ParserState.Ground); // ST as terminator
 				table.Add (0x1b, state, ParserAction.Clear, ParserState.Escape);  // ESC
 				table.Add (0x9d, state, ParserAction.OscStart, ParserState.OscString);  // OSC
-				table.Add (new { 0x98, 0x9e, 0x9f }, state, ParserAction.Ignore, ParserState.SosPmApcString);
+				table.Add (new int [] { 0x98, 0x9e, 0x9f }, state, ParserAction.Ignore, ParserState.SosPmApcString);
 				table.Add (0x9b, state, ParserAction.Clear, ParserState.CsiEntry);  // CSI
 				table.Add (0x90, state, ParserAction.Clear, ParserState.DcsEntry);  // DCS
 			}
@@ -177,27 +200,27 @@ namespace Application {
 			table.Add (EXECUTABLES, ParserState.EscapeIntermediate, ParserAction.Execute, ParserState.EscapeIntermediate);
 			table.Add (0x7f, ParserState.EscapeIntermediate, ParserAction.Ignore, ParserState.EscapeIntermediate);
 			// osc
-			table.Add (0x5d, ParserState.Escape, ParserAction.Oscstart, ParserState.OscString);
-			table.Add (PRINTABLES, ParserState.OscString, ParserAction.Oscput, ParserState.OscString);
-			table.Add (0x7f, ParserState.OscString, ParserAction.Oscput, ParserState.OscString);
-			table.Add (new { 0x9c, 0x1b, 0x18, 0x1a, 0x07 }, ParserState.OscString, ParserAction.Oscend, ParserState.Ground);
+			table.Add (0x5d, ParserState.Escape, ParserAction.OscStart, ParserState.OscString);
+			table.Add (PRINTABLES, ParserState.OscString, ParserAction.OscPut, ParserState.OscString);
+			table.Add (0x7f, ParserState.OscString, ParserAction.OscPut, ParserState.OscString);
+			table.Add (new int [] { 0x9c, 0x1b, 0x18, 0x1a, 0x07 }, ParserState.OscString, ParserAction.OscEnd, ParserState.Ground);
 			table.Add (r (0x1c, 0x20), ParserState.OscString, ParserAction.Ignore, ParserState.OscString);
 			// sos/pm/apc does nothing
-			table.Add (new { 0x58, 0x5e, 0x5f }, ParserState.Escape, ParserAction.Ignore, ParserState.SosPmApcString);
+			table.Add (new int [] { 0x58, 0x5e, 0x5f }, ParserState.Escape, ParserAction.Ignore, ParserState.SosPmApcString);
 			table.Add (PRINTABLES, ParserState.SosPmApcString, ParserAction.Ignore, ParserState.SosPmApcString);
 			table.Add (EXECUTABLES, ParserState.SosPmApcString, ParserAction.Ignore, ParserState.SosPmApcString);
 			table.Add (0x9c, ParserState.SosPmApcString, ParserAction.Ignore, ParserState.Ground);
 			table.Add (0x7f, ParserState.SosPmApcString, ParserAction.Ignore, ParserState.SosPmApcString);
 			// csi entries
 			table.Add (0x5b, ParserState.Escape, ParserAction.Clear, ParserState.CsiEntry);
-			table.Add (r (0x40, 0x7f), ParserState.CsiEntry, ParserAction.Csidispatch, ParserState.Ground);
+			table.Add (r (0x40, 0x7f), ParserState.CsiEntry, ParserAction.CsiDispatch, ParserState.Ground);
 			table.Add (r (0x30, 0x3a), ParserState.CsiEntry, ParserAction.Param, ParserState.CsiParam);
 			table.Add (0x3b, ParserState.CsiEntry, ParserAction.Param, ParserState.CsiParam);
-			table.Add (new { 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.CsiEntry, ParserAction.Collect, ParserState.CsiParam);
+			table.Add (new int [] { 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.CsiEntry, ParserAction.Collect, ParserState.CsiParam);
 			table.Add (r (0x30, 0x3a), ParserState.CsiParam, ParserAction.Param, ParserState.CsiParam);
 			table.Add (0x3b, ParserState.CsiParam, ParserAction.Param, ParserState.CsiParam);
-			table.Add (r (0x40, 0x7f), ParserState.CsiParam, ParserAction.Csidispatch, ParserState.Ground);
-			table.Add (new { 0x3a, 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.CsiParam, ParserAction.Ignore, ParserState.CsiIgnore);
+			table.Add (r (0x40, 0x7f), ParserState.CsiParam, ParserAction.CsiDispatch, ParserState.Ground);
+			table.Add (new int [] { 0x3a, 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.CsiParam, ParserAction.Ignore, ParserState.CsiIgnore);
 			table.Add (r (0x20, 0x40), ParserState.CsiIgnore, ParserAction.Ignore, ParserState.CsiIgnore);
 			table.Add (0x7f, ParserState.CsiIgnore, ParserAction.Ignore, ParserState.CsiIgnore);
 			table.Add (r (0x40, 0x7f), ParserState.CsiIgnore, ParserAction.Ignore, ParserState.Ground);
@@ -205,16 +228,16 @@ namespace Application {
 			table.Add (r (0x20, 0x30), ParserState.CsiEntry, ParserAction.Collect, ParserState.CsiIntermediate);
 			table.Add (r (0x20, 0x30), ParserState.CsiIntermediate, ParserAction.Collect, ParserState.CsiIntermediate);
 			table.Add (r (0x30, 0x40), ParserState.CsiIntermediate, ParserAction.Ignore, ParserState.CsiIgnore);
-			table.Add (r (0x40, 0x7f), ParserState.CsiIntermediate, ParserAction.Csidispatch, ParserState.Ground);
+			table.Add (r (0x40, 0x7f), ParserState.CsiIntermediate, ParserAction.CsiDispatch, ParserState.Ground);
 			table.Add (r (0x20, 0x30), ParserState.CsiParam, ParserAction.Collect, ParserState.CsiIntermediate);
 			// escIntermediate
 			table.Add (r (0x20, 0x30), ParserState.Escape, ParserAction.Collect, ParserState.EscapeIntermediate);
 			table.Add (r (0x20, 0x30), ParserState.EscapeIntermediate, ParserAction.Collect, ParserState.EscapeIntermediate);
-			table.Add (r (0x30, 0x7f), ParserState.EscapeIntermediate, ParserAction.Escdispatch, ParserState.Ground);
-			table.Add (r (0x30, 0x50), ParserState.Escape, ParserAction.Escdispatch, ParserState.Ground);
-			table.Add (r (0x51, 0x58), ParserState.Escape, ParserAction.Escdispatch, ParserState.Ground);
-			table.Add (new { 0x59, 0x5a, 0x5c }, ParserState.Escape, ParserAction.Escdispatch, ParserState.Ground);
-			table.Add (r (0x60, 0x7f), ParserState.Escape, ParserAction.Escdispatch, ParserState.Ground);
+			table.Add (r (0x30, 0x7f), ParserState.EscapeIntermediate, ParserAction.EscDispatch, ParserState.Ground);
+			table.Add (r (0x30, 0x50), ParserState.Escape, ParserAction.EscDispatch, ParserState.Ground);
+			table.Add (r (0x51, 0x58), ParserState.Escape, ParserAction.EscDispatch, ParserState.Ground);
+			table.Add (new int [] { 0x59, 0x5a, 0x5c }, ParserState.Escape, ParserAction.EscDispatch, ParserState.Ground);
+			table.Add (r (0x60, 0x7f), ParserState.Escape, ParserAction.EscDispatch, ParserState.Ground);
 			// dcs entry
 			table.Add (0x50, ParserState.Escape, ParserAction.Clear, ParserState.DcsEntry);
 			table.Add (EXECUTABLES, ParserState.DcsEntry, ParserAction.Ignore, ParserState.DcsEntry);
@@ -224,7 +247,7 @@ namespace Application {
 			table.Add (0x3a, ParserState.DcsEntry, ParserAction.Ignore, ParserState.DcsIgnore);
 			table.Add (r (0x30, 0x3a), ParserState.DcsEntry, ParserAction.Param, ParserState.DcsParam);
 			table.Add (0x3b, ParserState.DcsEntry, ParserAction.Param, ParserState.DcsParam);
-			table.Add (new { 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.DcsEntry, ParserAction.Collect, ParserState.DcsParam);
+			table.Add (new int [] { 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.DcsEntry, ParserAction.Collect, ParserState.DcsParam);
 			table.Add (EXECUTABLES, ParserState.DcsIgnore, ParserAction.Ignore, ParserState.DcsIgnore);
 			table.Add (r (0x20, 0x80), ParserState.DcsIgnore, ParserAction.Ignore, ParserState.DcsIgnore);
 			table.Add (r (0x1c, 0x20), ParserState.DcsIgnore, ParserAction.Ignore, ParserState.DcsIgnore);
@@ -233,58 +256,418 @@ namespace Application {
 			table.Add (r (0x1c, 0x20), ParserState.DcsParam, ParserAction.Ignore, ParserState.DcsParam);
 			table.Add (r (0x30, 0x3a), ParserState.DcsParam, ParserAction.Param, ParserState.DcsParam);
 			table.Add (0x3b, ParserState.DcsParam, ParserAction.Param, ParserState.DcsParam);
-			table.Add (new { 0x3a, 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.DcsParam, ParserAction.Ignore, ParserState.DcsIgnore);
+			table.Add (new int [] { 0x3a, 0x3c, 0x3d, 0x3e, 0x3f }, ParserState.DcsParam, ParserAction.Ignore, ParserState.DcsIgnore);
 			table.Add (r (0x20, 0x30), ParserState.DcsParam, ParserAction.Collect, ParserState.DcsIntermediate);
 			table.Add (EXECUTABLES, ParserState.DcsIntermediate, ParserAction.Ignore, ParserState.DcsIntermediate);
 			table.Add (0x7f, ParserState.DcsIntermediate, ParserAction.Ignore, ParserState.DcsIntermediate);
 			table.Add (r (0x1c, 0x20), ParserState.DcsIntermediate, ParserAction.Ignore, ParserState.DcsIntermediate);
 			table.Add (r (0x20, 0x30), ParserState.DcsIntermediate, ParserAction.Collect, ParserState.DcsIntermediate);
 			table.Add (r (0x30, 0x40), ParserState.DcsIntermediate, ParserAction.Ignore, ParserState.DcsIgnore);
-			table.Add (r (0x40, 0x7f), ParserState.DcsIntermediate, ParserAction.Dcshook, ParserState.DcsPassthrough);
-			table.Add (r (0x40, 0x7f), ParserState.DcsParam, ParserAction.Dcshook, ParserState.DcsPassthrough);
-			table.Add (r (0x40, 0x7f), ParserState.DcsEntry, ParserAction.Dcshook, ParserState.DcsPassthrough);
-			table.Add (EXECUTABLES, ParserState.DcsPassthrough, ParserAction.Dcsput, ParserState.DcsPassthrough);
-			table.Add (PRINTABLES, ParserState.DcsPassthrough, ParserAction.Dcsput, ParserState.DcsPassthrough);
+			table.Add (r (0x40, 0x7f), ParserState.DcsIntermediate, ParserAction.DcsHook, ParserState.DcsPassthrough);
+			table.Add (r (0x40, 0x7f), ParserState.DcsParam, ParserAction.DcsHook, ParserState.DcsPassthrough);
+			table.Add (r (0x40, 0x7f), ParserState.DcsEntry, ParserAction.DcsHook, ParserState.DcsPassthrough);
+			table.Add (EXECUTABLES, ParserState.DcsPassthrough, ParserAction.DcsPut, ParserState.DcsPassthrough);
+			table.Add (PRINTABLES, ParserState.DcsPassthrough, ParserAction.DcsPut, ParserState.DcsPassthrough);
 			table.Add (0x7f, ParserState.DcsPassthrough, ParserAction.Ignore, ParserState.DcsPassthrough);
-			table.Add (new { 0x1b, 0x9c }, ParserState.DcsPassthrough, ParserAction.Dcsunhook, ParserState.Ground);
-			table.Add (NonAsciiPrintable, ParserState.OscString, ParserAction.Oscput, ParserState.OscString);
+			table.Add (new int [] { 0x1b, 0x9c }, ParserState.DcsPassthrough, ParserAction.DcsUnhook, ParserState.Ground);
+			table.Add (NonAsciiPrintable, ParserState.OscString, ParserAction.OscPut, ParserState.OscString);
 
-			returm table;
+			return table;
 		}
 
 		protected delegate bool CsiHandler (int [] parameters, string collect);
 		protected delegate bool OscHandler (string data);
+		protected delegate void EscHandler (string collect, int flag);
+		protected delegate void PrintHandler (int [] data, int start, int end);
+		protected delegate void ExecuteHandler (Rune code);
 
 		// Handler lookup container
-		protected Dictionary<string, CsiHandler> CsiHandlers;
-		protected Dictionary<string, OscHandler> OscHandlers;
-		protected Dictionary<string, Action> ExecuteHandlers;
-		protected Dictionary<string, Action> EscHandlers;
-		protected Dictionary<string, Action> DscHandlers;
+		protected Dictionary<Rune, List<CsiHandler>> CsiHandlers;
+		protected Dictionary<int, List<OscHandler>> OscHandlers;
+		protected Dictionary<Rune, ExecuteHandler> ExecuteHandlers;
+		protected Dictionary<string, EscHandler> EscHandlers;
+		protected Dictionary<string, IDcsHandler> DcsHandlers;
 		protected IDcsHandler ActiveDcsHandler;
-		protected Action<ParsingState> ErrorHandler;
+		protected Func<ParsingState, ParsingState> ErrorHandler;
 
 		public ParserState initialState, currentState;
 
-		// Fallacb handlers
-		protected Action<int [], int, int> PrintHandlerFallback = (data, start, end) => { }
-  		protected Action<int> ExecuteHandlerFallback = (code) => { };
-		protected Action<string, int [], int> CsiHandlerFallback => (collect, parameters, flag) = {};
-		protected Action<string, int> EscHandlerFallback => (collect, int flag) = {};
+		static void EmptyExecuteHandler (Rune code) { }
+		static ParsingState EmptyErrorHandler (ParsingState state) => state;
+
+		// Fallback handlers
+		protected PrintHandler PrintHandlerFallback = (data, start, end) => { };
+		protected ExecuteHandler ExecuteHandlerFallback = EmptyExecuteHandler;
+		protected Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { };
+		protected EscHandler EscHandlerFallback = (collect, flag) => { };
 		protected Action<int, string> OscHandlerFallback = (identifier, data) => { };
 		protected IDcsHandler DcsHandlerFallback = new DcsDummy ();
-  		protected Func<ParsingState, ParsingState> ErrorHandlerFallback = (state) => state;
+		protected Func<ParsingState, ParsingState> ErrorHandlerFallback = (state) => state;
 
 		// buffers over several parser calls
 		string _osc;
-		int [] _params;
+		List<int> _pars;
 		string _collect;
-		Action<int [], int, int> printHandler = (data, start, end) => { };
+		PrintHandler printHandler = (data, start, end) => { };
 
 		TransitionTable table;
 		public EscapeSequenceParser ()
 		{
-			table = BuildVt500TransitionTable ();x
+			table = BuildVt500TransitionTable ();
+			initialState = ParserState.Ground;
+			currentState = initialState;
+			_osc = "";
+			_pars = new List<int>();
+			_collect = "";
+			SetEscHandler ("\\", EscHandlerFallback);
+
+			CsiHandlers = new Dictionary<Rune, List<CsiHandler>> ();
+			OscHandlers = new Dictionary<int, List<OscHandler>> ();
+			ExecuteHandlers = null;
+			EscHandlers = null;
+			DcsHandlers = null;
+		}
+
+		public void Dispose ()
+		{
+			CsiHandlers = null;
+			OscHandlers = null;
+			ExecuteHandlers = null;
+			EscHandlers = null;
+			DcsHandlers = null;
+			ActiveDcsHandler = null;
+			ErrorHandler = null;
+			PrintHandlerFallback = null;
+			ExecuteHandlerFallback = null;
+			CsiHandlerFallback = null;
+			EscHandlerFallback = null;
+			OscHandlerFallback = null;
+			DcsHandlerFallback = null;
+			ErrorHandlerFallback = null;
+			printHandler = null;
+		}
+
+		void SetPrintHandler (PrintHandler printHandler) => this.printHandler = printHandler;
+		void ClearPrintHandler () => printHandler = PrintHandlerFallback;
+
+		void SetExecuteHandler (Rune flag, ExecuteHandler handler) => ExecuteHandlers [flag] = handler;
+		void ClearExecuteHandler (Rune flag) => ExecuteHandlers [flag] = EmptyExecuteHandler;
+		void SetExecuteHandlerFallback (ExecuteHandler fallback) => ExecuteHandlerFallback = fallback;
+
+		void SetEscHandler (string flag, EscHandler callback) => EscHandlers [flag] = callback;
+		void ClearEscHandler (string flag) => EscHandlers.Remove (flag);
+		void SetEscHandlerFallback (EscHandler fallback) => EscHandlerFallback = fallback;
+
+		class CsiHandlerRemover : IDisposable {
+			public List<CsiHandler> Container;
+			public CsiHandler ToRemove;
+
+			void IDisposable.Dispose ()
+			{
+				Container.Remove (ToRemove);
+			}
+		}
+
+		IDisposable AddCsiHandler (Rune flag, CsiHandler callback)
+		{
+			List<CsiHandler> list;
+
+			if (!CsiHandlers.ContainsKey (flag)) {
+				list = new List<CsiHandler> ();
+				CsiHandlers [flag] = list;
+			} else
+				list = CsiHandlers [flag];
+
+			list.Add (callback);
+			return new CsiHandlerRemover () {
+				Container = list,
+				ToRemove = callback
+			};
+		}
+
+		void SetCsiHandler (Rune flag, CsiHandler callback) => CsiHandlers [flag] = new List<CsiHandler> () { callback };
+		void ClearCsiHandler (Rune flag) => CsiHandlers.Remove (flag);
+		void SetCsiHandlerFallback (Action<string,int[],int> fallback) => CsiHandlerFallback = fallback;
+
+		class OscHandlerRemover : IDisposable {
+			public List<OscHandler> Container;
+			public OscHandler ToRemove;
+
+			void IDisposable.Dispose ()
+			{
+				Container.Remove (ToRemove);
+			}
+		}
+
+		IDisposable AddOscHandler (int identifier, OscHandler callback)
+		{
+			List<OscHandler> list;
+
+			if (!OscHandlers.ContainsKey (identifier)) {
+				list = new List<OscHandler> ();
+				OscHandlers [identifier] = list;
+			} else
+				list = OscHandlers [identifier];
+
+			list.Add (callback);
+			return new OscHandlerRemover () {
+				Container = list,
+				ToRemove = callback
+			};
+		}
+
+		void SetOscHandler (int identifier, OscHandler callback) => OscHandlers [identifier] = new List<OscHandler> () { callback };
+		void ClearOscHandler (int identifier) => OscHandlers.Remove (identifier);
+		void SetOscHandlerFallback (Action<int, string> fallback) => OscHandlerFallback = fallback;
+
+		void SetDcsHandler (string flag, IDcsHandler handler) => DcsHandlers [flag] = handler;
+		void ClearDcsHandler (string flag) => DcsHandlers.Remove (flag);
+		void SetDcsHandlerFallback (IDcsHandler fallback) => DcsHandlerFallback = fallback;
+
+		void SetErrorHandler (Func<ParsingState,ParsingState> errorHandler) => ErrorHandler = errorHandler;
+		void ClearErrorHandler () => ErrorHandler = EmptyErrorHandler;
+
+		void Reset ()
+		{
+			currentState = initialState;
+			_osc = "";
+			_pars.Clear ();
+			_collect = "";
+			ActiveDcsHandler = null;
+		}
+
+		void Parse (int [] data, int len)
+		{
+			var code = 0;
+			var transition = 0;
+			var error = false;
+			var currentState = this.currentState;
+			var print = -1;
+			var dcs = -1;
+			var osc = this._osc;
+			var collect = this._collect;
+			var pars = this._pars;
+			var dcsHandler = ActiveDcsHandler;
+
+			// process input string
+			for (var i = 0; i < len; ++i) {
+				code = data [i];
+
+				// shortcut for most chars (print action)
+				if (currentState == ParserState.Ground && code > 0x1f && code < 0x80) {
+					print = (~print != 0) ? print : i;
+					do { i++; } while (i < len && data [i] > 0x1f && data [i] < 0x80);
+					i--;
+					continue;
+				}
+
+				// shorcut for CSI params
+				if (currentState == ParserState.CsiParam && (code > 0x2f && code < 0x39)) {
+					pars [pars.Count - 1] = pars [pars.Count - 1] * 10 + code - 48;
+					continue;
+				}
+
+				// Normal transition and action lookup
+				transition = table [(int)currentState << 4 | (code < 0xa0 ? code : NonAsciiPrintable)];
+				switch ((ParserAction)(transition >> 4)) {
+				case ParserAction.Print:
+					print = (~print != 0) ? print : i;
+					break;
+				case ParserAction.Execute:
+					if (~print != 0) {
+						printHandler (data, print, i);
+						print = -1;
+					}
+					if (ExecuteHandlers.TryGetValue ((Rune)code, out var callback))
+						callback ((Rune)code);
+					else
+						ExecuteHandlerFallback ((Rune)code);
+					break;
+				case ParserAction.Ignore:
+					// handle leftover print or dcs chars
+					if (~print != 0) {
+						printHandler (data, print, i);
+						print = -1;
+					} else if (~dcs != 0) {
+						dcsHandler.Put (data, dcs, i);
+						dcs = -1;
+					}
+					break;
+				case ParserAction.Error:
+					// chars higher than 0x9f are handled by this action
+					// to keep the transition table small
+					if (code > 0x9f) {
+						switch (currentState) {
+						case ParserState.Ground:
+							print = (~print != 0) ? print : i;
+							break;
+						case ParserState.CsiIgnore:
+							transition |= (int)ParserState.CsiIgnore;
+							break;
+						case ParserState.DcsIgnore:
+							transition |= (int)ParserState.DcsIgnore;
+							break;
+						case ParserState.DcsPassthrough:
+							dcs = (~dcs != 0) ? dcs : i;
+							transition |= (int)ParserState.DcsPassthrough;
+							break;
+						default:
+							error = true;
+							break;
+						}
+					} else {
+						error = true;
+					}
+					// if we end up here a real error happened
+					if (error) {
+						var inject = ErrorHandler (new ParsingState () {
+							Position = i,
+							Code = code,
+							CurrentState = currentState,
+							Print = print,
+							Dcs = dcs,
+							Osc = osc,
+							Collect = collect,
+						});
+						if (inject.Abort)
+							return;
+						error = false;
+					}
+					break;
+				case ParserAction.CsiDispatch:
+					// Trigger CSI handler
+					var csiHandlers = CsiHandlers [(Rune)code];
+					var jj = csiHandlers != null ? csiHandlers.Count - 1 : -1;
+					for (; jj >= 0; jj--) {
+						if (csiHandlers [jj] (pars.ToArray(), collect))
+							break;
+					}
+					if (jj < 0)
+						CsiHandlerFallback (collect, pars.ToArray (), code);
+					break;
+				case ParserAction.Param:
+					if (code == 0x3b)
+						pars.Add (0);
+					else
+						pars [pars.Count - 1] = pars [pars.Count - 1] * 10 + code - 48;
+					break;
+				case ParserAction.Collect:
+					// AUDIT: make collect a ustring
+					collect += (char)(code);
+					break;
+				case ParserAction.EscDispatch:
+					if (EscHandlers.TryGetValue (collect + (char)code, out var ehandler))
+						ehandler (collect, code);
+					else
+						EscHandlerFallback (collect, code);
+					break;
+				case ParserAction.Clear:
+					if (~print != 0) {
+						printHandler (data, print, i);
+						print = -1;
+					}
+					osc = "";
+					pars.Clear ();
+					collect = "";
+					dcs = -1;
+					break;
+				case ParserAction.DcsHook:
+					if (DcsHandlers.TryGetValue (collect + (char)code, out var dhandler))
+						dhandler.Hook (collect, pars.ToArray (), code);
+					else
+						DcsHandlerFallback.Hook (collect, pars.ToArray (), code);
+					break;
+				case ParserAction.DcsPut:
+					dcs = (~dcs != 0) ? dcs : i;
+					break;
+				case ParserAction.DcsUnhook:
+					if (dcsHandler != null) {
+						if (~dcs != 0)
+							dcsHandler.Put (data, dcs, i);
+						dcsHandler.Unhook ();
+						dcsHandler = null;
+					}
+					if (code == 0x1b)
+						transition |= (int)ParserState.Escape;
+					osc = "";
+					pars.Clear ();
+					collect = "";
+					dcs = -1;
+					break;
+				case ParserAction.OscStart:
+					if (~print != 0) {
+						printHandler (data, print, i);
+						print = -1;
+					}
+					osc = "";
+					break;
+				case ParserAction.OscPut:
+					for (var j = i + 1; ; j++) {
+						if (j > len || (data [j] < 0x20) || (data [j] > 0x7f && data [j] < 0x9f)) {
+							var runes = new Rune [j - i];
+							for (int k = i; k < j; k++)
+								runes [k] = (Rune) data [j];
+			    				// TODO: Audit
+							osc += ustring.Make (runes).ToString ();
+							i = j - 1;
+							break;
+						}
+					}
+					break;
+				case ParserAction.OscEnd:
+					if (osc != "" && code != 0x18 && code != 0x1a) {
+						// NOTE: OSC subparsing is not part of the original parser
+						// we do basic identifier parsing here to offer a jump table for OSC as well
+						int idx = osc.IndexOf (';');
+						if (idx == -1) {
+							OscHandlerFallback (-1, osc); // this is an error mal-formed OSC
+						} else {
+							// Note: NaN is not handled here
+							// either catch it with the fallback handler
+							// or with an explicit NaN OSC handler
+							int identifier = 0;
+							Int32.TryParse (osc.Substring (0, idx), out identifier);
+							var content = osc.Substring (idx + 1);
+							// Trigger OSC handler
+							int c = -1;
+							if (OscHandlers.TryGetValue (identifier, out var ohandlers)) {
+								c = ohandlers.Count - 1;
+								for (; c >= 0; c--) {
+									if (ohandlers [c] (content))
+										break;
+								}
+							}
+							if (c < 0)
+								OscHandlerFallback (identifier, content);
+						}
+					}
+					if (code == 0x1b)
+						transition |= (int)ParserState.Escape;
+					osc = "";
+					pars.Clear ();
+					collect = "";
+					dcs = -1;
+					break;
+				}
+				currentState = (ParserState)(transition & 15);
+			}
+			// push leftover pushable buffers to terminal
+			if (currentState == ParserState.Ground && (~print != 0)) {
+				printHandler (data, print, len);
+			} else if (currentState == ParserState.DcsPassthrough && (~dcs != 0) && dcsHandler != null) {
+				dcsHandler.Put (data, dcs, len);
+			}
+
+			// save non pushable buffers
+			_osc = osc;
+			_collect = collect;
+			_pars = pars;
+
+			// save active dcs handler reference
+			ActiveDcsHandler = dcsHandler;
+
+			// save state
+			this.currentState = currentState;
 		}
 	}
 }

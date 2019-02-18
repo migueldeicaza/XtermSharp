@@ -3,12 +3,12 @@
 
 - [ ] AccessibilityManager.ts
 - [x] Buffer.ts
-- [ ] BufferLine.ts
+- [x] BufferLine.ts
 - [ ] BufferReflow.ts
-- [ ] BufferSet.ts
+- [x] BufferSet.ts
 - [x] CharWidth.ts
 - [ ] CompositionHelper.ts
-- [ ] EscapeSequenceParser.ts
+- [x] EscapeSequenceParser.ts
 - [ ] InputHandler.ts
 - [ ] Linkifier.ts
 - [ ] SelectionManager.ts
