@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NStack;
 
-namespace Application {
+namespace XtermSharp {
 
 	public interface IDcsHandler {
 		void Hook (string collect, int [] parameters, int flag);
@@ -275,34 +275,39 @@ namespace Application {
 			return table;
 		}
 
-		protected delegate bool CsiHandler (int [] parameters, string collect);
-		protected delegate bool OscHandler (string data);
-		protected delegate void EscHandler (string collect, int flag);
-		protected delegate void PrintHandler (int [] data, int start, int end);
-		protected delegate void ExecuteHandler (Rune code);
+		internal void SetEscHandler (string v, ExecuteHandler nextLine)
+		{
+			throw new NotImplementedException ();
+		}
+
+		public delegate bool CsiHandler (int [] parameters, string collect);
+		public delegate bool OscHandler (string data);
+		public delegate void EscHandler (string collect, int flag);
+		public delegate void PrintHandler (int [] data, int start, int end);
+		public delegate void ExecuteHandler (byte code);
 
 		// Handler lookup container
-		protected Dictionary<Rune, List<CsiHandler>> CsiHandlers;
-		protected Dictionary<int, List<OscHandler>> OscHandlers;
-		protected Dictionary<Rune, ExecuteHandler> ExecuteHandlers;
-		protected Dictionary<string, EscHandler> EscHandlers;
-		protected Dictionary<string, IDcsHandler> DcsHandlers;
-		protected IDcsHandler ActiveDcsHandler;
-		protected Func<ParsingState, ParsingState> ErrorHandler;
+		public Dictionary<Rune, List<CsiHandler>> CsiHandlers;
+		public Dictionary<int, List<OscHandler>> OscHandlers;
+		public Dictionary<byte, ExecuteHandler> ExecuteHandlers;
+		public Dictionary<string, EscHandler> EscHandlers;
+		public Dictionary<string, IDcsHandler> DcsHandlers;
+		public IDcsHandler ActiveDcsHandler;
+		public Func<ParsingState, ParsingState> ErrorHandler;
 
 		public ParserState initialState, currentState;
 
-		static void EmptyExecuteHandler (Rune code) { }
+		static void EmptyExecuteHandler (byte code) { }
 		static ParsingState EmptyErrorHandler (ParsingState state) => state;
 
 		// Fallback handlers
-		protected PrintHandler PrintHandlerFallback = (data, start, end) => { };
-		protected ExecuteHandler ExecuteHandlerFallback = EmptyExecuteHandler;
-		protected Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { };
-		protected EscHandler EscHandlerFallback = (collect, flag) => { };
-		protected Action<int, string> OscHandlerFallback = (identifier, data) => { };
-		protected IDcsHandler DcsHandlerFallback = new DcsDummy ();
-		protected Func<ParsingState, ParsingState> ErrorHandlerFallback = (state) => state;
+		public PrintHandler PrintHandlerFallback = (data, start, end) => { };
+		public ExecuteHandler ExecuteHandlerFallback = EmptyExecuteHandler;
+		public Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { };
+		public EscHandler EscHandlerFallback = (collect, flag) => { };
+		public Action<int, string> OscHandlerFallback = (identifier, data) => { };
+		public IDcsHandler DcsHandlerFallback = new DcsDummy ();
+		public Func<ParsingState, ParsingState> ErrorHandlerFallback = (state) => state;
 
 		// buffers over several parser calls
 		string _osc;
@@ -347,16 +352,16 @@ namespace Application {
 			printHandler = null;
 		}
 
-		void SetPrintHandler (PrintHandler printHandler) => this.printHandler = printHandler;
-		void ClearPrintHandler () => printHandler = PrintHandlerFallback;
+		public void SetPrintHandler (PrintHandler printHandler) => this.printHandler = printHandler;
+		public void ClearPrintHandler () => printHandler = PrintHandlerFallback;
 
-		void SetExecuteHandler (Rune flag, ExecuteHandler handler) => ExecuteHandlers [flag] = handler;
-		void ClearExecuteHandler (Rune flag) => ExecuteHandlers [flag] = EmptyExecuteHandler;
-		void SetExecuteHandlerFallback (ExecuteHandler fallback) => ExecuteHandlerFallback = fallback;
+		public void SetExecuteHandler (byte flag, ExecuteHandler handler) => ExecuteHandlers [flag] = handler;
+		public void ClearExecuteHandler (byte flag) => ExecuteHandlers [flag] = EmptyExecuteHandler;
+		public void SetExecuteHandlerFallback (ExecuteHandler fallback) => ExecuteHandlerFallback = fallback;
 
-		void SetEscHandler (string flag, EscHandler callback) => EscHandlers [flag] = callback;
-		void ClearEscHandler (string flag) => EscHandlers.Remove (flag);
-		void SetEscHandlerFallback (EscHandler fallback) => EscHandlerFallback = fallback;
+		public void SetEscHandler (string flag, EscHandler callback) => EscHandlers [flag] = callback;
+		public void ClearEscHandler (string flag) => EscHandlers.Remove (flag);
+		public void SetEscHandlerFallback (EscHandler fallback) => EscHandlerFallback = fallback;
 
 		class CsiHandlerRemover : IDisposable {
 			public List<CsiHandler> Container;
@@ -385,9 +390,9 @@ namespace Application {
 			};
 		}
 
-		void SetCsiHandler (Rune flag, CsiHandler callback) => CsiHandlers [flag] = new List<CsiHandler> () { callback };
-		void ClearCsiHandler (Rune flag) => CsiHandlers.Remove (flag);
-		void SetCsiHandlerFallback (Action<string,int[],int> fallback) => CsiHandlerFallback = fallback;
+		public void SetCsiHandler (Rune flag, CsiHandler callback) => CsiHandlers [flag] = new List<CsiHandler> () { callback };
+		public void ClearCsiHandler (Rune flag) => CsiHandlers.Remove (flag);
+		public void SetCsiHandlerFallback (Action<string,int[],int> fallback) => CsiHandlerFallback = fallback;
 
 		class OscHandlerRemover : IDisposable {
 			public List<OscHandler> Container;
@@ -416,16 +421,16 @@ namespace Application {
 			};
 		}
 
-		void SetOscHandler (int identifier, OscHandler callback) => OscHandlers [identifier] = new List<OscHandler> () { callback };
-		void ClearOscHandler (int identifier) => OscHandlers.Remove (identifier);
-		void SetOscHandlerFallback (Action<int, string> fallback) => OscHandlerFallback = fallback;
-
-		void SetDcsHandler (string flag, IDcsHandler handler) => DcsHandlers [flag] = handler;
-		void ClearDcsHandler (string flag) => DcsHandlers.Remove (flag);
-		void SetDcsHandlerFallback (IDcsHandler fallback) => DcsHandlerFallback = fallback;
-
-		void SetErrorHandler (Func<ParsingState,ParsingState> errorHandler) => ErrorHandler = errorHandler;
-		void ClearErrorHandler () => ErrorHandler = EmptyErrorHandler;
+		public void SetOscHandler (int identifier, OscHandler callback) => OscHandlers [identifier] = new List<OscHandler> () { callback };
+		public void ClearOscHandler (int identifier) => OscHandlers.Remove (identifier);
+		public void SetOscHandlerFallback (Action<int, string> fallback) => OscHandlerFallback = fallback;
+		 
+		public void SetDcsHandler (string flag, IDcsHandler handler) => DcsHandlers [flag] = handler;
+		public void ClearDcsHandler (string flag) => DcsHandlers.Remove (flag);
+		public void SetDcsHandlerFallback (IDcsHandler fallback) => DcsHandlerFallback = fallback;
+		 
+		public void SetErrorHandler (Func<ParsingState,ParsingState> errorHandler) => ErrorHandler = errorHandler;
+		public void ClearErrorHandler () => ErrorHandler = EmptyErrorHandler;
 
 		void Reset ()
 		{
@@ -436,7 +441,7 @@ namespace Application {
 			ActiveDcsHandler = null;
 		}
 
-		void Parse (int [] data, int len)
+		public void Parse (int [] data, int len)
 		{
 			var code = 0;
 			var transition = 0;
@@ -478,10 +483,10 @@ namespace Application {
 						printHandler (data, print, i);
 						print = -1;
 					}
-					if (ExecuteHandlers.TryGetValue ((Rune)code, out var callback))
-						callback ((Rune)code);
+					if (ExecuteHandlers.TryGetValue ((byte)code, out var callback))
+						callback ((byte)code);
 					else
-						ExecuteHandlerFallback ((Rune)code);
+						ExecuteHandlerFallback ((byte)code);
 					break;
 				case ParserAction.Ignore:
 					// handle leftover print or dcs chars
