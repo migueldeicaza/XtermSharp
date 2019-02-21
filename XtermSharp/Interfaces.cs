@@ -12,6 +12,6 @@ namespace XtermSharp {
 		int Rows { get; }
 		int Cols { get; }
 		ITerminalOptions Options { get; }
-		CharData [] BlankLine (bool erase, bool isWrapped, int cols);
+		BufferLine BlankLine (bool erase, bool isWrapped, int cols);
 	}
 }

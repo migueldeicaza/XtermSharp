@@ -29,7 +29,7 @@ namespace XtermSharp {
 			data = new List<Rune> ();
 		}
 
-		public void Put (int [] data, int start, int end)
+		public void Put (uint [] data, int start, int end)
 		{
 			for (int i = start; i < end; i++)
 				this.data.Add ((Rune) data [i]);
@@ -134,7 +134,7 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('u', (pars, collect) => RestoreCursor (pars));
 
 			// Execute Handler
-			parser.SetExecuteHandler (7, Bell);
+			parser.SetExecuteHandler (7, terminal.Bell);
 			parser.SetExecuteHandler (10, LineFeed);
 			parser.SetExecuteHandler (11, LineFeed);
 			parser.SetExecuteHandler (12, LineFeed);
@@ -146,7 +146,7 @@ namespace XtermSharp {
 			// Comment in original FIXME:   What do to with missing? Old code just added those to print.
 
 			// some C1 control codes - FIXME: should those be enabled by default?
-			parser.SetExecuteHandler (0x84 /* Index */, Index);
+			parser.SetExecuteHandler (0x84 /* Index */, (x) => terminal.Index ());
 			parser.SetExecuteHandler (0x85 /* Next Line */, NextLine);
 			parser.SetExecuteHandler (0x88 /* Horizontal Tabulation Set */, TabSet);
 
@@ -193,7 +193,7 @@ namespace XtermSharp {
 			// 
 			parser.SetEscHandler ("7", SaveCursor);
 			parser.SetEscHandler ("8", RestoreCursor);
-			parser.SetEscHandler ("D", Index);
+			parser.SetEscHandler ("D", (c) => terminal.Index ());
 			parser.SetEscHandler ("E", NextLine);
 			parser.SetEscHandler ("H", TabSet);
 			parser.SetEscHandler ("M", ReverseIndex);
@@ -216,6 +216,34 @@ namespace XtermSharp {
 				parser.SetEscHandler ("." + flag, (code) => SelectCharset ("." + flag));
 				parser.SetEscHandler ("/" + flag, (code) => SelectCharset ("/" + flag)); // TODO: supported?
 			}
+
+			// Error handler
+			parser.SetErrorHandler ((state) => {
+				terminal.Error ("Parsing error, state: ", state);
+				return state;
+			});
+
+			// DCS Handler
+			parser.SetDcsHandler ("$q", new DECRQSS (terminal));
+		}
+
+		public event Action<InputHandler> CursorMoved;
+
+		public void Parse (byte [] data)
+		{
+			var buffer = terminal.Buffer;
+			var cursorStartX = buffer.X;
+			var cursorStartY = buffer.Y;
+
+			if (terminal.Debug)
+				terminal.Log ("data: " + data);
+			var ustr = ustring.Make (data);
+			var runes = ustr.ToRunes ();
+			parser.Parse (runes, runes.Length);
+
+			buffer = terminal.Buffer;
+			if (buffer.X != cursorStartX || buffer.Y != cursorStartY)
+				CursorMoved (this);
 		}
 
 		private bool InsertLines (int [] pars)
@@ -240,7 +268,8 @@ namespace XtermSharp {
 
 		void Reset (byte code)
 		{
-			throw new NotImplementedException ();
+			parser.Reset ();
+			terminal.Reset ();
 		}
 
 		void KeypadNumericMode (byte code)
@@ -278,44 +307,62 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		void Index (byte code)
-		{
-			throw new NotImplementedException ();
-		}
-
+		// SI
+		// ShiftIn (Control-O) Switch to standard character set.  This invokes the G0 character set
 		void ShiftIn (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.SetgLevel (0);
 		}
 
+		// SO
+		// ShiftOut (Control-N) Switch to alternate character set.  This invokes the G1 character set
 		void ShiftOut (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.SetgLevel (1);
 		}
 
+		//
+		// Horizontal tab (Control-I)
+		//
 		void Tab (byte code)
 		{
-			throw new NotImplementedException ();
+			var originalX = terminal.Buffer.X;
+			terminal.Buffer.X = terminal.Buffer.NextTabStop ();
+			if (terminal.Options.ScreenReaderMode)
+				terminal.EmitA11yTab (terminal.Buffer.X - originalX);
 		}
 
+		// 
+		// Backspace handler (Control-h)
+		//
 		void Backspace (byte code)
 		{
-			throw new NotImplementedException ();
+			if (terminal.Buffer.X > 0)
+				terminal.Buffer.X--;
 		}
 
 		void CarriageReturn (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.Buffer.X = 0;
 		}
 
 		void LineFeed (byte code)
 		{
-			throw new NotImplementedException ();
-		}
+			var buffer = terminal.Buffer;
+			if (terminal.Options.ConvertEol)
+				buffer.X = 0;
+			buffer.Y++;
+			if (buffer.Y > buffer.ScrollBottom) {
+				buffer.Y--;
+				terminal.Scroll (isWrapped: false);
+			}
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= terminal.Cols) {
+				buffer.X--;
+			}
 
-		void Bell (byte code)
-		{
-			throw new NotImplementedException ();
+			// This event is emitted whenever the terminal outputs a LF or NL.
+			terminal.EmitLineFeed ();
 		}
 
 		bool RestoreCursor (int [] pars)
@@ -463,39 +510,229 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		bool CursorNextLine (int [] pars)
+		// 
+		// CSI Ps E
+		// Cursor Next Line Ps Times (default = 1) (CNL).
+		// same as CSI Ps B?
+		// 
+		void CursorNextLine (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			buffer.Y += param;
+			if (buffer.Y >= terminal.Rows)
+				buffer.Y = terminal.Rows - 1;
+
+			buffer.X = 0;
 		}
 
-		bool CursorBackward (int [] pars)
+		// 
+		// CSI Ps D
+		// Cursor Backward Ps Times (default = 1) (CUB).
+		// 
+		void CursorBackward (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= terminal.Cols) {
+				buffer.X--;
+			}
+			buffer.X -= param;
+			if (buffer.X < 0)
+				buffer.X = 0;
 		}
 
-		bool CursorForward (int [] pars)
+		// 
+		// CSI Ps B
+		// Cursor Forward Ps Times (default = 1) (CUF).
+		// 
+		void CursorForward (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			buffer.X += param;
+			if (buffer.X > terminal.Cols)
+				buffer.X = terminal.Cols - 1;
 		}
 
-		bool CursorDown (int [] pars)
+		// 
+		// CSI Ps B
+		// Cursor Down Ps Times (default = 1) (CUD).
+		// 
+		void CursorDown (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			buffer.Y += param;
+			if (buffer.Y > terminal.Rows)
+				buffer.Y = terminal.Rows - 1;
+
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= terminal.Cols) 
+				buffer.X--;
 		}
 
-		bool CursorUp (int [] pars)
+		// 
+		// CSI Ps A
+		// Cursor Up Ps Times (default = 1) (CUU).
+		// 
+		void CursorUp (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+			buffer.Y -= param;
+			if (buffer.Y < 0)
+				buffer.Y = 0;
 		}
 
-		bool InsertChars (int [] pars)
+		//
+		// CSI Ps @
+		// Insert Ps (Blank) Character(s) (default = 1) (ICH).
+		//
+		void InsertChars (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var buffer = terminal.Buffer;
+			var cd = CharData.Null;
+			cd.Attribute = terminal.EraseAttr ();
+
+			buffer.Lines [buffer.Y + buffer.YBase].InsertCells (
+			  	buffer.X,
+				  pars.Length > 0 ? pars [0] : 1,
+		    		cd);
+
+			terminal.UpdateRange (buffer.Y);
 		}
 
-		void Print (int [] data, int start, int end)
+		void Print (uint [] data, int start, int end)
 		{
-			throw new NotImplementedException ();
+			var buffer = terminal.Buffer;
+			var charset = terminal.Charset;
+			var screenReaderMode = terminal.Options.ScreenReaderMode;
+			var cols = terminal.Cols;
+			var wrapAroundMode = terminal.Wraparound;
+			var insertMode = terminal.InsertMode;
+			var curAttr = terminal.CurAttr;
+			var bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
+
+			terminal.UpdateRange (buffer.Y);
+			for (var pos = start; pos < end; ++pos) {
+				var code = data [pos];
+
+				// MIGUEL-TODO: I suspect this needs to be a stirng in C# to cope with Grapheme clusters
+				var ch = (char)code;
+
+				// calculate print space
+				// expensive call, therefore we save width in line buffer
+				var chWidth = Rune.ColumnWidth ((Rune)code);
+
+				// get charset replacement character
+				// charset are only defined for ASCII, therefore we only
+				// search for an replacement char if code < 127
+				if (code < 127 && charset != null) {
+
+					// MIGUEL-FIXME - this is broken for dutch cahrset that returns two letters "ij", need to figure out what to do
+					charset.TryGetValue ((byte)code, out var str);
+					ch = str [0];
+					code = (uint)ch;
+				}
+				if (screenReaderMode)
+					terminal.EmitChar (ch);
+
+				// insert combining char at last cursor position
+				// FIXME: needs handling after cursor jumps
+				// buffer.x should never be 0 for a combining char
+				// since they always follow a cell consuming char
+				// therefore we can test for buffer.x to avoid overflow left
+				if (chWidth == 0 && buffer.X > 0) {
+					// MIGUEL TODO: in the original code the getter might return a null value
+					// does this mean that JS returns null for out of bounsd?
+					if (buffer.X >= 1 && buffer.X < bufferRow.Length) {
+						var chMinusOne = bufferRow [buffer.X - 1];
+						if (chMinusOne.Width == 0) {
+							// found empty cell after fullwidth, need to go 2 cells back
+							// it is save to step 2 cells back here
+							// since an empty cell is only set by fullwidth chars
+							if (buffer.X >= 2){
+								var chMinusTwo = bufferRow [buffer.X - 2];
+
+								chMinusTwo.Code += ch;
+								chMinusTwo.Rune = code;
+								bufferRow [buffer.X - 2] = chMinusTwo; // must be set explicitly now
+							}
+						} else {
+							chMinusOne.Code += ch;
+							chMinusOne.Rune = code;
+							bufferRow [buffer.X - 1] = chMinusOne; // must be set explicitly now
+						}
+					}
+					continue;
+				}
+
+				// goto next line if ch would overflow
+				// TODO: needs a global min terminal width of 2
+				// FIXME: additionally ensure chWidth fits into a line
+				//   -->  maybe forbid cols<xy at higher level as it would
+				//        introduce a bad runtime penalty here
+				if (buffer.X + chWidth - 1 >= cols) {
+					// autowrap - DECAWM
+					// automatically wraps to the beginning of the next line
+					if (wrapAroundMode) {
+						buffer.X = 0;
+						buffer.Y++;
+						if (buffer.Y > buffer.ScrollBottom) {
+							buffer.Y--;
+							terminal.Scroll (isWrapped: true);
+						} else {
+							// The line already exists (eg. the initial viewport), mark it as a
+							// wrapped line
+							buffer.Lines [buffer.Y].IsWrapped = true;
+						}
+						// row changed, get it again
+						bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
+					} else {
+						if (chWidth == 2) {
+							// FIXME: check for xterm behavior
+							// What to do here? We got a wide char that does not fit into last cell
+							continue;
+						}
+						// FIXME: Do we have to set buffer.x to cols - 1, if not wrapping?
+					}
+				}
+
+				var empty = CharData.Null;
+				empty.Attribute = curAttr;
+				// insert mode: move characters to right
+				if (insertMode) {
+					// right shift cells according to the width
+					bufferRow.InsertCells (buffer.X, chWidth, empty);
+					// test last cell - since the last cell has only room for
+					// a halfwidth char any fullwidth shifted there is lost
+					// and will be set to eraseChar
+					var lastCell = bufferRow [cols - 1];
+					if (lastCell.Width== 2) 
+						bufferRow [cols - 1] = empty;
+				
+				}
+
+				// write current char to buffer and advance cursor
+				var x = new CharData (curAttr, code, chWidth, ch);
+				bufferRow [buffer.X++] = x;
+
+				// fullwidth char - also set next cell to placeholder stub and advance cursor
+				// for graphemes bigger than fullwidth we can simply loop to zero
+				// we already made sure above, that buffer.x + chWidth will not overflow right
+				if (chWidth > 0) {
+					while (--chWidth != 0) {
+						bufferRow [buffer.X++] = empty;
+					}
+				}
+			}
+			terminal.UpdateRange (buffer.Y);
 		}
 	}
 }

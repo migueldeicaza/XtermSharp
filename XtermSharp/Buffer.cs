@@ -8,7 +8,7 @@ namespace XtermSharp
 	/// This class represents a terminal buffer (an internal state of the terminal), where text contents, cursor and scroll position are stored.
 	/// </summary>
 	public class Buffer {
-		CircularList<CharData []> lines;
+		CircularList<BufferLine> lines;
 		public int YDisp, YBase;
 		public int X, Y;
 		public int ScrollBottom, ScrollTop;
@@ -36,7 +36,7 @@ namespace XtermSharp
 			Clear ();
 		}
 
-		public CircularList<CharData []> Lines => lines;
+		public CircularList<BufferLine> Lines => lines;
 
 		// Gets the correct buffer length based on the rows provided, the terminal's
    		// scrollback and whether this buffer is flagged to have scrollback or not.
@@ -57,7 +57,7 @@ namespace XtermSharp
 			YBase = 0;
 			X = 0;
 			Y = 0;
-			lines = new CircularList<CharData []> (getCorrectBufferLength (Terminal.Rows));
+			lines = new CircularList<BufferLine> (getCorrectBufferLength (Terminal.Rows));
 			ScrollTop = 0;
 			ScrollBottom = Terminal.Rows - 1;
 			SetupTabStops ();

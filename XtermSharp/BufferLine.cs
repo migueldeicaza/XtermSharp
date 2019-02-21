@@ -9,7 +9,7 @@ namespace XtermSharp {
 	public class BufferLine {
 		CharData [] data = Array.Empty<CharData> ();
 		public int Length => data.Length;
-		bool isWrapped;
+		public bool IsWrapped;
 
 		public BufferLine (int cols, CharData? fillCharData, bool isWrapped = false)
 		{
@@ -18,14 +18,14 @@ namespace XtermSharp {
 			data = new CharData [cols];
 			for (int i = 0; i < cols; i++)
 				data [i] = fill;
-			this.isWrapped = isWrapped;
+			this.IsWrapped = isWrapped;
 		}
 
 		public BufferLine (BufferLine other)
 		{
 			data = new CharData [other.data.Length];
 			other.data.CopyTo (data, 0);
-			isWrapped = other.isWrapped;
+			IsWrapped = other.IsWrapped;
 		}
 
 		public CharData this [int idx] {
@@ -111,7 +111,7 @@ namespace XtermSharp {
 			
 			line.data.CopyTo (data, 0);
 
-			isWrapped = line.isWrapped;
+			IsWrapped = line.IsWrapped;
 		}
 
 		public int GetTrimmedLength ()

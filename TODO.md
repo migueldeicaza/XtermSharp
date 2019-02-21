@@ -27,7 +27,7 @@
 - [ ] common/TypedArrayUtils.ts
 - [ ] common/Types.ts
 - [ ] common/data/EscapeSequences.ts
-- [ ] core/data/Charsets.ts
+- [x] core/data/Charsets.ts
 - [ ] core/input/Keyboard.ts
 - [ ] core/input/TextDecoder.ts
 - [ ] core/Platform.ts

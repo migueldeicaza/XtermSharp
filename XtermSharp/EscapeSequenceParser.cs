@@ -11,14 +11,14 @@ namespace XtermSharp {
 
 	public interface IDcsHandler {
 		void Hook (string collect, int [] parameters, int flag);
-		void Put (int [] data, int start, int end);
+		void Put (uint [] data, int start, int end);
 		void Unhook ();
 	}
 
 	// Dummy DCS Handler as defaulta fallback
 	class DcsDummy : IDcsHandler {
 		public void Hook (string collect, int [] parameters, int flag) { }
-		public void Put (int [] data, int start, int end) { }
+		public void Put (uint [] data, int start, int end) { }
 		public void Unhook () { }
 	}
 
@@ -280,10 +280,10 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		public delegate bool CsiHandler (int [] parameters, string collect);
+		public delegate void CsiHandler (int [] parameters, string collect);
 		public delegate bool OscHandler (string data);
 		public delegate void EscHandler (string collect, int flag);
-		public delegate void PrintHandler (int [] data, int start, int end);
+		public delegate void PrintHandler (uint [] data, int start, int end);
 		public delegate void ExecuteHandler (byte code);
 
 		// Handler lookup container
@@ -432,7 +432,7 @@ namespace XtermSharp {
 		public void SetErrorHandler (Func<ParsingState,ParsingState> errorHandler) => ErrorHandler = errorHandler;
 		public void ClearErrorHandler () => ErrorHandler = EmptyErrorHandler;
 
-		void Reset ()
+		public void Reset ()
 		{
 			currentState = initialState;
 			_osc = "";
@@ -441,7 +441,7 @@ namespace XtermSharp {
 			ActiveDcsHandler = null;
 		}
 
-		public void Parse (int [] data, int len)
+		public void Parse (uint [] data, int len)
 		{
 			var code = 0;
 			var transition = 0;
@@ -456,7 +456,7 @@ namespace XtermSharp {
 
 			// process input string
 			for (var i = 0; i < len; ++i) {
-				code = data [i];
+				code = (int) data [i];
 
 				// shortcut for most chars (print action)
 				if (currentState == ParserState.Ground && code > 0x1f && code < 0x80) {
@@ -544,8 +544,7 @@ namespace XtermSharp {
 					var csiHandlers = CsiHandlers [(Rune)code];
 					var jj = csiHandlers != null ? csiHandlers.Count - 1 : -1;
 					for (; jj >= 0; jj--) {
-						if (csiHandlers [jj] (pars.ToArray(), collect))
-							break;
+						csiHandlers [jj] (pars.ToArray (), collect);
 					}
 					if (jj < 0)
 						CsiHandlerFallback (collect, pars.ToArray (), code);

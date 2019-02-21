@@ -9,5 +9,6 @@ namespace XtermSharp {
 		public bool ConvertEol, CursorBlink;
 		public string TermName;
 		public CursorStyle CursorStyle;
+		public bool ScreenReaderMode;
 	}
 }
