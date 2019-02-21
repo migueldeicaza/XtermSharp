@@ -490,24 +490,74 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		bool CursorForwardTab (int [] pars)
+		// 
+		// CSI Ps I
+		//   Cursor Forward Tabulation Ps tab stops (default = 1) (CHT).
+		// 
+		void CursorForwardTab (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+			while (param-- != 0) {
+				buffer.X = buffer.NextTabStop ();
+			}
 		}
 
-		bool CursorPosition (int [] pars)
+		// 
+		// CSI Ps ; Ps H
+		// Cursor Position [row;column] (default = [1,1]) (CUP).
+		// 
+		void CursorPosition (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int col, row;
+			switch (pars.Length) {
+			case 1:
+				row = pars [0] - 1;
+				col = 0;
+				break;
+			case 2:
+				row = pars [0] - 1;
+				col = pars [1] - 1;
+				break;
+			default:
+				col = 0;
+				row = 0;
+				break;
+			}
+			col = Math.Min (Math.Max (col, 0), terminal.Cols - 1);
+			row = Math.Min (Math.Max (row, 0), terminal.Rows - 1);
+
+			var buffer = terminal.Buffer;
+			buffer.X = col;
+			buffer.Y = row;
 		}
 
-		bool CursorCharAbsolute (int [] pars)
+		// 
+		// CSI Ps G
+		// Cursor Character Absolute  [column] (default = [row,1]) (CHA).
+		// 
+		void CursorCharAbsolute (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			buffer.X = param - 1;
 		}
 
-		bool CursorPrecedingLine (int [] pars)
+		// 
+		// CSI Ps F
+		// Cursor Preceding Line Ps Times (default = 1) (CNL).
+		// reuse CSI Ps A ?
+		// 
+		void CursorPrecedingLine (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			buffer.Y -= param;
+			if (buffer.Y < 0)
+				buffer.Y = 0;
+			buffer.X = 0;
 		}
 
 		// 
