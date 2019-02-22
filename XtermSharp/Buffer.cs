@@ -48,6 +48,13 @@ namespace XtermSharp
 			return correct > Int32.MaxValue ? Int32.MaxValue : correct;
 		}
 
+		public BufferLine GetBlankLine (int attribute, bool isWrapped = false)
+		{
+			var cd = new CharData (attribute); 
+
+			return new BufferLine (Terminal.Cols, cd, isWrapped);
+		}
+
 		/// <summary>
 		/// Clears the buffer to it's initial state, discarding all previous data.
 		/// </summary>
@@ -91,7 +98,7 @@ namespace XtermSharp
 		/// <param name="newRows">New rows.</param>
 		public void Resize (int newCols, int newRows)
 		{
-			// TODO
+			throw new NotImplementedException ();
 		}
 
 		/// <summary>

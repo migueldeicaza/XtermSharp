@@ -112,7 +112,7 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('M', (pars, collect) => DeleteLines (pars));
 			parser.SetCsiHandler ('P', (pars, collect) => DeleteChars (pars));
 			parser.SetCsiHandler ('S', (pars, collect) => ScrollUp (pars));
-			parser.SetCsiHandler ('T', (pars, collect) => ScrollDown (pars, collect));
+			parser.SetCsiHandler ('T', (pars, collect) => ScrollDown (pars));
 			parser.SetCsiHandler ('X', (pars, collect) => EraseChars (pars));
 			parser.SetCsiHandler ('Z', (pars, collect) => CursorBackwardTab (pars));
 			parser.SetCsiHandler ('`', (pars, collect) => CharPosAbsolute (pars));
@@ -246,9 +246,31 @@ namespace XtermSharp {
 				CursorMoved (this);
 		}
 
-		private bool InsertLines (int [] pars)
+		// 
+		// CSI Ps L
+		// Insert Ps Line(s) (default = 1) (IL).
+		// 
+		private void InsertLines (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+			var row = buffer.Y + buffer.YBase;
+
+			var scrollBottomRowsOffset = terminal.Rows - 1 - buffer.ScrollBottom;
+			var scrollBottomAbsolute = terminal.Rows - 1 + buffer.YBase - scrollBottomRowsOffset + 1;
+
+			var eraseAttr = terminal.EraseAttr ();
+			while (p-- != 0) {
+				// test: echo -e '\e[44m\e[1L\e[0m'
+				// blankLine(true) - xterm/linux behavior
+				buffer.Lines.Splice (scrollBottomAbsolute - 1, 1);
+				var newLine = buffer.GetBlankLine (eraseAttr);
+				buffer.Lines.Splice (row, 0, newLine);
+			}
+
+			// this.maxRange();
+			terminal.UpdateRange (buffer.Y);
+			terminal.UpdateRange (buffer.ScrollBottom);
 		}
 
 		void SelectCharset (string p)
@@ -374,8 +396,7 @@ namespace XtermSharp {
 		void EraseInBufferLine (int y, int start, int end, bool clearWrap = false)
 		{
 			var line = terminal.Buffer.Lines [terminal.Buffer.YBase + y];
-			var cd = CharData.Null;
-			cd.Attribute = terminal.EraseAttr ();
+			var cd = new CharData (terminal.EraseAttr ());
 			line.ReplaceCells (start, end, cd);
 			if (clearWrap)
 				line.IsWrapped = false;
@@ -466,44 +487,137 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		bool HPositionRelative (int [] pars)
+		//
+		//CSI Pm a  Character Position Relative
+		//  [columns] (default = [row,col+1]) (HPR)
+		//reuse CSI Ps C ?
+		//
+		void HPositionRelative (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			buffer.X += p;
+			if (buffer.X >= terminal.Cols)
+				buffer.X = terminal.Cols - 1;
 		}
 
-		bool CharPosAbsolute (int [] pars)
+		// 
+		// CSI Pm `  Character Position Absolute
+		//   [column] (default = [row,1]) (HPA).
+		// 
+		void CharPosAbsolute (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			buffer.X = p - 1;
+			if (buffer.X >= terminal.Cols)
+				buffer.X = terminal.Cols - 1;
 		}
 
-		bool CursorBackwardTab (int [] pars)
+		//
+		//CSI Ps Z  Cursor Backward Tabulation Ps tab stops (default = 1) (CBT).
+		//
+		void CursorBackwardTab (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+
+			var buffer = terminal.Buffer;
+			while (p-- != 0) {
+				buffer.X = buffer.PreviousTabStop ();
+			}
 		}
 
-		bool EraseChars (int [] pars)
+		// 
+		// CSI Ps X
+		// Erase Ps Character(s) (default = 1) (ECH).
+		// 
+		void EraseChars (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+
+			var buffer = terminal.Buffer;
+			buffer.Lines [buffer.Y + buffer.YBase].ReplaceCells (
+	  			buffer.X,
+	  			buffer.X + p,
+				new CharData (terminal.EraseAttr ()));
 		}
 
-		bool ScrollDown (int [] pars, string collect)
+		// 
+		// CSI Ps T  Scroll down Ps lines (default = 1) (SD).
+		// 
+		void ScrollDown (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			while (p-- != 0) {
+				buffer.Lines.Splice (buffer.YBase + buffer.ScrollBottom, 1);
+				buffer.Lines.Splice (buffer.YBase + buffer.ScrollBottom, 0, buffer.GetBlankLine (CharData.DefaultAttr));
+			}
+			// this.maxRange();
+			terminal.UpdateRange (buffer.ScrollTop);
+			terminal.UpdateRange (buffer.ScrollBottom);
+
 		}
 
-		bool ScrollUp (int [] pars)
+		// 
+		// CSI Ps S  Scroll up Ps lines (default = 1) (SU).
+		// 
+		void ScrollUp (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			while (p-- != 0) {
+				buffer.Lines.Splice (buffer.YBase + buffer.ScrollTop, 1);
+				buffer.Lines.Splice (buffer.YBase + buffer.ScrollBottom, 0, buffer.GetBlankLine (CharData.DefaultAttr));
+			}
+			// this.maxRange();
+			terminal.UpdateRange (buffer.ScrollTop);
+			terminal.UpdateRange (buffer.ScrollBottom);
 		}
 
-		bool DeleteChars (int [] pars)
+		// 
+		// CSI Ps P
+		// Delete Ps Character(s) (default = 1) (DCH).
+		// 
+		void DeleteChars (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (
+			  buffer.X, p, new CharData (terminal.EraseAttr ()));
+      
+    			terminal.UpdateRange(buffer.Y);
 		}
 
-		bool DeleteLines (int [] pars)
+		// 
+		// CSI Ps M
+		// Delete Ps Line(s) (default = 1) (DL).
+		// 
+		void DeleteLines (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+			var row = buffer.Y + buffer.YBase;
+			int j;
+			j = terminal.Rows - 1 - buffer.ScrollBottom;
+			j = terminal.Rows - 1 + buffer.YBase - j;
+			var eraseAttr = terminal.EraseAttr ();
+			while (p-- != 0) {
+				// test: echo -e '\e[44m\e[1M\e[0m'
+				// blankLine(true) - xterm/linux behavior
+				buffer.Lines.Splice (row, 1);
+				buffer.Lines.Splice (j, 0, buffer.GetBlankLine (eraseAttr));
+			}
+
+			// this.maxRange();
+			terminal.UpdateRange (buffer.Y);
+			terminal.UpdateRange (buffer.ScrollBottom);
+
 		}
 
 		// 
@@ -755,8 +869,7 @@ namespace XtermSharp {
 		void InsertChars (int [] pars)
 		{
 			var buffer = terminal.Buffer;
-			var cd = CharData.Null;
-			cd.Attribute = terminal.EraseAttr ();
+			var cd = new CharData (terminal.EraseAttr ());
 
 			buffer.Lines [buffer.Y + buffer.YBase].InsertCells (
 			  	buffer.X,
