@@ -357,12 +357,38 @@ namespace XtermSharp {
 				terminal.Scroll (isWrapped: false);
 			}
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
-			if (buffer.X >= terminal.Cols) {
+			if (buffer.X >= terminal.Cols) 
 				buffer.X--;
-			}
 
 			// This event is emitted whenever the terminal outputs a LF or NL.
 			terminal.EmitLineFeed ();
+		}
+
+		// 
+		// Helper method to erase cells in a terminal row.
+		// The cell gets replaced with the eraseChar of the terminal.
+		// @param y row index
+		// @param start first cell index to be erased
+		// @param end   end - 1 is last erased cell
+		// 
+		void EraseInBufferLine (int y, int start, int end, bool clearWrap = false)
+		{
+			var line = terminal.Buffer.Lines [terminal.Buffer.YBase + y];
+			var cd = CharData.Null;
+			cd.Attribute = terminal.EraseAttr ();
+			line.ReplaceCells (start, end, cd);
+			if (clearWrap)
+				line.IsWrapped = false;
+		}
+
+		// 
+		// Helper method to reset cells in a terminal row.
+		// The cell gets replaced with the eraseChar of the terminal and the isWrapped property is set to false.
+		// @param y row index
+		// 
+		void ResetBufferLine (int y)
+		{
+			EraseInBufferLine (y, 0, terminal.Cols, true);
 		}
 
 		bool RestoreCursor (int [] pars)
@@ -480,14 +506,97 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		bool EraseInLine (int [] pars)
+		// 
+		// CSI Ps K  Erase in Line (EL).
+		//     Ps = 0  -> Erase to Right (default).
+		//     Ps = 1  -> Erase to Left.
+		//     Ps = 2  -> Erase All.
+		// CSI ? Ps K
+		//   Erase in Line (DECSEL).
+		//     Ps = 0  -> Selective Erase to Right (default).
+		//     Ps = 1  -> Selective Erase to Left.
+		//     Ps = 2  -> Selective Erase All.
+		// 
+		void EraseInLine (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = pars.Length == 0 ? 0 : pars [0];
+			var buffer = terminal.Buffer;
+			switch (p){
+			case 0:
+        			EraseInBufferLine (buffer.Y, buffer.X, terminal.Cols);
+				break;
+		      	case 1:
+		        	EraseInBufferLine (buffer.Y, 0, buffer.X + 1);
+				break;
+		      	case 2:
+		        	EraseInBufferLine (buffer.Y, 0, terminal.Cols);
+				break;
+			}
+			terminal.UpdateRange(buffer.Y);
 		}
 
-		bool EraseInDisplay (int [] pars)
+		// 
+		// CSI Ps J  Erase in Display (ED).
+		//     Ps = 0  -> Erase Below (default).
+		//     Ps = 1  -> Erase Above.
+		//     Ps = 2  -> Erase All.
+		//     Ps = 3  -> Erase Saved Lines (xterm).
+		// CSI ? Ps J
+		//   Erase in Display (DECSED).
+		//     Ps = 0  -> Selective Erase Below (default).
+		//     Ps = 1  -> Selective Erase Above.
+		//     Ps = 2  -> Selective Erase All.
+		// 
+		void EraseInDisplay (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = pars.Length == 0 ? 0 : pars [0];
+			var buffer = terminal.Buffer;
+			int j;
+			switch (p) {
+			case 0:
+				j = buffer.Y;
+				terminal.UpdateRange (j);
+				EraseInBufferLine (j++, buffer.X, terminal.Cols, buffer.X == 0);
+				for (; j < terminal.Rows; j++) {
+					ResetBufferLine (j);
+				}
+				terminal.UpdateRange (j);
+				break;
+			case 1:
+				j = buffer.Y;
+				terminal.UpdateRange (j);
+				// Deleted front part of line and everything before. This line will no longer be wrapped.
+				EraseInBufferLine (j, 0, buffer.X + 1, true);
+				if (buffer.X + 1 >= terminal.Cols) {
+					// Deleted entire previous line. This next line can no longer be wrapped.
+					buffer.Lines[j + 1].IsWrapped = false;
+				}
+				while (j-- != 0) {
+					ResetBufferLine (j);
+				}
+				terminal.UpdateRange (0);
+				break;
+			case 2:
+				j = terminal.Rows;
+				terminal.UpdateRange (j - 1);
+				while (j-- != 0) {
+					ResetBufferLine (j);
+				}
+				terminal.UpdateRange (0);
+				break;
+			case 3:
+				// Clear scrollback (everything not in viewport)
+				var scrollBackSize = buffer.Lines.Length - terminal.Rows;
+				if (scrollBackSize > 0) {
+					buffer.Lines.TrimStart (scrollBackSize);
+					buffer.YBase = Math.Max (buffer.YBase - scrollBackSize, 0);
+					buffer.YDisp = Math.Max (buffer.YDisp - scrollBackSize, 0);
+					// Force a scroll event to refresh viewport
+					terminal.EmitScroll (0);
+				}
+				break;
+
+			}
 		}
 
 		// 
@@ -498,9 +607,8 @@ namespace XtermSharp {
 		{
 			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
 			var buffer = terminal.Buffer;
-			while (param-- != 0) {
+			while (param-- != 0)
 				buffer.X = buffer.NextTabStop ();
-			}
 		}
 
 		// 

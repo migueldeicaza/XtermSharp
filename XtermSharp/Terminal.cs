@@ -81,5 +81,10 @@ namespace XtermSharp {
 		{
 			throw new NotImplementedException ();
 		}
+
+		internal void EmitScroll (int v)
+		{
+			throw new NotImplementedException ();
+		}
 	}
 }
