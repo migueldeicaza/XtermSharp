@@ -11,10 +11,10 @@ using NStack;
 namespace XtermSharp {
 	// DCS Subparser implementations
 
- 	// DCS $ q Pt ST
- 	// DECRQSS (https://vt100.net/docs/vt510-rm/DECRQSS.html)
- 	//   Request Status String (DECRQSS), VT420 and up.
- 	// Response: DECRPSS (https://vt100.net/docs/vt510-rm/DECRPSS.html)
+	// DCS $ q Pt ST
+	// DECRQSS (https://vt100.net/docs/vt510-rm/DECRQSS.html)
+	//   Request Status String (DECRQSS), VT420 and up.
+	// Response: DECRPSS (https://vt100.net/docs/vt510-rm/DECRPSS.html)
 	class DECRQSS : IDcsHandler {
 		List<Rune> data;
 		Terminal terminal;
@@ -32,7 +32,7 @@ namespace XtermSharp {
 		public void Put (uint [] data, int start, int end)
 		{
 			for (int i = start; i < end; i++)
-				this.data.Add ((Rune) data [i]);
+				this.data.Add ((Rune)data [i]);
 		}
 
 		public void Unhook ()
@@ -85,7 +85,7 @@ namespace XtermSharp {
 			parser.SetEscHandlerFallback ((string collect, int flag) => {
 				terminal.Error ("Unknown ESC code", collect, flag);
 			});
-			parser.SetExecuteHandlerFallback ((byte  code) => {
+			parser.SetExecuteHandlerFallback ((byte code) => {
 				terminal.Error ("Unknown EXECUTE code", code);
 			});
 			parser.SetOscHandlerFallback ((int identifier, string data) => {
@@ -139,7 +139,7 @@ namespace XtermSharp {
 			parser.SetExecuteHandler (11, LineFeed);
 			parser.SetExecuteHandler (12, LineFeed);
 			parser.SetExecuteHandler (13, CarriageReturn);
-			parser.SetExecuteHandler (8,  Backspace);
+			parser.SetExecuteHandler (8, Backspace);
 			parser.SetExecuteHandler (9, Tab);
 			parser.SetExecuteHandler (14, ShiftOut);
 			parser.SetExecuteHandler (15, ShiftIn);
@@ -379,7 +379,7 @@ namespace XtermSharp {
 				terminal.Scroll (isWrapped: false);
 			}
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
-			if (buffer.X >= terminal.Cols) 
+			if (buffer.X >= terminal.Cols)
 				buffer.X--;
 
 			// This event is emitted whenever the terminal outputs a LF or NL.
@@ -452,39 +452,375 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		bool SetMode (int [] pars, string collect)
+		// 
+		// CSI Pm h  Set Mode (SM).
+		//     Ps = 2  -> Keyboard Action Mode (AM).
+		//     Ps = 4  -> Insert Mode (IRM).
+		//     Ps = 1 2  -> Send/receive (SRM).
+		//     Ps = 2 0  -> Automatic Newline (LNM).
+		// CSI ? Pm h
+		//   DEC Private Mode Set (DECSET).
+		//     Ps = 1  -> Application Cursor Keys (DECCKM).
+		//     Ps = 2  -> Designate USASCII for character sets G0-G3
+		//     (DECANM), and set VT100 mode.
+		//     Ps = 3  -> 132 Column Mode (DECCOLM).
+		//     Ps = 4  -> Smooth (Slow) Scroll (DECSCLM).
+		//     Ps = 5  -> Reverse Video (DECSCNM).
+		//     Ps = 6  -> Origin Mode (DECOM).
+		//     Ps = 7  -> Wraparound Mode (DECAWM).
+		//     Ps = 8  -> Auto-repeat Keys (DECARM).
+		//     Ps = 9  -> Send Mouse X & Y on button press.  See the sec-
+		//     tion Mouse Tracking.
+		//     Ps = 1 0  -> Show toolbar (rxvt).
+		//     Ps = 1 2  -> Start Blinking Cursor (att610).
+		//     Ps = 1 8  -> Print form feed (DECPFF).
+		//     Ps = 1 9  -> Set print extent to full screen (DECPEX).
+		//     Ps = 2 5  -> Show Cursor (DECTCEM).
+		//     Ps = 3 0  -> Show scrollbar (rxvt).
+		//     Ps = 3 5  -> Enable font-shifting functions (rxvt).
+		//     Ps = 3 8  -> Enter Tektronix Mode (DECTEK).
+		//     Ps = 4 0  -> Allow 80 -> 132 Mode.
+		//     Ps = 4 1  -> more(1) fix (see curses resource).
+		//     Ps = 4 2  -> Enable Nation Replacement Character sets (DECN-
+		//     RCM).
+		//     Ps = 4 4  -> Turn On Margin Bell.
+		//     Ps = 4 5  -> Reverse-wraparound Mode.
+		//     Ps = 4 6  -> Start Logging.  This is normally disabled by a
+		//     compile-time option.
+		//     Ps = 4 7  -> Use Alternate Screen Buffer.  (This may be dis-
+		//     abled by the titeInhibit resource).
+		//     Ps = 6 6  -> Application keypad (DECNKM).
+		//     Ps = 6 7  -> Backarrow key sends backspace (DECBKM).
+		//     Ps = 1 0 0 0  -> Send Mouse X & Y on button press and
+		//     release.  See the section Mouse Tracking.
+		//     Ps = 1 0 0 1  -> Use Hilite Mouse Tracking.
+		//     Ps = 1 0 0 2  -> Use Cell Motion Mouse Tracking.
+		//     Ps = 1 0 0 3  -> Use All Motion Mouse Tracking.
+		//     Ps = 1 0 0 4  -> Send FocusIn/FocusOut events.
+		//     Ps = 1 0 0 5  -> Enable Extended Mouse Mode.
+		//     Ps = 1 0 1 0  -> Scroll to bottom on tty output (rxvt).
+		//     Ps = 1 0 1 1  -> Scroll to bottom on key press (rxvt).
+		//     Ps = 1 0 3 4  -> Interpret "meta" key, sets eighth bit.
+		//     (enables the eightBitInput resource).
+		//     Ps = 1 0 3 5  -> Enable special modifiers for Alt and Num-
+		//     Lock keys.  (This enables the numLock resource).
+		//     Ps = 1 0 3 6  -> Send ESC   when Meta modifies a key.  (This
+		//     enables the metaSendsEscape resource).
+		//     Ps = 1 0 3 7  -> Send DEL from the editing-keypad Delete
+		//     key.
+		//     Ps = 1 0 3 9  -> Send ESC  when Alt modifies a key.  (This
+		//     enables the altSendsEscape resource).
+		//     Ps = 1 0 4 0  -> Keep selection even if not highlighted.
+		//     (This enables the keepSelection resource).
+		//     Ps = 1 0 4 1  -> Use the CLIPBOARD selection.  (This enables
+		//     the selectToClipboard resource).
+		//     Ps = 1 0 4 2  -> Enable Urgency window manager hint when
+		//     Control-G is received.  (This enables the bellIsUrgent
+		//     resource).
+		//     Ps = 1 0 4 3  -> Enable raising of the window when Control-G
+		//     is received.  (enables the popOnBell resource).
+		//     Ps = 1 0 4 7  -> Use Alternate Screen Buffer.  (This may be
+		//     disabled by the titeInhibit resource).
+		//     Ps = 1 0 4 8  -> Save cursor as in DECSC.  (This may be dis-
+		//     abled by the titeInhibit resource).
+		//     Ps = 1 0 4 9  -> Save cursor as in DECSC and use Alternate
+		//     Screen Buffer, clearing it first.  (This may be disabled by
+		//     the titeInhibit resource).  This combines the effects of the 1
+		//     0 4 7  and 1 0 4 8  modes.  Use this with terminfo-based
+		//     applications rather than the 4 7  mode.
+		//     Ps = 1 0 5 0  -> Set terminfo/termcap function-key mode.
+		//     Ps = 1 0 5 1  -> Set Sun function-key mode.
+		//     Ps = 1 0 5 2  -> Set HP function-key mode.
+		//     Ps = 1 0 5 3  -> Set SCO function-key mode.
+		//     Ps = 1 0 6 0  -> Set legacy keyboard emulation (X11R6).
+		//     Ps = 1 0 6 1  -> Set VT220 keyboard emulation.
+		//     Ps = 2 0 0 4  -> Set bracketed paste mode.
+		// Modes:
+		//   http: *vt100.net/docs/vt220-rm/chapter4.html
+		// 
+		void SetMode (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (pars.Length == 0)
+				return;
+
+			if (pars.Length > 1) {
+				for (var i = 0; i < pars.Length; i++)
+					SetMode (pars [i], "");
+
+
+				return;
+			}
+			SetMode (pars [0], collect);
 		}
 
-		bool TabClear (int [] pars)
+		void SetMode (int par, string collect)
 		{
-			throw new NotImplementedException ();
+			if (collect == "") {
+				switch (par) {
+				case 4:
+					throw new NotImplementedException ("THis needs to handle the replace mode as well");
+					// https://vt100.net/docs/vt510-rm/IRM.html
+					terminal.InsertMode = true;
+					break;
+				case 20:
+					// this._t.convertEol = true;
+					break;
+				}
+			} else if (collect == "?") {
+				switch (par) {
+				case 1:
+					terminal.ApplicationCursor = true;
+					break;
+				case 2:
+					terminal.SetgCharset (0, CharSets.Default);
+					terminal.SetgCharset (1, CharSets.Default);
+					terminal.SetgCharset (2, CharSets.Default);
+					terminal.SetgCharset (3, CharSets.Default);
+					// set VT100 mode here
+					break;
+				case 3: // 132 col mode
+					terminal.SavedCols = terminal.Cols;
+					terminal.Resize (132, terminal.Rows);
+					break;
+				case 6:
+					terminal.OriginMode = true;
+					break;
+				case 7:
+					terminal.Wraparound = true;
+					break;
+				case 12:
+					// this.cursorBlink = true;
+					break;
+				case 66:
+					terminal.Log ("Serial port requested application keypad.");
+					terminal.ApplicationKeypad = true;
+					terminal.SyncScrollArea ();
+					break;
+				case 9: // X10 Mouse
+					// no release, no motion, no wheel, no modifiers.
+				case 1000: // vt200 mouse
+					   // no motion.
+					   // no modifiers, except control on the wheel.
+				case 1002: // button event mouse
+				case 1003: // any event mouse
+					   // any event - sends motion events,
+					   // even if there is no button held down.
+
+					// TODO: Why are params[0] compares nested within a switch for params[0]?
+
+					terminal.X10Mouse = par == 9;
+					terminal.Vt200Mouse = par == 1000;
+					terminal.NormalMouse = par > 1000;
+					terminal.MouseEvents = true;
+					terminal.EnableMouseEvents ();
+					terminal.Log ("Binding to mouse events.");
+					break;
+				case 1004: // send focusin/focusout events
+					   // focusin: ^[[I
+					   // focusout: ^[[O
+					terminal.SendFocus = true;
+					break;
+				case 1005: // utf8 ext mode mouse
+					terminal.UtfMouse = true;
+					// for wide terminals
+					// simply encodes large values as utf8 characters
+					break;
+				case 1006: // sgr ext mode mouse
+					terminal.SgrMouse = true;
+					// for wide terminals
+					// does not add 32 to fields
+					// press: ^[[<b;x;yM
+					// release: ^[[<b;x;ym
+					break;
+				case 1015: // urxvt ext mode mouse
+					terminal.UrxvtMouse = true;
+					// for wide terminals
+					// numbers for fields
+					// press: ^[[b;x;yM
+					// motion: ^[[b;x;yT
+					break;
+				case 25: // show cursor
+					terminal.CursorHidden = false;
+					break;
+				case 1048: // alt screen cursor
+
+					SaveCursor (Array.Empty<int> ());
+					break;
+				case 1049: // alt screen buffer cursor
+					SaveCursor (Array.Empty<int> ());
+					// FALL-THROUGH
+					goto case 47;
+				case 47: // alt screen buffer
+				case 1047: // alt screen buffer
+					terminal.Buffers.ActivateAltBuffert (terminal.EraseAttr ());
+					terminal.Refresh (0, terminal.Rows - 1);
+					terminal.SyncScrollArea ();
+					terminal.ShowCursor ();
+					break;
+				case 2004: // bracketed paste mode (https://cirw.in/blog/bracketed-paste)
+					terminal.BracketedPasteMode = true;
+					break;
+				}
+			}
 		}
 
-		bool HVPosition (int [] pars)
+
+		// 
+		// CSI Ps g  Tab Clear (TBC).
+		//     Ps = 0  -> Clear Current Column (default).
+		//     Ps = 3  -> Clear All.
+		// Potentially:
+		//   Ps = 2  -> Clear Stops on Line.
+		//   http://vt100.net/annarbor/aaa-ug/section6.html
+		// 
+		void TabClear (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = pars.Length == 0 ? 0 : pars [0];
+			var buffer = terminal.Buffer;
+			if (p == 0)
+				buffer.ClearStop (buffer.X);
+			else if (p == 3)
+				buffer.ClearTabStops ();
 		}
 
-		bool VPositionRelative (int [] pars)
+		//
+		// CSI Ps ; Ps f
+		//   Horizontal and Vertical Position [row;column] (default =
+		//   [1,1]) (HVP).
+		//
+		void HVPosition (int [] pars)
 		{
-			throw new NotImplementedException ();
+			int p = 1;
+			int q = 1;
+			if (pars.Length > 0) {
+				p = Math.Max (pars [0], 1);
+				if (pars.Length > 1)
+					q = Math.Max (pars [0], 1);
+			}
+			var buffer = terminal.Buffer;
+			buffer.Y = p - 1;
+			if (buffer.Y >= terminal.Rows)
+				buffer.Y = terminal.Rows - 1;
+
+			buffer.X = q - 1;
+			if (buffer.X >= terminal.Cols)
+				buffer.X = terminal.Cols - 1;
 		}
 
-		bool LinePosAbsolute (int [] pars)
+		// 
+		// CSI Pm e  Vertical Position Relative (VPR)
+		//   [rows] (default = [row+1,column])
+		// reuse CSI Ps B ?
+		// 
+		void VPositionRelative (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			buffer.Y += p;
+			if (buffer.Y >= terminal.Rows) {
+				buffer.Y = terminal.Rows - 1;
+			}
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= terminal.Cols)
+				buffer.X--;
 		}
 
-		bool SendDeviceAttributes (int [] pars, string collect)
+		// 
+		// CSI Pm d  Vertical Position Absolute (VPA)
+		//   [row] (default = [1,column])
+		// 
+		void LinePosAbsolute (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			var buffer = terminal.Buffer;
+
+			buffer.Y = p - 1;
+			if (buffer.Y >= terminal.Rows)
+				buffer.Y = terminal.Rows - 1;
 		}
 
-		bool RepeatPrecedingCharacter (int [] pars)
+		// 
+		// CSI Ps c  Send Device Attributes (Primary DA).
+		//     Ps = 0  or omitted -> request attributes from terminal.  The
+		//     response depends on the decTerminalID resource setting.
+		//     -> CSI ? 1 ; 2 c  (``VT100 with Advanced Video Option'')
+		//     -> CSI ? 1 ; 0 c  (``VT101 with No Options'')
+		//     -> CSI ? 6 c  (``VT102'')
+		//     -> CSI ? 6 0 ; 1 ; 2 ; 6 ; 8 ; 9 ; 1 5 ; c  (``VT220'')
+		//   The VT100-style response parameters do not mean anything by
+		//   themselves.  VT220 parameters do, telling the host what fea-
+		//   tures the terminal supports:
+		//     Ps = 1  -> 132-columns.
+		//     Ps = 2  -> Printer.
+		//     Ps = 6  -> Selective erase.
+		//     Ps = 8  -> User-defined keys.
+		//     Ps = 9  -> National replacement character sets.
+		//     Ps = 1 5  -> Technical characters.
+		//     Ps = 2 2  -> ANSI color, e.g., VT525.
+		//     Ps = 2 9  -> ANSI text locator (i.e., DEC Locator mode).
+		// CSI > Ps c
+		//   Send Device Attributes (Secondary DA).
+		//     Ps = 0  or omitted -> request the terminal's identification
+		//     code.  The response depends on the decTerminalID resource set-
+		//     ting.  It should apply only to VT220 and up, but xterm extends
+		//     this to VT100.
+		//     -> CSI  > Pp ; Pv ; Pc c
+		//   where Pp denotes the terminal type
+		//     Pp = 0  -> ``VT100''.
+		//     Pp = 1  -> ``VT220''.
+		//   and Pv is the firmware version (for xterm, this was originally
+		//   the XFree86 patch number, starting with 95).  In a DEC termi-
+		//   nal, Pc indicates the ROM cartridge registration number and is
+		//   always zero.
+		// More information:
+		//   xterm/charproc.c - line 2012, for more information.
+		//   vim responds with ^[[?0c or ^[[?1c after the terminal's response (?)
+		// 
+		void SendDeviceAttributes (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (pars.Length > 0 && pars [0] > 0)
+				return;
+
+			var name = terminal.Options.TermName;
+			if (collect == "") {
+				if (name.StartsWith ("xterm") || name.StartsWith ("rxvt-unicode") || name.StartsWith ("screen")) {
+					terminal.Handler ("\x1b[?1;2c");
+				} else if (name.StartsWith ("linux")) {
+					terminal.Handler ("\x1b[?6c");
+				}
+			} else if (collect == ">") {
+				// xterm and urxvt
+				// seem to spit this
+				// out around ~370 times (?).
+				if (name.StartsWith ("xterm")) {
+					terminal.Handler ("\x1b[>0;276;0c");
+				} else if (name.StartsWith ("rxvt-unicode")) {
+					terminal.Handler ("\x1b[>85;95;0c");
+				} else if (name.StartsWith ("linux")) {
+					// not supported by linux console.
+					// linux console echoes parameters.
+					terminal.Handler ("" + pars [0] + 'c');
+				} else if (name.StartsWith ("screen")) {
+					terminal.Handler ("\x1b[>83;40003;0c");
+				}
+			}
+		}
+
+		// 
+		// CSI Ps b  Repeat the preceding graphic character Ps times (REP).
+		//
+		void RepeatPrecedingCharacter (int [] pars)
+		{
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+
+			var buffer = terminal.Buffer;
+			var line = buffer.Lines [buffer.YBase + buffer.Y];
+			CharData cd = buffer.X - 1 < 0 ? new CharData (CharData.DefaultAttr) : line [buffer.X - 1];
+			line.ReplaceCells (buffer.X,
+				  buffer.X + p,
+				      cd);
+			// FIXME: no UpdateRange here?
 		}
 
 		//
@@ -539,8 +875,8 @@ namespace XtermSharp {
 
 			var buffer = terminal.Buffer;
 			buffer.Lines [buffer.Y + buffer.YBase].ReplaceCells (
-	  			buffer.X,
-	  			buffer.X + p,
+				  buffer.X,
+				  buffer.X + p,
 				new CharData (terminal.EraseAttr ()));
 		}
 
@@ -590,8 +926,8 @@ namespace XtermSharp {
 
 			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (
 			  buffer.X, p, new CharData (terminal.EraseAttr ()));
-      
-    			terminal.UpdateRange(buffer.Y);
+
+			terminal.UpdateRange (buffer.Y);
 		}
 
 		// 
@@ -635,18 +971,18 @@ namespace XtermSharp {
 		{
 			var p = pars.Length == 0 ? 0 : pars [0];
 			var buffer = terminal.Buffer;
-			switch (p){
+			switch (p) {
 			case 0:
-        			EraseInBufferLine (buffer.Y, buffer.X, terminal.Cols);
+				EraseInBufferLine (buffer.Y, buffer.X, terminal.Cols);
 				break;
-		      	case 1:
-		        	EraseInBufferLine (buffer.Y, 0, buffer.X + 1);
+			case 1:
+				EraseInBufferLine (buffer.Y, 0, buffer.X + 1);
 				break;
-		      	case 2:
-		        	EraseInBufferLine (buffer.Y, 0, terminal.Cols);
+			case 2:
+				EraseInBufferLine (buffer.Y, 0, terminal.Cols);
 				break;
 			}
-			terminal.UpdateRange(buffer.Y);
+			terminal.UpdateRange (buffer.Y);
 		}
 
 		// 
@@ -683,7 +1019,7 @@ namespace XtermSharp {
 				EraseInBufferLine (j, 0, buffer.X + 1, true);
 				if (buffer.X + 1 >= terminal.Cols) {
 					// Deleted entire previous line. This next line can no longer be wrapped.
-					buffer.Lines[j + 1].IsWrapped = false;
+					buffer.Lines [j + 1].IsWrapped = false;
 				}
 				while (j-- != 0) {
 					ResetBufferLine (j);
@@ -845,7 +1181,7 @@ namespace XtermSharp {
 				buffer.Y = terminal.Rows - 1;
 
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
-			if (buffer.X >= terminal.Cols) 
+			if (buffer.X >= terminal.Cols)
 				buffer.X--;
 		}
 
@@ -872,9 +1208,9 @@ namespace XtermSharp {
 			var cd = new CharData (terminal.EraseAttr ());
 
 			buffer.Lines [buffer.Y + buffer.YBase].InsertCells (
-			  	buffer.X,
+				  buffer.X,
 				  pars.Length > 0 ? pars [0] : 1,
-		    		cd);
+				    cd);
 
 			terminal.UpdateRange (buffer.Y);
 		}
@@ -928,7 +1264,7 @@ namespace XtermSharp {
 							// found empty cell after fullwidth, need to go 2 cells back
 							// it is save to step 2 cells back here
 							// since an empty cell is only set by fullwidth chars
-							if (buffer.X >= 2){
+							if (buffer.X >= 2) {
 								var chMinusTwo = bufferRow [buffer.X - 2];
 
 								chMinusTwo.Code += ch;
@@ -985,9 +1321,9 @@ namespace XtermSharp {
 					// a halfwidth char any fullwidth shifted there is lost
 					// and will be set to eraseChar
 					var lastCell = bufferRow [cols - 1];
-					if (lastCell.Width== 2) 
+					if (lastCell.Width == 2)
 						bufferRow [cols - 1] = empty;
-				
+
 				}
 
 				// write current char to buffer and advance cursor

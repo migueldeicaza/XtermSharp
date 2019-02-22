@@ -5,6 +5,9 @@ namespace XtermSharp {
 	public class CharSets {
 		public static Dictionary<byte, Dictionary<byte, string>> All;
 
+		// This is the "B" charset, null	
+		public static Dictionary<byte, string> Default = null;
+
 		static CharSets ()
 		{
 			// 

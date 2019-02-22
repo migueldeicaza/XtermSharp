@@ -13,7 +13,6 @@ namespace XtermSharp
 		public int X, Y;
 		public int ScrollBottom, ScrollTop;
 		BitArray tabStops;
-		public bool [] Tabs;
 		public int SavedX, SavedY;
 		public ITerminal Terminal { get; private set; }
 		bool hasScrollback;
@@ -132,6 +131,16 @@ namespace XtermSharp
 			int tabStopWidth = Terminal.Options.TabStopWidth ?? 8;
 			for (int i = 0; i < cols; i += tabStopWidth)
 				tabStops [i] = true;
+		}
+
+		public void ClearStop (int pos)
+		{
+			tabStops [pos] = false;
+		}
+
+		public void ClearTabStops ()
+		{
+			tabStops = new BitArray (tabStops.Count);
 		}
 
 		/// <summary>

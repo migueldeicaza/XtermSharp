@@ -26,6 +26,22 @@ namespace XtermSharp {
 		public Dictionary<byte, string> Charset { get; set; }
 
 		public Buffer Buffer => buffers.Active;
+		public BufferSet Buffers => buffers;
+
+		public bool ApplicationCursor { get; internal set; }
+		public int SavedCols { get; internal set; }
+		public bool ApplicationKeypad { get; internal set; }
+		public object X10Mouse { get; internal set; }
+		public bool SendFocus { get; internal set; }
+		public bool UtfMouse { get; internal set; }
+		public bool OriginMode { get; internal set; }
+		public bool Vt200Mouse { get; internal set; }
+		public bool NormalMouse { get; internal set; }
+		public bool MouseEvents { get; internal set; }
+		public bool SgrMouse { get; internal set; }
+		public bool UrxvtMouse { get; internal set; }
+		public bool CursorHidden { get; internal set; }
+		public bool BracketedPasteMode { get; internal set; }
 
 		public TerminalOptions Options;
 		public int Cols, Rows;
@@ -83,6 +99,39 @@ namespace XtermSharp {
 		}
 
 		internal void EmitScroll (int v)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void SetgCharset (int v, Dictionary<byte, string> @default)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void Resize (int v, int rows)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void SyncScrollArea ()
+		{
+			// This should call the viewport syncscrollarea
+			throw new NotImplementedException ();
+		}
+
+		internal void EnableMouseEvents ()
+		{
+			// TODO:
+	    // DISABLE SELECTION MANAGER.
+			throw new NotImplementedException ();
+		}
+
+		internal void Refresh (int v1, int v2)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void ShowCursor ()
 		{
 			throw new NotImplementedException ();
 		}
