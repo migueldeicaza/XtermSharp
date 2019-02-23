@@ -10,5 +10,16 @@ namespace XtermSharp {
 		public string TermName;
 		public CursorStyle CursorStyle;
 		public bool ScreenReaderMode;
+		public int? Scrollback { get; }
+		public int? TabStopWidth { get; }
+
+		public TerminalOptions ()
+		{
+			Cols = 80;
+			Rows = 25;
+			TermName = "xterm";
+			Scrollback = 1000;
+			TabStopWidth = 8;
+		}
 	}
 }

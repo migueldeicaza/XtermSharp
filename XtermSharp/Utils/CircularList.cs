@@ -108,6 +108,16 @@ namespace XtermSharp {
 			}
 		}
 
+		public T Recycle ()
+		{
+			if (Length != MaxLength) {
+				throw new Exception ("Can only recycle when the buffer is full");
+			}
+			startIndex = ++startIndex % MaxLength;
+
+			return array [GetCyclicIndex (Length - 1)];
+		}
+
 		/// <summary>
 		///   Removes and returns the last value on the list. 
 		/// </summary>
@@ -199,5 +209,7 @@ namespace XtermSharp {
 				}
 			}
 		}
+
+		public bool IsFull => Length == MaxLength;
 	}
 }

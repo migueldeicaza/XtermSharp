@@ -10,6 +10,7 @@ namespace XtermSharp {
 
 		static CharSets ()
 		{
+			All = new Dictionary<byte, Dictionary<byte, string>> ();
 			// 
 			// DEC Special Character and Line Drawing Set.
 			// Reference: http://vt100.net/docs/vt102-ug/table5-13.html
@@ -20,7 +21,7 @@ namespace XtermSharp {
 			// when running vttest however.
 			// The table below now uses xterm's output from vttest.
 			// 
-			All [(byte)'0'] = new Dictionary<byte, string> {
+			All [(byte)'0'] = new Dictionary<byte, string> ()  {
 				{ (byte) '`', "\u25c6"}, // '◆'
 				{ (byte) 'a', "\u2592"}, // '▒'
 				{ (byte) 'b', "\u0009"}, // '\t'
@@ -197,6 +198,7 @@ namespace XtermSharp {
 			 * ESC (Z
 			 * Reference: http://vt100.net/docs/vt220-rm/table2-13.html
 			 */
+
 			All [(byte)'Z'] = new Dictionary<byte, string> {
 				{ (byte) '#', "£"},
 				{ (byte) '@', "§"},

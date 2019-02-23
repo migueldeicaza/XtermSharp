@@ -4,8 +4,6 @@ namespace XtermSharp {
 	public interface ITerminalOptions
 	{
 		bool Rows { get; }
-		int? Scrollback { get; }
-		int? TabStopWidth { get; }
 	}
 
 	public interface ITerminal {

@@ -13,7 +13,7 @@ namespace XtermSharp {
 		public Buffer Alt { get; private set; }
 		public Buffer Active { get; private set; }
 
-		public BufferSet (ITerminal terminal)
+		public BufferSet (Terminal terminal)
 		{
 			Normal = new Buffer (terminal, hasScrollback: true);
 			Normal.FillViewportRows ();

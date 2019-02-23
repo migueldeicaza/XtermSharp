@@ -83,7 +83,7 @@ namespace XtermSharp {
 			parser.SetEscHandlerFallback ((string collect, int flag) => {
 				terminal.Error ("Unknown ESC code", collect, flag);
 			});
-			parser.SetExecuteHandlerFallback ((byte code) => {
+			parser.SetExecuteHandlerFallback ((code) => {
 				terminal.Error ("Unknown EXECUTE code", code);
 			});
 			parser.SetOscHandlerFallback ((int identifier, string data) => {
@@ -144,7 +144,7 @@ namespace XtermSharp {
 			// Comment in original FIXME:   What do to with missing? Old code just added those to print.
 
 			// some C1 control codes - FIXME: should those be enabled by default?
-			parser.SetExecuteHandler (0x84 /* Index */, (x) => terminal.Index ());
+			parser.SetExecuteHandler (0x84 /* Index */, ()=> terminal.Index ());
 			parser.SetExecuteHandler (0x85 /* Next Line */, NextLine);
 			parser.SetExecuteHandler (0x88 /* Horizontal Tabulation Set */, TabSet);
 
@@ -157,7 +157,7 @@ namespace XtermSharp {
 			//   2 - title
 			parser.SetOscHandler (2, SetTitle);
 			//   3 - set property X in the form "prop=value"
-			//   4 - Change Color Number
+			//   4 - Change Color Number()
 			//   5 - Change Special Color Number
 			//   6 - Enable/disable Special Color Number c
 			//   7 - current directory? (not in xterm spec, see https://gitlab.com/gnachman/iterm2/issues/3939)
@@ -191,28 +191,28 @@ namespace XtermSharp {
 			// 
 			parser.SetEscHandler ("7", SaveCursor);
 			parser.SetEscHandler ("8", RestoreCursor);
-			parser.SetEscHandler ("D", (c) => terminal.Index ());
-			parser.SetEscHandler ("E", NextLine);
-			parser.SetEscHandler ("H", TabSet);
-			parser.SetEscHandler ("M", ReverseIndex);
-			parser.SetEscHandler ("=", KeypadApplicationMode);
-			parser.SetEscHandler (">", KeypadNumericMode);
-			parser.SetEscHandler ("c", Reset);
-			parser.SetEscHandler ("n", (c) => SetgLevel (2));
-			parser.SetEscHandler ("o", (c) => SetgLevel (3));
-			parser.SetEscHandler ("|", (c) => SetgLevel (3));
-			parser.SetEscHandler ("}", (c) => SetgLevel (2));
-			parser.SetEscHandler ("~", (c) => SetgLevel (1));
-			parser.SetEscHandler ("%@", SelectDefaultCharset);
-			parser.SetEscHandler ("%G", SelectDefaultCharset);
+			parser.SetEscHandler ("D", (c,f) => terminal.Index ());
+			parser.SetEscHandler ("E", (c,b)=>NextLine ());
+			parser.SetEscHandler ("H", (c,f)=>TabSet ());
+			parser.SetEscHandler ("M", (c,f)=>ReverseIndex());
+			parser.SetEscHandler ("=", (c, f) => KeypadApplicationMode());
+			parser.SetEscHandler (">", (c, f) => KeypadNumericMode());
+			parser.SetEscHandler ("c", (c, f) => Reset ());
+			parser.SetEscHandler ("n", (c, f) => SetgLevel (2));
+			parser.SetEscHandler ("o", (c, f) => SetgLevel (3));
+			parser.SetEscHandler ("|", (c, f) => SetgLevel (3));
+			parser.SetEscHandler ("}", (c, f) => SetgLevel (2));
+			parser.SetEscHandler ("~", (c, f) => SetgLevel (1));
+			parser.SetEscHandler ("%@", (c, f) => SelectDefaultCharset ());
+			parser.SetEscHandler ("%G", (c, f) => SelectDefaultCharset ());
 			foreach (var flag in CharSets.All.Keys) {
-				parser.SetEscHandler ("(" + flag, (code) => SelectCharset ("(" + flag));
-				parser.SetEscHandler (")" + flag, (code) => SelectCharset (")" + flag));
-				parser.SetEscHandler ("*" + flag, (code) => SelectCharset ("*" + flag));
-				parser.SetEscHandler ("+" + flag, (code) => SelectCharset ("+" + flag));
-				parser.SetEscHandler ("-" + flag, (code) => SelectCharset ("-" + flag));
-				parser.SetEscHandler ("." + flag, (code) => SelectCharset ("." + flag));
-				parser.SetEscHandler ("/" + flag, (code) => SelectCharset ("/" + flag)); // TODO: supported?
+				parser.SetEscHandler ("(" + flag, (code, f) => SelectCharset ("(" + flag));
+				parser.SetEscHandler (")" + flag, (code, f) => SelectCharset (")" + flag));
+				parser.SetEscHandler ("*" + flag, (code, f) => SelectCharset ("*" + flag));
+				parser.SetEscHandler ("+" + flag, (code, f) => SelectCharset ("+" + flag));
+				parser.SetEscHandler ("-" + flag, (code, f) => SelectCharset ("-" + flag));
+				parser.SetEscHandler ("." + flag, (code, f) => SelectCharset ("." + flag));
+				parser.SetEscHandler ("/" + flag, (code, f) => SelectCharset ("/" + flag)); // TODO: supported?
 			}
 
 			// Error handler
@@ -240,8 +240,10 @@ namespace XtermSharp {
 			parser.Parse (runes, runes.Length);
 
 			buffer = terminal.Buffer;
-			if (buffer.X != cursorStartX || buffer.Y != cursorStartY)
-				CursorMoved (this);
+			if (buffer.X != cursorStartX || buffer.Y != cursorStartY) {
+				if (CursorMoved != null)
+					CursorMoved (this);
+			}
 		}
 
 		// 
@@ -290,7 +292,7 @@ namespace XtermSharp {
 		void SelectCharset (string p)
 		{
 			if (p.Length != 2)
-				SelectDefaultCharset (0);
+				SelectDefaultCharset ();
 			int ch;
 			
 			Dictionary<byte,string> charset;
@@ -325,7 +327,7 @@ namespace XtermSharp {
 		//   Select default character set. UTF-8 is not supported (string are unicode anyways)
 		//   therefore ESC % G does the same.
 		// 
-		void SelectDefaultCharset (byte code)
+		void SelectDefaultCharset ()
 		{
 			terminal.SetgLevel (0);
 			terminal.SetgCharset (0, CharSets.Default);
@@ -351,7 +353,7 @@ namespace XtermSharp {
 		//   DEC mnemonic: RIS (https://vt100.net/docs/vt510-rm/RIS.html)
 		//   Reset to initial state.
 		// 
-		void Reset (byte code)
+		void Reset ()
 		{
 			parser.Reset ();
 			terminal.Reset ();
@@ -362,7 +364,7 @@ namespace XtermSharp {
 		//   DEC mnemonic: DECKPNM (https://vt100.net/docs/vt510-rm/DECKPNM.html)
 		//   Enables the keypad to send numeric characters to the host.
 		// 
-		void KeypadNumericMode (byte code)
+		void KeypadNumericMode ()
 		{
 			terminal.ApplicationKeypad = false;
 			terminal.SyncScrollArea ();
@@ -373,7 +375,7 @@ namespace XtermSharp {
 		//   DEC mnemonic: DECKPAM (https://vt100.net/docs/vt510-rm/DECKPAM.html)
 		//   Enables the numeric keypad to send application sequences to the host.
 		// 
-		void KeypadApplicationMode (byte code)
+		void KeypadApplicationMode ()
 		{
 			terminal.ApplicationKeypad = true;
 			terminal.SyncScrollArea ();
@@ -386,7 +388,7 @@ namespace XtermSharp {
 		//   Moves the cursor up one line in the same column. If the cursor is at the top margin,
 		//   the page scrolls down.
 		// 
-		void ReverseIndex (byte code)
+		void ReverseIndex ()
 		{
 			terminal.ReverseIndex ();	
 		}
@@ -418,7 +420,7 @@ namespace XtermSharp {
 		//   Sets a horizontal tab stop at the column position indicated by
 		//   the value of the active column when the terminal receives an HTS.
 		// 
-		void TabSet (byte code)
+		void TabSet ()
 		{
 			terminal.TabSet ();
 		}
@@ -429,7 +431,7 @@ namespace XtermSharp {
 		//   DEC mnemonic: NEL (https://vt100.net/docs/vt510-rm/NEL)
 		//   Moves cursor to first position on next line.
 		//   
-		void NextLine (byte code)
+		void NextLine ()
 		{
 			terminal.Buffer.X = 0;
 			terminal.Index ();
@@ -437,14 +439,14 @@ namespace XtermSharp {
 
 		// SI
 		// ShiftIn (Control-O) Switch to standard character set.  This invokes the G0 character set
-		void ShiftIn (byte code)
+		void ShiftIn ()
 		{
 			terminal.SetgLevel (0);
 		}
 
 		// SO
 		// ShiftOut (Control-N) Switch to alternate character set.  This invokes the G1 character set
-		void ShiftOut (byte code)
+		void ShiftOut ()
 		{
 			terminal.SetgLevel (1);
 		}
@@ -452,7 +454,7 @@ namespace XtermSharp {
 		//
 		// Horizontal tab (Control-I)
 		//
-		void Tab (byte code)
+		void Tab ()
 		{
 			var originalX = terminal.Buffer.X;
 			terminal.Buffer.X = terminal.Buffer.NextTabStop ();
@@ -463,18 +465,18 @@ namespace XtermSharp {
 		// 
 		// Backspace handler (Control-h)
 		//
-		void Backspace (byte code)
+		void Backspace ()
 		{
 			if (terminal.Buffer.X > 0)
 				terminal.Buffer.X--;
 		}
 
-		void CarriageReturn (byte code)
+		void CarriageReturn ()
 		{
 			terminal.Buffer.X = 0;
 		}
 
-		void LineFeed (byte code)
+		void LineFeed ()
 		{
 			var buffer = terminal.Buffer;
 			if (terminal.Options.ConvertEol)

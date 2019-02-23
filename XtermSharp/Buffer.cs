@@ -14,7 +14,7 @@ namespace XtermSharp
 		public int ScrollBottom, ScrollTop;
 		BitArray tabStops;
 		public int SavedX, SavedY, SavedAttr = CharData.DefaultAttr;
-		public ITerminal Terminal { get; private set; }
+		public Terminal Terminal { get; private set; }
 		bool hasScrollback;
 
 		/// <summary>
@@ -28,7 +28,7 @@ namespace XtermSharp
 		/// </summary>
 		/// <param name="terminal">The terminal the Buffer will belong to.</param>
 		/// <param name="hasScrollback">Whether the buffer should respect the scrollback of the terminal.</param>
-		public Buffer (ITerminal terminal, bool hasScrollback = true)
+		public Buffer (Terminal terminal, bool hasScrollback = true)
 		{
 			Terminal = terminal;
 			this.hasScrollback = hasScrollback;
@@ -85,8 +85,9 @@ namespace XtermSharp
 			// TODO: limitation in original, this does not cope with partial fills, it is either zero or nothing
 			if (lines.Length != 0)
 				return;
+			var attr = attribute.HasValue ? attribute.Value : CharData.DefaultAttr;
 			for (int i = Terminal.Rows; i > 0; i--)
-				lines.Push (Terminal.BlankLine (erase: false, isWrapped: false, cols: -1));
+				lines.Push (GetBlankLine (attr));
 		}
 
 		/// <summary>

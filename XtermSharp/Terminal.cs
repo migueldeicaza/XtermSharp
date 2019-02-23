@@ -4,10 +4,54 @@ using System.Collections.Generic;
 namespace XtermSharp {
 
 	public class Terminal {
-		BufferSet buffers;
+		const int MINIMUM_COLS = 2;
+		const int MINIMUM_ROWS = 1;
 
-		public Terminal ()
+		BufferSet buffers;
+		InputHandler input;
+		bool applicationKeypad, applicationCursor;
+		bool cursorHidden;
+		bool originMode;
+		bool insertMode;
+		bool bracketedPasteMode;
+		Dictionary<byte, string> charset;
+		int gcharset;
+
+		public Terminal (TerminalOptions options = null) 
 		{
+			if (options == null)
+				options = new TerminalOptions ();
+
+			Options = options;
+			Setup ();
+		}
+
+		void Setup ()
+		{
+
+			Cols = Math.Max (Options.Cols, MINIMUM_COLS);
+			Rows = Math.Max (Options.Rows, MINIMUM_ROWS);
+
+			buffers = new BufferSet (this);
+			input = new InputHandler (this);
+			cursorHidden = false;
+
+			// modes
+			applicationKeypad = false;
+			applicationCursor = false;
+			originMode = false;
+			InsertMode = false;
+			Wraparound = true;
+			bracketedPasteMode = false;
+
+			// charset
+			charset = null;
+			gcharset = 0;
+			gLevel = 0;
+
+			CurAttr = CharData.DefaultAttr;
+
+			// TODO REST
 		}
 
 		public void Handler (string txt)
@@ -21,6 +65,11 @@ namespace XtermSharp {
 		public bool Debug { get; set; }
 		public void Log (string text, params object [] args)
 		{
+		}
+
+		public void Feed (byte [] data)
+		{
+			input.Parse (data);
 		}
 
 		public Dictionary<byte, string> Charset { get; set; }
@@ -43,16 +92,23 @@ namespace XtermSharp {
 		public bool CursorHidden { get; internal set; }
 		public bool BracketedPasteMode { get; internal set; }
 
-		public TerminalOptions Options;
-		public int Cols, Rows;
+		public TerminalOptions Options { get; private set; }
+		public int Cols { get; private set; }
+		public int Rows { get; private set; }
 		public bool Wraparound;
 		public bool InsertMode;
 		public int CurAttr;
 		int gLevel;
+		int refreshStart = Int32.MaxValue;
+		int refreshEnd = -1;
+		bool userScrolling;
 
 		internal void UpdateRange (int y)
 		{
-			throw new NotImplementedException ();
+			if (y < refreshStart)
+				refreshStart = y;
+			if (y > refreshEnd)
+				refreshEnd = y;
 		}
 
 		internal void EmitChar (char ch)
@@ -70,19 +126,91 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
+		BufferLine blankLine;
 		internal void Scroll (bool isWrapped = false)
 		{
-			throw new NotImplementedException ();
+			var buffer = Buffer;
+			BufferLine newLine = blankLine;
+			if (newLine == null || newLine.Length != Cols || newLine [0].Attribute != EraseAttr ()) {
+				newLine = buffer.GetBlankLine (EraseAttr (), isWrapped);
+				blankLine = newLine;
+			}
+			newLine.IsWrapped = isWrapped;
+
+			var topRow = buffer.YBase + buffer.ScrollTop;
+			var bottomRow = buffer.YBase + buffer.ScrollBottom;
+
+			if (buffer.ScrollTop == 0) {
+				// Determine whether the buffer is going to be trimmed after insertion.
+				var willBufferBeTrimmed = buffer.Lines.IsFull;
+
+				// Insert the line using the fastest method
+				if (bottomRow == buffer.Lines.Length - 1) {
+					if (willBufferBeTrimmed) {
+						buffer.Lines.Recycle ().CopyFrom (newLine);
+					} else {
+						buffer.Lines.Push (new BufferLine (newLine));
+					}
+				} else {
+					buffer.Lines.Splice (bottomRow + 1, 0, new BufferLine (newLine));
+				}
+
+				// Only adjust ybase and ydisp when the buffer is not trimmed
+				if (!willBufferBeTrimmed) {
+					buffer.YBase++;
+					// Only scroll the ydisp with ybase if the user has not scrolled up
+					if (!userScrolling) {
+						buffer.YDisp++;
+					}
+				} else {
+					// When the buffer is full and the user has scrolled up, keep the text
+					// stable unless ydisp is right at the top
+					if (userScrolling) {
+						buffer.YDisp = Math.Max (buffer.YDisp - 1, 0);
+					}
+				}
+			} else {
+				// scrollTop is non-zero which means no line will be going to the
+				// scrollback, instead we can just shift them in-place.
+				var scrollRegionHeight = bottomRow - topRow + 1/*as it's zero-based*/;
+				buffer.Lines.ShiftElements (topRow + 1, scrollRegionHeight - 1, -1);
+				buffer.Lines [bottomRow] = new BufferLine (newLine);
+			}
+
+			// Move the viewport to the bottom of the buffer unless the user is
+			// scrolling.
+			if (!userScrolling) {
+				buffer.YDisp = buffer.YBase;
+			}
+
+			// Flag rows that need updating
+			UpdateRange (buffer.ScrollTop);
+			UpdateRange (buffer.ScrollBottom);
+
+			/**
+			 * This event is emitted whenever the terminal is scrolled.
+			 * The one parameter passed is the new y display position.
+			 *
+			 * @event scroll
+			 */
+	     		if (Scrolled != null)
+				Scrolled (this, buffer.YDisp);
 		}
 
-		internal void Bell (byte code)
+		public event Action<Terminal, int> Scrolled;
+
+		internal void Bell ()
 		{
-			throw new NotImplementedException ();
+			Console.WriteLine ("beep");
 		}
 
 		public void EmitLineFeed ()
 		{
+			if (LineFeedEvent != null)
+				LineFeedEvent (this);
 		}
+
+		public event Action<Terminal> LineFeedEvent;
 
 		internal void EmitA11yTab (object p)
 		{
@@ -100,7 +228,7 @@ namespace XtermSharp {
 
 		internal int EraseAttr ()
 		{
-			throw new NotImplementedException ();
+			return (CharData.DefaultAttr & 0x1ff) | CurAttr & 0x1ff;
 		}
 
 		internal void EmitScroll (int v)

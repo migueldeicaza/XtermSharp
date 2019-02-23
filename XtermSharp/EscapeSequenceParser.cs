@@ -275,16 +275,11 @@ namespace XtermSharp {
 			return table;
 		}
 
-		internal void SetEscHandler (string v, ExecuteHandler nextLine)
-		{
-			throw new NotImplementedException ();
-		}
-
 		public delegate void CsiHandler (int [] parameters, string collect);
 		public delegate void OscHandler (string data);
 		public delegate void EscHandler (string collect, int flag);
 		public delegate void PrintHandler (uint [] data, int start, int end);
-		public delegate void ExecuteHandler (byte code);
+		public delegate void ExecuteHandler ();
 
 		// Handler lookup container
 		public Dictionary<Rune, List<CsiHandler>> CsiHandlers;
@@ -302,7 +297,7 @@ namespace XtermSharp {
 
 		// Fallback handlers
 		public PrintHandler PrintHandlerFallback = (data, start, end) => { };
-		public ExecuteHandler ExecuteHandlerFallback = EmptyExecuteHandler;
+		public Action<byte> ExecuteHandlerFallback = EmptyExecuteHandler;
 		public Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { };
 		public EscHandler EscHandlerFallback = (collect, flag) => { };
 		public Action<int, string> OscHandlerFallback = (identifier, data) => { };
@@ -319,18 +314,18 @@ namespace XtermSharp {
 		public EscapeSequenceParser ()
 		{
 			table = BuildVt500TransitionTable ();
+			CsiHandlers = new Dictionary<Rune, List<CsiHandler>> ();
+			OscHandlers = new Dictionary<int, List<OscHandler>> ();
+			ExecuteHandlers = new Dictionary<byte, ExecuteHandler> ();
+			EscHandlers = new Dictionary<string, EscHandler> ();
+			DcsHandlers = new Dictionary<string, IDcsHandler> ();
+
 			initialState = ParserState.Ground;
 			currentState = initialState;
 			_osc = "";
 			_pars = new List<int>();
 			_collect = "";
 			SetEscHandler ("\\", EscHandlerFallback);
-
-			CsiHandlers = new Dictionary<Rune, List<CsiHandler>> ();
-			OscHandlers = new Dictionary<int, List<OscHandler>> ();
-			ExecuteHandlers = null;
-			EscHandlers = null;
-			DcsHandlers = null;
 		}
 
 		public void Dispose ()
@@ -356,8 +351,8 @@ namespace XtermSharp {
 		public void ClearPrintHandler () => printHandler = PrintHandlerFallback;
 
 		public void SetExecuteHandler (byte flag, ExecuteHandler handler) => ExecuteHandlers [flag] = handler;
-		public void ClearExecuteHandler (byte flag) => ExecuteHandlers [flag] = EmptyExecuteHandler;
-		public void SetExecuteHandlerFallback (ExecuteHandler fallback) => ExecuteHandlerFallback = fallback;
+		public void ClearExecuteHandler (byte flag) => ExecuteHandlers.Remove (flag);
+		public void SetExecuteHandlerFallback (Action<byte> fallback) => ExecuteHandlerFallback = fallback;
 
 		public void SetEscHandler (string flag, EscHandler callback) => EscHandlers [flag] = callback;
 		public void ClearEscHandler (string flag) => EscHandlers.Remove (flag);
@@ -484,7 +479,7 @@ namespace XtermSharp {
 						print = -1;
 					}
 					if (ExecuteHandlers.TryGetValue ((byte)code, out var callback))
-						callback ((byte)code);
+						callback ();
 					else
 						ExecuteHandlerFallback ((byte)code);
 					break;
