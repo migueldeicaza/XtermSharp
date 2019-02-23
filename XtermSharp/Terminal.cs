@@ -65,6 +65,9 @@ namespace XtermSharp {
 		public bool Debug { get; set; }
 		public void Log (string text, params object [] args)
 		{
+			Console.WriteLine ("LOG: " + text);
+			for (int i = 0; i < args.Length; i++)
+				Console.WriteLine ("    {0}: {1}", i, args [i]);
 		}
 
 		public void Feed (byte [] data)

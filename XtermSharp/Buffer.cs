@@ -167,7 +167,7 @@ namespace XtermSharp
 		{
 			if (index == -1) 
 				index = X;
-			while (index < Terminal.Cols && !tabStops [++index])
+			while (index < Terminal.Cols && !tabStops [index++])
 				;
 			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
 		}

@@ -13,7 +13,7 @@ namespace SimpleTester {
 				var bytes = File.ReadAllBytes (f);
 				x.Feed (bytes);
 			}
-			
+			Console.WriteLine ("All tests ran");	
 		}
 	}
 }
