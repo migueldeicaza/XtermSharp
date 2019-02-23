@@ -48,6 +48,7 @@ namespace XtermSharp {
 		public bool Wraparound;
 		public bool InsertMode;
 		public int CurAttr;
+		int gLevel;
 
 		internal void UpdateRange (int y)
 		{
@@ -90,7 +91,11 @@ namespace XtermSharp {
 
 		internal void SetgLevel (int v)
 		{
-			throw new NotImplementedException ();
+			gLevel = v;
+			if (CharSets.All.TryGetValue ((byte)v, out var cs))
+				Charset = cs;
+			else
+				Charset = null;
 		}
 
 		internal int EraseAttr ()
@@ -122,7 +127,14 @@ namespace XtermSharp {
 		internal void EnableMouseEvents ()
 		{
 			// TODO:
-	    // DISABLE SELECTION MANAGER.
+	    	// DISABLE SELECTION MANAGER.
+			throw new NotImplementedException ();
+		}
+
+		internal void DisableMouseEvents ()
+		{
+			// TODO:
+	    	// ENABLE SELECTION MANAGER.
 			throw new NotImplementedException ();
 		}
 
@@ -132,6 +144,38 @@ namespace XtermSharp {
 		}
 
 		internal void ShowCursor ()
+		{
+			throw new NotImplementedException ();
+		}
+
+		static Dictionary<int,int> matchColorCache = new Dictionary<int, int> ();
+
+		public int MatchColor (int r1, int g1, int b1)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void EmitData (string txt)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void SetCursorStyle (CursorStyle style)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void SetTitle (string text)
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void TabSet ()
+		{
+			throw new NotImplementedException ();
+		}
+
+		internal void ReverseIndex ()
 		{
 			throw new NotImplementedException ();
 		}

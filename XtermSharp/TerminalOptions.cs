@@ -1,7 +1,7 @@
 ﻿using System;
 namespace XtermSharp {
 	public enum CursorStyle {
-		BlinkBlock, SteadyBlock, BlinkUnderline, SteadyUnderline
+		BlinkBlock, SteadyBlock, BlinkUnderline, SteadyUnderline, BlinkingBar, SteadyBar
 	}
 
 	public class TerminalOptions {

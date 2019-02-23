@@ -73,8 +73,6 @@ namespace XtermSharp {
 		Terminal terminal;
 		EscapeSequenceParser parser;
 
-		public EscapeSequenceParser.ExecuteHandler NextLine { get; }
-
 		public InputHandler (Terminal terminal)
 		{
 			this.terminal = terminal;
@@ -273,40 +271,124 @@ namespace XtermSharp {
 			terminal.UpdateRange (buffer.ScrollBottom);
 		}
 
+		// 
+		// ESC ( C
+		//   Designate G0 Character Set, VT100, ISO 2022.
+		// ESC ) C
+		//   Designate G1 Character Set (ISO 2022, VT100).
+		// ESC * C
+		//   Designate G2 Character Set (ISO 2022, VT220).
+		// ESC + C
+		//   Designate G3 Character Set (ISO 2022, VT220).
+		// ESC - C
+		//   Designate G1 Character Set (VT300).
+		// ESC . C
+		//   Designate G2 Character Set (VT300).
+		// ESC / C
+		//   Designate G3 Character Set (VT300). C = A  -> ISO Latin-1 Supplemental. - Supported?
+		// 
 		void SelectCharset (string p)
 		{
-			throw new NotImplementedException ();
+			if (p.Length != 2)
+				SelectDefaultCharset (0);
+			int ch;
+			
+			Dictionary<byte,string> charset;
+			if (!CharSets.All.TryGetValue ((byte) p [1], out charset))
+				charset = null;
+
+			switch (p [0]){
+			case '(':
+				ch = 0;
+				break;
+			case ')':
+			case '-':
+				ch = 1; 
+				break;
+			case '*':
+			case '.':
+				ch = 2;
+				break;
+			case '+':
+				ch = 3;
+				break;
+			default:
+				// includes '/' -> unsupported? (MIGUEL TODO)
+				return;
+			}
+			terminal.SetgCharset (ch, charset);
 		}
 
+		// 
+		// ESC % @
+		// ESC % G
+		//   Select default character set. UTF-8 is not supported (string are unicode anyways)
+		//   therefore ESC % G does the same.
+		// 
 		void SelectDefaultCharset (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.SetgLevel (0);
+			terminal.SetgCharset (0, CharSets.Default);
 		}
 
+		// 
+		// ESC n
+		// ESC o
+		// ESC |
+		// ESC }
+		// ESC ~
+		//   DEC mnemonic: LS (https://vt100.net/docs/vt510-rm/LS.html)
+		//   When you use a locking shift, the character set remains in GL or GR until
+		//   you use another locking shift. (partly supported)
+		// 
 		void SetgLevel (int n)
 		{
-			throw new NotImplementedException ();
+			terminal.SetgLevel (n);
 		}
 
+		// 
+		// ESC c
+		//   DEC mnemonic: RIS (https://vt100.net/docs/vt510-rm/RIS.html)
+		//   Reset to initial state.
+		// 
 		void Reset (byte code)
 		{
 			parser.Reset ();
 			terminal.Reset ();
 		}
 
+		// 
+		// ESC >
+		//   DEC mnemonic: DECKPNM (https://vt100.net/docs/vt510-rm/DECKPNM.html)
+		//   Enables the keypad to send numeric characters to the host.
+		// 
 		void KeypadNumericMode (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.ApplicationKeypad = false;
+			terminal.SyncScrollArea ();
 		}
 
+		// 
+		// ESC =
+		//   DEC mnemonic: DECKPAM (https://vt100.net/docs/vt510-rm/DECKPAM.html)
+		//   Enables the numeric keypad to send application sequences to the host.
+		// 
 		void KeypadApplicationMode (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.ApplicationKeypad = true;
+			terminal.SyncScrollArea ();
 		}
 
+		// 
+		// ESC M
+		// C1.RI
+		//   DEC mnemonic: HTS
+		//   Moves the cursor up one line in the same column. If the cursor is at the top margin,
+		//   the page scrolls down.
+		// 
 		void ReverseIndex (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.ReverseIndex ();	
 		}
 
 		void RestoreCursor (string collect, int flag)
@@ -319,14 +401,38 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		bool SetTitle (string data)
+		// 
+		// OSC 0; <data> ST (set icon name + window title)
+		// OSC 2; <data> ST (set window title)
+		//   Proxy to set window title. Icon name is not supported.
+		// 
+		void SetTitle (string data)
 		{
-			throw new NotImplementedException ();
+			terminal.SetTitle (data);
 		}
 
+		// 
+		// ESC H
+		// C1.HTS
+		//   DEC mnemonic: HTS (https://vt100.net/docs/vt510-rm/HTS.html)
+		//   Sets a horizontal tab stop at the column position indicated by
+		//   the value of the active column when the terminal receives an HTS.
+		// 
 		void TabSet (byte code)
 		{
-			throw new NotImplementedException ();
+			terminal.TabSet ();
+		}
+
+		// 
+		// ESC E
+		// C1.NEL
+		//   DEC mnemonic: NEL (https://vt100.net/docs/vt510-rm/NEL)
+		//   Moves cursor to first position on next line.
+		//   
+		void NextLine (byte code)
+		{
+			terminal.Buffer.X = 0;
+			terminal.Index ();
 		}
 
 		// SI
@@ -412,44 +518,562 @@ namespace XtermSharp {
 			EraseInBufferLine (y, 0, terminal.Cols, true);
 		}
 
-		bool RestoreCursor (int [] pars)
+		void RestoreCursor (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var buffer = terminal.Buffer;
+			buffer.X = buffer.SavedX;
+    			buffer.Y = buffer.SavedY;
+    			terminal.CurAttr = buffer.SavedAttr;
 		}
 
-		bool SaveCursor (int [] pars)
+		//
+		//  CSI s
+		//  ESC 7
+		//   Save cursor (ANSI.SYS).
+		// 
+		void SaveCursor (int [] pars)
 		{
-			throw new NotImplementedException ();
+			var buffer = terminal.Buffer;
+			buffer.SavedX = buffer.X;
+			buffer.SavedY = buffer.Y;
+			buffer.SavedAttr = terminal.CurAttr;
 		}
 
-		bool SetScrollRegion (int [] pars, string collect)
+		// 
+		// CSI Ps ; Ps r
+		//   Set Scrolling Region [top;bottom] (default = full size of win-
+		//   dow) (DECSTBM).
+		// CSI ? Pm r
+		// 
+		void SetScrollRegion (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (collect != "")
+				return;
+			var buffer = terminal.Buffer;
+		    	buffer.ScrollTop = pars.Length > 0 ? pars [0]-1 : 0;
+    			buffer.ScrollBottom = (pars.Length > 1 ? Math.Min (pars [1], terminal.Rows) : terminal.Rows) -1;
+			buffer.X = 0;
+			buffer.Y = 0;
 		}
 
-		bool SetCursorStyle (int [] pars, string collect)
+		// 
+		// CSI Ps SP q  Set cursor style (DECSCUSR, VT520).
+		//   Ps = 0  -> blinking block.
+		//   Ps = 1  -> blinking block (default).
+		//   Ps = 2  -> steady block.
+		//   Ps = 3  -> blinking underline.
+		//   Ps = 4  -> steady underline.
+		//   Ps = 5  -> blinking bar (xterm).
+		//   Ps = 6  -> steady bar (xterm).
+		// 
+		void SetCursorStyle (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (collect != " ")
+				return;
+
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			switch (p) {
+			case 1:
+				terminal.SetCursorStyle (CursorStyle.BlinkBlock);
+				break;
+			case 2:
+				terminal.SetCursorStyle (CursorStyle.SteadyBlock);
+				break;
+			case 3:
+				terminal.SetCursorStyle (CursorStyle.BlinkUnderline);
+				break;
+			case 4:
+				terminal.SetCursorStyle (CursorStyle.SteadyUnderline);
+				break;
+			case 5:
+				terminal.SetCursorStyle (CursorStyle.BlinkingBar);
+				break;
+			case 6:
+				terminal.SetCursorStyle (CursorStyle.SteadyBar);
+				break;
+			}
 		}
 
-		bool SoftReset (int [] pars, string collect)
+		// 
+		// CSI ! p   Soft terminal reset (DECSTR).
+		// http://vt100.net/docs/vt220-rm/table4-10.html
+		// 
+		void SoftReset (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (collect != "!")
+				return;
+
+			terminal.CursorHidden = false;
+			terminal.InsertMode = false;
+			terminal.OriginMode = false;
+			terminal.Wraparound = true;  // defaults: xterm - true, vt100 - false
+			terminal.ApplicationKeypad = false; // ?
+			terminal.SyncScrollArea ();
+			terminal.ApplicationCursor = false;
+			terminal.Buffer.ScrollTop = 0;
+			terminal.Buffer.ScrollBottom = terminal.Rows - 1;
+			terminal.CurAttr = CharData.DefaultAttr;
+			terminal.Buffer.X = 0;
+			terminal.Buffer.Y = 0;
+
+			terminal.Charset = null;
+			terminal.SetgLevel (0);
+
+			// MIGUEL TODO:
+			// Should SavedX, SavedY and SavedAttr be reset as well?
 		}
 
-		bool DeviceStatus (int [] pars, string collect)
+		// 
+		// CSI Ps n  Device Status Report (DSR).
+		//     Ps = 5  -> Status Report.  Result (``OK'') is
+		//   CSI 0 n
+		//     Ps = 6  -> Report Cursor Position (CPR) [row;column].
+		//   Result is
+		//   CSI r ; c R
+		// CSI ? Ps n
+		//   Device Status Report (DSR, DEC-specific).
+		//     Ps = 6  -> Report Cursor Position (CPR) [row;column] as CSI
+		//     ? r ; c R (assumes page is zero).
+		//     Ps = 1 5  -> Report Printer status as CSI ? 1 0  n  (ready).
+		//     or CSI ? 1 1  n  (not ready).
+		//     Ps = 2 5  -> Report UDK status as CSI ? 2 0  n  (unlocked)
+		//     or CSI ? 2 1  n  (locked).
+		//     Ps = 2 6  -> Report Keyboard status as
+		//   CSI ? 2 7  ;  1  ;  0  ;  0  n  (North American).
+		//   The last two parameters apply to VT400 & up, and denote key-
+		//   board ready and LK01 respectively.
+		//     Ps = 5 3  -> Report Locator status as
+		//   CSI ? 5 3  n  Locator available, if compiled-in, or
+		//   CSI ? 5 0  n  No Locator, if not.
+		// 
+		void DeviceStatus (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (collect != "") {
+				switch (pars [0]) {
+				case 5:
+					// status report
+					terminal.EmitData ("\x1b[0n");
+					break;
+				case 6:
+					// cursor position
+					var y = terminal.Buffer.Y + 1;
+					var x = terminal.Buffer.X + 1;
+					terminal.EmitData ($"$\x1b[${y};${x}R");
+					break;
+				}
+			} else if (collect == "?") {
+				// modern xterm doesnt seem to
+				// respond to any of these except ?6, 6, and 5
+				switch (pars [0]) {
+				case 6:
+					// cursor position
+					var y = terminal.Buffer.Y + 1;
+					var x = terminal.Buffer.X + 1;
+					terminal.EmitData ($"$\x1b[?${y};${x}R");
+					break;
+				case 15:
+					// no printer
+					// this.handler(C0.ESC + '[?11n');
+					break;
+				case 25:
+					// dont support user defined keys
+					// this.handler(C0.ESC + '[?21n');
+					break;
+				case 26:
+					// north american keyboard
+					// this.handler(C0.ESC + '[?27;1;0;0n');
+					break;
+				case 53:
+					// no dec locator/mouse
+					// this.handler(C0.ESC + '[?50n');
+					break;
+				}
+			}
 		}
 
-		bool CharAttributes (int [] pars)
+		[Flags]
+		enum FLAGS {
+			BOLD = 1,
+			UNDERLINE = 2,
+			BLINK = 4,
+			INVERSE = 8,
+			INVISIBLE = 16,
+			DIM = 32,
+			ITALIC = 64
+		}
+		// 
+		// CSI Pm m  Character Attributes (SGR).
+		//     Ps = 0  -> Normal (default).
+		//     Ps = 1  -> Bold.
+		//     Ps = 2  -> Faint, decreased intensity (ISO 6429).
+		//     Ps = 4  -> Underlined.
+		//     Ps = 5  -> Blink (appears as Bold).
+		//     Ps = 7  -> Inverse.
+		//     Ps = 8  -> Invisible, i.e., hidden (VT300).
+		//     Ps = 2 2  -> Normal (neither bold nor faint).
+		//     Ps = 2 4  -> Not underlined.
+		//     Ps = 2 5  -> Steady (not blinking).
+		//     Ps = 2 7  -> Positive (not inverse).
+		//     Ps = 2 8  -> Visible, i.e., not hidden (VT300).
+		//     Ps = 3 0  -> Set foreground color to Black.
+		//     Ps = 3 1  -> Set foreground color to Red.
+		//     Ps = 3 2  -> Set foreground color to Green.
+		//     Ps = 3 3  -> Set foreground color to Yellow.
+		//     Ps = 3 4  -> Set foreground color to Blue.
+		//     Ps = 3 5  -> Set foreground color to Magenta.
+		//     Ps = 3 6  -> Set foreground color to Cyan.
+		//     Ps = 3 7  -> Set foreground color to White.
+		//     Ps = 3 9  -> Set foreground color to default (original).
+		//     Ps = 4 0  -> Set background color to Black.
+		//     Ps = 4 1  -> Set background color to Red.
+		//     Ps = 4 2  -> Set background color to Green.
+		//     Ps = 4 3  -> Set background color to Yellow.
+		//     Ps = 4 4  -> Set background color to Blue.
+		//     Ps = 4 5  -> Set background color to Magenta.
+		//     Ps = 4 6  -> Set background color to Cyan.
+		//     Ps = 4 7  -> Set background color to White.
+		//     Ps = 4 9  -> Set background color to default (original).
+		// 
+		//   If 16-color support is compiled, the following apply.  Assume
+		//   that xterm's resources are set so that the ISO color codes are
+		//   the first 8 of a set of 16.  Then the aixterm colors are the
+		//   bright versions of the ISO colors:
+		//     Ps = 9 0  -> Set foreground color to Black.
+		//     Ps = 9 1  -> Set foreground color to Red.
+		//     Ps = 9 2  -> Set foreground color to Green.
+		//     Ps = 9 3  -> Set foreground color to Yellow.
+		//     Ps = 9 4  -> Set foreground color to Blue.
+		//     Ps = 9 5  -> Set foreground color to Magenta.
+		//     Ps = 9 6  -> Set foreground color to Cyan.
+		//     Ps = 9 7  -> Set foreground color to White.
+		//     Ps = 1 0 0  -> Set background color to Black.
+		//     Ps = 1 0 1  -> Set background color to Red.
+		//     Ps = 1 0 2  -> Set background color to Green.
+		//     Ps = 1 0 3  -> Set background color to Yellow.
+		//     Ps = 1 0 4  -> Set background color to Blue.
+		//     Ps = 1 0 5  -> Set background color to Magenta.
+		//     Ps = 1 0 6  -> Set background color to Cyan.
+		//     Ps = 1 0 7  -> Set background color to White.
+		// 
+		//   If xterm is compiled with the 16-color support disabled, it
+		//   supports the following, from rxvt:
+		//     Ps = 1 0 0  -> Set foreground and background color to
+		//     default.
+		// 
+		//   If 88- or 256-color support is compiled, the following apply.
+		//     Ps = 3 8  ; 5  ; Ps -> Set foreground color to the second
+		//     Ps.
+		//     Ps = 4 8  ; 5  ; Ps -> Set background color to the second
+		//     Ps.
+		// 
+		void CharAttributes (int [] pars)
 		{
-			throw new NotImplementedException ();
+			// Optimize a single SGR0.
+			if (pars.Length == 1 && pars[0] == 0) {
+      				terminal.CurAttr = CharData.DefaultAttr;
+      				return;
+    			}
+
+    			var l = pars.Length;
+			var flags = (FLAGS) (terminal.CurAttr >> 18);
+			var fg = (terminal.CurAttr >> 9) & 0x1ff;
+			var bg = terminal.CurAttr & 0x1ff;
+			var def = CharData.DefaultAttr;
+
+			for (var i = 0; i < l; i++) {
+				int p = pars [i];
+				if (p >= 30 && p <= 37) {
+					// fg color 8
+					fg = p - 30;
+				} else if (p >= 40 && p <= 47) {
+					// bg color 8
+					bg = p - 40;
+				} else if (p >= 90 && p <= 97) {
+					// fg color 16
+					p += 8;
+					fg = p - 90;
+				} else if (p >= 100 && p <= 107) {
+					// bg color 16
+					p += 8;
+					bg = p - 100;
+				} else if (p == 0) {
+					// default
+
+					flags = (FLAGS)(def >> 18);
+					fg = (def >> 9) & 0x1ff;
+					bg = def & 0x1ff;
+					// flags = 0;
+					// fg = 0x1ff;
+					// bg = 0x1ff;
+				} else if (p == 1) {
+					// bold text
+					flags |= FLAGS.BOLD;
+				} else if (p == 3) {
+					// italic text
+					flags |= FLAGS.ITALIC;
+				} else if (p == 4) {
+					// underlined text
+					flags |= FLAGS.UNDERLINE;
+				} else if (p == 5) {
+					// blink
+					flags |= FLAGS.BLINK;
+				} else if (p == 7) {
+					// inverse and positive
+					// test with: echo -e '\e[31m\e[42mhello\e[7mworld\e[27mhi\e[m'
+					flags |= FLAGS.INVERSE;
+				} else if (p == 8) {
+					// invisible
+					flags |= FLAGS.INVISIBLE;
+				} else if (p == 2) {
+					// dimmed text
+					flags |= FLAGS.DIM;
+				} else if (p == 22) {
+					// not bold nor faint
+					flags &= ~FLAGS.BOLD;
+					flags &= ~FLAGS.DIM;
+				} else if (p == 23) {
+					// not italic
+					flags &= ~FLAGS.ITALIC;
+				} else if (p == 24) {
+					// not underlined
+					flags &= ~FLAGS.UNDERLINE;
+				} else if (p == 25) {
+					// not blink
+					flags &= ~FLAGS.BLINK;
+				} else if (p == 27) {
+					// not inverse
+					flags &= ~FLAGS.INVERSE;
+				} else if (p == 28) {
+					// not invisible
+					flags &= ~FLAGS.INVISIBLE;
+				} else if (p == 39) {
+					// reset fg
+					fg = (CharData.DefaultAttr >> 9) & 0x1ff;
+				} else if (p == 49) {
+					// reset bg
+					bg = CharData.DefaultAttr & 0x1ff;
+				} else if (p == 38) {
+					// fg color 256
+					if (pars [i + 1] == 2) {
+						i += 2;
+						fg = terminal.MatchColor (
+							pars [i] & 0xff,
+							pars [i + 1] & 0xff,
+							pars [i + 2] & 0xff);
+						if (fg == -1)
+							fg = 0x1ff;
+						i += 2;
+					} else if (pars [i + 1] == 5) {
+						i += 2;
+						p = pars [i] & 0xff;
+						fg = p;
+					}
+				} else if (p == 48) {
+					// bg color 256
+					if (pars [i + 1] == 2) {
+						i += 2;
+						bg = terminal.MatchColor (
+							pars [i] & 0xff,
+							pars [i + 1] & 0xff,
+							pars [i + 2] & 0xff);
+						if (bg == -1)
+							bg = 0x1ff;
+						i += 2;
+					} else if (pars [i + 1] == 5) {
+						i += 2;
+						p = pars [i] & 0xff;
+						bg = p;
+					}
+				} else if (p == 100) {
+					// reset fg/bg
+					fg = (def >> 9) & 0x1ff;
+					bg = def & 0x1ff;
+				} else {
+					terminal.Error ("Unknown SGR attribute: %d.", p);
+				}
+			}
+			terminal.CurAttr = ((int)flags << 18) | (fg << 9) | bg;
 		}
 
-		bool ResetMode (int [] pars, string collect)
+		//
+		//CSI Pm l  Reset Mode (RM).
+		//    Ps = 2  -> Keyboard Action Mode (AM).
+		//    Ps = 4  -> Replace Mode (IRM).
+		//    Ps = 1 2  -> Send/receive (SRM).
+		//    Ps = 2 0  -> Normal Linefeed (LNM).
+		//CSI ? Pm l
+		//  DEC Private Mode Reset (DECRST).
+		//    Ps = 1  -> Normal Cursor Keys (DECCKM).
+		//    Ps = 2  -> Designate VT52 mode (DECANM).
+		//    Ps = 3  -> 80 Column Mode (DECCOLM).
+		//    Ps = 4  -> Jump (Fast) Scroll (DECSCLM).
+		//    Ps = 5  -> Normal Video (DECSCNM).
+		//    Ps = 6  -> Normal Cursor Mode (DECOM).
+		//    Ps = 7  -> No Wraparound Mode (DECAWM).
+		//    Ps = 8  -> No Auto-repeat Keys (DECARM).
+		//    Ps = 9  -> Don't send Mouse X & Y on button press.
+		//    Ps = 1 0  -> Hide toolbar (rxvt).
+		//    Ps = 1 2  -> Stop Blinking Cursor (att610).
+		//    Ps = 1 8  -> Don't print form feed (DECPFF).
+		//    Ps = 1 9  -> Limit print to scrolling region (DECPEX).
+		//    Ps = 2 5  -> Hide Cursor (DECTCEM).
+		//    Ps = 3 0  -> Don't show scrollbar (rxvt).
+		//    Ps = 3 5  -> Disable font-shifting functions (rxvt).
+		//    Ps = 4 0  -> Disallow 80 -> 132 Mode.
+		//    Ps = 4 1  -> No more(1) fix (see curses resource).
+		//    Ps = 4 2  -> Disable Nation Replacement Character sets (DEC-
+		//    NRCM).
+		//    Ps = 4 4  -> Turn Off Margin Bell.
+		//    Ps = 4 5  -> No Reverse-wraparound Mode.
+		//    Ps = 4 6  -> Stop Logging.  (This is normally disabled by a
+		//    compile-time option).
+		//    Ps = 4 7  -> Use Normal Screen Buffer.
+		//    Ps = 6 6  -> Numeric keypad (DECNKM).
+		//    Ps = 6 7  -> Backarrow key sends delete (DECBKM).
+		//    Ps = 1 0 0 0  -> Don't send Mouse X & Y on button press and
+		//    release.  See the section Mouse Tracking.
+		//    Ps = 1 0 0 1  -> Don't use Hilite Mouse Tracking.
+		//    Ps = 1 0 0 2  -> Don't use Cell Motion Mouse Tracking.
+		//    Ps = 1 0 0 3  -> Don't use All Motion Mouse Tracking.
+		//    Ps = 1 0 0 4  -> Don't send FocusIn/FocusOut events.
+		//    Ps = 1 0 0 5  -> Disable Extended Mouse Mode.
+		//    Ps = 1 0 1 0  -> Don't scroll to bottom on tty output
+		//    (rxvt).
+		//    Ps = 1 0 1 1  -> Don't scroll to bottom on key press (rxvt).
+		//    Ps = 1 0 3 4  -> Don't interpret "meta" key.  (This disables
+		//    the eightBitInput resource).
+		//    Ps = 1 0 3 5  -> Disable special modifiers for Alt and Num-
+		//    Lock keys.  (This disables the numLock resource).
+		//    Ps = 1 0 3 6  -> Don't send ESC  when Meta modifies a key.
+		//    (This disables the metaSendsEscape resource).
+		//    Ps = 1 0 3 7  -> Send VT220 Remove from the editing-keypad
+		//    Delete key.
+		//    Ps = 1 0 3 9  -> Don't send ESC  when Alt modifies a key.
+		//    (This disables the altSendsEscape resource).
+		//    Ps = 1 0 4 0  -> Do not keep selection when not highlighted.
+		//    (This disables the keepSelection resource).
+		//    Ps = 1 0 4 1  -> Use the PRIMARY selection.  (This disables
+		//    the selectToClipboard resource).
+		//    Ps = 1 0 4 2  -> Disable Urgency window manager hint when
+		//    Control-G is received.  (This disables the bellIsUrgent
+		//    resource).
+		//    Ps = 1 0 4 3  -> Disable raising of the window when Control-
+		//    G is received.  (This disables the popOnBell resource).
+		//    Ps = 1 0 4 7  -> Use Normal Screen Buffer, clearing screen
+		//    first if in the Alternate Screen.  (This may be disabled by
+		//    the titeInhibit resource).
+		//    Ps = 1 0 4 8  -> Restore cursor as in DECRC.  (This may be
+		//    disabled by the titeInhibit resource).
+		//    Ps = 1 0 4 9  -> Use Normal Screen Buffer and restore cursor
+		//    as in DECRC.  (This may be disabled by the titeInhibit
+		//    resource).  This combines the effects of the 1 0 4 7  and 1 0
+		//    4 8  modes.  Use this with terminfo-based applications rather
+		//    than the 4 7  mode.
+		//    Ps = 1 0 5 0  -> Reset terminfo/termcap function-key mode.
+		//    Ps = 1 0 5 1  -> Reset Sun function-key mode.
+		//    Ps = 1 0 5 2  -> Reset HP function-key mode.
+		//    Ps = 1 0 5 3  -> Reset SCO function-key mode.
+		//    Ps = 1 0 6 0  -> Reset legacy keyboard emulation (X11R6).
+		//    Ps = 1 0 6 1  -> Reset keyboard emulation to Sun/PC style.
+		//    Ps = 2 0 0 4  -> Reset bracketed paste mode.
+		//
+		void ResetMode (int [] pars, string collect)
 		{
-			throw new NotImplementedException ();
+			if (pars.Length == 0)
+				return;
+
+			if (pars.Length > 1) {
+				for (var i = 0; i < pars.Length; i++)
+					ResetMode (pars [i], "");
+
+
+				return;
+			}
+			ResetMode (pars [0], collect);
+		}
+
+		void ResetMode (int par, string collect)
+		{
+			if (collect == "") {
+      			switch (par) {
+        		case 4:
+          			terminal.InsertMode = false;
+          			break;
+        		case 20:
+          			// this._t.convertEol = false;
+          			break;
+				}
+      		} else if (collect == "?") {
+				switch (par) {
+					case 1:
+						terminal.ApplicationCursor = false;
+						break;
+					case 3:
+						if (terminal.Cols == 132 && terminal.SavedCols != 0)
+							terminal.Resize(terminal.SavedCols, terminal.Rows);
+
+						terminal.SavedCols = 0;
+						break;
+					case 6:
+						terminal.OriginMode = false;
+						break;
+					case 7:
+						terminal.Wraparound = false;
+						break;
+					case 12:
+						// this.cursorBlink = false;
+						break;
+					case 66:
+						terminal.Log("Switching back to normal keypad.");
+						terminal.ApplicationKeypad = false;
+						terminal.SyncScrollArea ();
+						break;
+					case 9: // X10 Mouse
+					case 1000: // vt200 mouse
+					case 1002: // button event mouse
+					case 1003: // any event mouse
+						terminal.X10Mouse = false;
+						terminal.Vt200Mouse = false;
+						terminal.NormalMouse = false;
+						terminal.MouseEvents = false;
+						terminal.DisableMouseEvents();
+						break;
+					case 1004: // send focusin/focusout events
+						terminal.SendFocus = false;
+						break;
+					case 1005: // utf8 ext mode mouse
+						terminal.UtfMouse = false;
+						break;
+					case 1006: // sgr ext mode mouse
+						terminal.SgrMouse = false;
+						break;
+					case 1015: // urxvt ext mode mouse
+						terminal.UrxvtMouse = false;
+						break;
+					case 25: // hide cursor
+						terminal.CursorHidden = true;
+						break;
+					case 1048: // alt screen cursor
+						this.RestoreCursor(Array.Empty<int>());
+						break;
+					case 1049: // alt screen buffer cursor
+						// FALL-THROUGH
+						goto case 47;
+					case 47: // normal screen buffer
+					case 1047: // normal screen buffer - clearing it first
+						// Ensure the selection manager has the correct buffer
+						terminal.Buffers.ActivateNormalBuffer();
+						if (par == 1049) 
+							this.RestoreCursor(Array.Empty<int>());
+						terminal.Refresh (0, terminal.Rows - 1);
+						terminal.SyncScrollArea ();
+						terminal.ShowCursor();
+						break;
+					case 2004: // bracketed paste mode (https://cirw.in/blog/bracketed-paste)
+						terminal.BracketedPasteMode = false;
+						break;
+				}
+			  }
 		}
 
 		// 

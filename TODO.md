@@ -9,7 +9,7 @@
 - [x] CharWidth.ts
 - [ ] CompositionHelper.ts
 - [x] EscapeSequenceParser.ts
-- [ ] InputHandler.ts
+- [x] InputHandler.ts
 - [ ] Linkifier.ts
 - [ ] SelectionManager.ts
 - [ ] SelectionModel.ts

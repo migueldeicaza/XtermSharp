@@ -281,7 +281,7 @@ namespace XtermSharp {
 		}
 
 		public delegate void CsiHandler (int [] parameters, string collect);
-		public delegate bool OscHandler (string data);
+		public delegate void OscHandler (string data);
 		public delegate void EscHandler (string collect, int flag);
 		public delegate void PrintHandler (uint [] data, int start, int end);
 		public delegate void ExecuteHandler (byte code);
@@ -637,8 +637,7 @@ namespace XtermSharp {
 							if (OscHandlers.TryGetValue (identifier, out var ohandlers)) {
 								c = ohandlers.Count - 1;
 								for (; c >= 0; c--) {
-									if (ohandlers [c] (content))
-										break;
+									ohandlers [c] (content);
 								}
 							}
 							if (c < 0)

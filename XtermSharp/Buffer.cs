@@ -13,7 +13,7 @@ namespace XtermSharp
 		public int X, Y;
 		public int ScrollBottom, ScrollTop;
 		BitArray tabStops;
-		public int SavedX, SavedY;
+		public int SavedX, SavedY, SavedAttr = CharData.DefaultAttr;
 		public ITerminal Terminal { get; private set; }
 		bool hasScrollback;
 
