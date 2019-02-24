@@ -6,7 +6,7 @@ namespace XtermSharp {
 
 	public class TerminalOptions {
 		public int Cols, Rows;
-		public bool ConvertEol, CursorBlink;
+		public bool ConvertEol = true, CursorBlink;
 		public string TermName;
 		public CursorStyle CursorStyle;
 		public bool ScreenReaderMode;

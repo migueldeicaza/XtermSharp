@@ -124,9 +124,20 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
+		// 
+		// ESC D Index (Index is 0x84)
+		//
 		internal void Index ()
 		{
-			throw new NotImplementedException ();
+			var buffer = Buffer;
+			buffer.Y++;
+			if (buffer.Y > buffer.ScrollBottom) {
+				buffer.Y--;
+				Scroll ();
+			}
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X > Cols)
+				buffer.X--;
 		}
 
 		BufferLine blankLine;

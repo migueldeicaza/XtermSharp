@@ -468,7 +468,7 @@ namespace XtermSharp {
 				}
 
 				// Normal transition and action lookup
-				transition = table [(int)currentState << 4 | (code < 0xa0 ? code : NonAsciiPrintable)];
+				transition = table [(int)currentState << 8 | (code < 0xa0 ? code : NonAsciiPrintable)];
 				switch ((ParserAction)(transition >> 4)) {
 				case ParserAction.Print:
 					print = (~print != 0) ? print : i;
