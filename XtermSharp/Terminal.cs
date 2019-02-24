@@ -204,7 +204,7 @@ namespace XtermSharp {
 
 		internal void Bell ()
 		{
-			Console.WriteLine ("beep");
+			//Console.WriteLine ("beep");
 		}
 
 		public void EmitLineFeed ()
