@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Diagnostics;
 using NStack;
 
 namespace XtermSharp
@@ -7,6 +8,7 @@ namespace XtermSharp
 	/// <summary>
 	/// This class represents a terminal buffer (an internal state of the terminal), where text contents, cursor and scroll position are stored.
 	/// </summary>
+    	[DebuggerDisplay ("({X},{Y} YD{YDisp}:YB{YBase} Scroll={ScrollBottom,ScrollTop}")]
 	public class Buffer {
 		CircularList<BufferLine> lines;
 		public int YDisp, YBase;

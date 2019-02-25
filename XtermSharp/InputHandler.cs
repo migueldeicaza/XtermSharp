@@ -134,8 +134,8 @@ namespace XtermSharp {
 			// Execute Handler
 			parser.SetExecuteHandler (7, terminal.Bell);
 			parser.SetExecuteHandler (10, LineFeed);
-			parser.SetExecuteHandler (11, LineFeed);
-			parser.SetExecuteHandler (12, LineFeed);
+			parser.SetExecuteHandler (11, LineFeedBasic);   // VT Vertical Tab - ignores auto-new-line behavior in ConvertEOL
+			parser.SetExecuteHandler (12, LineFeedBasic);
 			parser.SetExecuteHandler (13, CarriageReturn);
 			parser.SetExecuteHandler (8, Backspace);
 			parser.SetExecuteHandler (9, Tab);
@@ -393,14 +393,31 @@ namespace XtermSharp {
 			terminal.ReverseIndex ();	
 		}
 
+		//
+		// CSI s
+		// ESC 7
+		//   Save cursor (ANSI.SYS).
+		//
 		void RestoreCursor (string collect, int flag)
 		{
-			throw new NotImplementedException ();
+			var buffer = terminal.Buffer;
+			buffer.X = buffer.SavedX;
+			buffer.Y = buffer.SavedY;
+			terminal.CurAttr = buffer.SavedAttr;
 		}
+
+		//
+		// CSI s
+		// ESC 7
+		//   Save cursor (ANSI.SYS).
+		//
 
 		void SaveCursor (string collect, int flag)
 		{
-			throw new NotImplementedException ();
+			var buffer = terminal.Buffer;
+			buffer.SavedX = buffer.X;
+			buffer.SavedY = buffer.Y;
+			buffer.SavedAttr = terminal.CurAttr;
 		}
 
 		// 
@@ -481,6 +498,12 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 			if (terminal.Options.ConvertEol)
 				buffer.X = 0;
+			LineFeedBasic ();
+		}
+
+		void LineFeedBasic ()
+		{
+			var buffer = terminal.Buffer;
 			buffer.Y++;
 			if (buffer.Y > buffer.ScrollBottom) {
 				buffer.Y--;
@@ -1953,8 +1976,8 @@ namespace XtermSharp {
 				}
 
 				// write current char to buffer and advance cursor
-				var x = new CharData (curAttr, code, chWidth, ch);
-				bufferRow [buffer.X++] = x;
+				var charData = new CharData (curAttr, code, chWidth, ch);
+				bufferRow [buffer.X++] = charData;
 
 				// fullwidth char - also set next cell to placeholder stub and advance cursor
 				// for graphemes bigger than fullwidth we can simply loop to zero

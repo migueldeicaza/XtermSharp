@@ -60,15 +60,23 @@ namespace XtermSharp {
 
 		public void Error (string txt, params object [] args)
 		{
+			Report ("ERROR", txt, args);
 		}
 
 		public bool Debug { get; set; }
 		public void Log (string text, params object [] args)
 		{
-			Console.WriteLine ("LOG: " + text);
+			Report ("LOG", text, args);
+		}
+
+		void Report (string prefix, string text, object[] args)
+		{
+			Console.WriteLine ($"{prefix}: {text}");
 			for (int i = 0; i < args.Length; i++)
 				Console.WriteLine ("    {0}: {1}", i, args [i]);
+
 		}
+
 
 		public void Feed (byte [] data)
 		{
@@ -247,6 +255,7 @@ namespace XtermSharp {
 
 		internal void EmitScroll (int v)
 		{
+			return;
 			throw new NotImplementedException ();
 		}
 
@@ -319,7 +328,20 @@ namespace XtermSharp {
 
 		internal void ReverseIndex ()
 		{
-			throw new NotImplementedException ();
+			var buffer = Buffer;
+
+			if (buffer.Y == buffer.ScrollTop) {
+				// possibly move the code below to term.reverseScroll();
+				// test: echo -ne '\e[1;1H\e[44m\eM\e[0m'
+				// blankLine(true) is xterm/linux behavior
+				var scrollRegionHeight = buffer.ScrollBottom - buffer.ScrollTop;
+				buffer.Lines.ShiftElements (buffer.Y + buffer.YBase, scrollRegionHeight, 1);
+				buffer.Lines [buffer.Y + buffer.YBase] = buffer.GetBlankLine (EraseAttr ());
+				UpdateRange (buffer.ScrollTop);
+				UpdateRange (buffer.ScrollBottom);
+			} else {
+				buffer.Y--;
+			}
 		}
 	}
 }

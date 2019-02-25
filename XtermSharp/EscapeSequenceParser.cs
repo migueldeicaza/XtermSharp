@@ -298,7 +298,7 @@ namespace XtermSharp {
 		// Fallback handlers
 		public PrintHandler PrintHandlerFallback = (data, start, end) => { };
 		public Action<byte> ExecuteHandlerFallback = EmptyExecuteHandler;
-		public Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { };
+		public Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { Console.WriteLine ("Can not handle ESC-[" + flag); };
 		public EscHandler EscHandlerFallback = (collect, flag) => { };
 		public Action<int, string> OscHandlerFallback = (identifier, data) => { };
 		public IDcsHandler DcsHandlerFallback = new DcsDummy ();
@@ -323,7 +323,7 @@ namespace XtermSharp {
 			initialState = ParserState.Ground;
 			currentState = initialState;
 			_osc = "";
-			_pars = new List<int>();
+			_pars = new List<int> { 0 } ;
 			_collect = "";
 			SetEscHandler ("\\", EscHandlerFallback);
 		}
@@ -432,6 +432,7 @@ namespace XtermSharp {
 			currentState = initialState;
 			_osc = "";
 			_pars.Clear ();
+			_pars.Add (0);
 			_collect = "";
 			ActiveDcsHandler = null;
 		}
@@ -469,7 +470,8 @@ namespace XtermSharp {
 
 				// Normal transition and action lookup
 				transition = table [(int)currentState << 8 | (code < 0xa0 ? code : NonAsciiPrintable)];
-				switch ((ParserAction)(transition >> 4)) {
+				var action = (ParserAction)(transition >> 4);
+				switch (action) {
 				case ParserAction.Print:
 					print = (~print != 0) ? print : i;
 					break;
@@ -536,12 +538,13 @@ namespace XtermSharp {
 					break;
 				case ParserAction.CsiDispatch:
 					// Trigger CSI handler
-					var csiHandlers = CsiHandlers [(Rune)code];
-					var jj = csiHandlers != null ? csiHandlers.Count - 1 : -1;
-					for (; jj >= 0; jj--) {
-						csiHandlers [jj] (pars.ToArray (), collect);
-					}
-					if (jj < 0)
+					if (CsiHandlers.TryGetValue ((Rune)code, out var csiHandlers)) {
+
+						var jj = csiHandlers.Count - 1;
+						for (; jj >= 0; jj--) {
+							csiHandlers [jj] (pars.ToArray (), collect);
+						}
+					} else
 						CsiHandlerFallback (collect, pars.ToArray (), code);
 					break;
 				case ParserAction.Param:
@@ -567,6 +570,7 @@ namespace XtermSharp {
 					}
 					osc = "";
 					pars.Clear ();
+					pars.Add (0);
 					collect = "";
 					dcs = -1;
 					break;
