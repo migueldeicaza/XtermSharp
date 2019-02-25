@@ -36,6 +36,8 @@
 
 xterm.js from 490e46ce0c396d0129db85467e8d097c3a74a3f9
 
+Mhm on my vacation laptop I used 857ae4b702b17381f6b862909a3570a6c3ab30b4
+
 Implement wraparound = false (CSI ? Pm l -> 7)
 
 The test 0008 fails because when we get to the column 80, we have the cursor at 80, but somehow the behavior is that the backspace starts one column before
