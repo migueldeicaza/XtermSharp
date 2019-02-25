@@ -17,7 +17,7 @@ namespace XtermSharp {
 		Dictionary<byte, string> charset;
 		int gcharset;
 
-		public Terminal (TerminalOptions options = null) 
+		public Terminal (TerminalOptions options = null)
 		{
 			if (options == null)
 				options = new TerminalOptions ();
@@ -69,7 +69,7 @@ namespace XtermSharp {
 			Report ("LOG", text, args);
 		}
 
-		void Report (string prefix, string text, object[] args)
+		void Report (string prefix, string text, object [] args)
 		{
 			Console.WriteLine ($"{prefix}: {text}");
 			for (int i = 0; i < args.Length; i++)
@@ -127,9 +127,19 @@ namespace XtermSharp {
 			// For accessibility purposes 'a11y.char' in the original source.
 		}
 
+		//
+		// ESC c Full Reset (RIS)
+		//
 		internal void Reset ()
 		{
-			throw new NotImplementedException ();
+			Options.Rows = Rows;
+			Options.Cols = Cols;
+
+			var savedCursorHidden = cursorHidden;
+			Setup ();
+			cursorHidden = savedCursorHidden;
+			Refresh (0, Rows - 1);
+			SyncScrollArea ();
 		}
 
 		// 
@@ -215,7 +225,7 @@ namespace XtermSharp {
 			 *
 			 * @event scroll
 			 */
-	     		if (Scrolled != null)
+			if (Scrolled != null)
 				Scrolled (this, buffer.YDisp);
 		}
 
@@ -264,9 +274,19 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		internal void Resize (int v, int rows)
+		internal void Resize (int cols, int rows)
 		{
-			throw new NotImplementedException ();
+			if (cols < MINIMUM_COLS)
+				cols = MINIMUM_COLS;
+			if (rows < MINIMUM_ROWS)
+				rows = MINIMUM_ROWS;
+			if (cols == Cols && rows == Rows)
+				return;
+			Buffers.Resize (cols, rows);
+			Cols = cols;
+			Rows = rows;
+			buffers.SetupTabStops (cols);
+			Refresh (0, Rows - 1);
 		}
 
 		internal void SyncScrollArea ()
@@ -278,20 +298,31 @@ namespace XtermSharp {
 		internal void EnableMouseEvents ()
 		{
 			// TODO:
-	    	// DISABLE SELECTION MANAGER.
+			// DISABLE SELECTION MANAGER.
 			throw new NotImplementedException ();
 		}
 
 		internal void DisableMouseEvents ()
 		{
 			// TODO:
-	    	// ENABLE SELECTION MANAGER.
+			// ENABLE SELECTION MANAGER.
 			throw new NotImplementedException ();
 		}
 
-		internal void Refresh (int v1, int v2)
+		/// <summary>
+		/// Implemented by subclasses - must refresh the display from the starting to the end row.
+		/// </summary>
+		/// <param name="startRow">Initial row to update, offset starts at zero.</param>
+		/// <param name="endRow">Last row to update.</param>
+		public void Refresh (int startRow, int endRow)
 		{
-			throw new NotImplementedException ();
+			// TO BE HONEST - This probably should not be called directly,
+			// instead the view shoudl after feeding data, determine if there is a need
+			// to refresh based on the parameters provided for refresh ranges, and then
+			// update, to avoid the backend rtiggering this multiple times.
+
+			UpdateRange (startRow);
+			UpdateRange (endRow);
 		}
 
 		internal void ShowCursor ()
@@ -299,7 +330,7 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		static Dictionary<int,int> matchColorCache = new Dictionary<int, int> ();
+		static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();
 
 		public int MatchColor (int r1, int g1, int b1)
 		{
@@ -311,14 +342,33 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		internal void SetCursorStyle (CursorStyle style)
+		/// <summary>
+		/// Implement to change the cursor style, call the base implementation.
+		/// </summary>
+		/// <param name="style"></param>
+		public void SetCursorStyle (CursorStyle style)
 		{
-			throw new NotImplementedException ();
 		}
 
-		internal void SetTitle (string text)
+		string terminalTitle;
+		/// <summary>
+		/// Tracks the terminal title.
+		/// </summary>
+		public virtual string TerminalTitle {
+			get => terminalTitle;
+
+			set {
+				terminalTitle = value;
+			}
+		}
+
+		/// <summary>
+		/// Override to set the current terminal text
+		/// </summary>
+		/// <param name="text"></param>
+		protected void SetTitle (string text)
 		{
-			throw new NotImplementedException ();
+			terminalTitle = text;
 		}
 
 		internal void TabSet ()
