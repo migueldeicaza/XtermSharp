@@ -330,7 +330,7 @@ namespace XtermSharp {
 			if (cursorHidden == false)
 				return;
 			cursorHidden = false;
-			Refresh (buffer.Y);
+			Refresh (Buffer.Y, Buffer.Y);
 		}
 
 		static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();
