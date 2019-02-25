@@ -325,9 +325,12 @@ namespace XtermSharp {
 			UpdateRange (endRow);
 		}
 
-		internal void ShowCursor ()
+		public virtual void ShowCursor ()
 		{
-			throw new NotImplementedException ();
+			if (cursorHidden == false)
+				return;
+			cursorHidden = false;
+			Refresh (buffer.Y);
 		}
 
 		static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();
