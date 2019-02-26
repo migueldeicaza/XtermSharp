@@ -427,7 +427,7 @@ namespace XtermSharp {
 		// 
 		void SetTitle (string data)
 		{
-			terminal.TerminalTitle = data;
+			terminal.SetTitle (data);
 		}
 
 		// 

@@ -2,8 +2,29 @@
 using System.Collections.Generic;
 
 namespace XtermSharp {
+	public interface ITerminalDelegate {
+		void ShowCursor (Terminal source);
+		void SetTerminalTitle (Terminal source, string title);
+	}
+
+	//
+    	// Simple implementation of ITerminalDelegate, when you do not want to 
+	// do a lot of work to use.
+    	//
+	public class SimpleTerminalDelegate : ITerminalDelegate {
+		public virtual void SetTerminalTitle (Terminal source, string title)
+		{
+	
+		}
+
+		public virtual void ShowCursor (Terminal source)
+		{
+		}
+	}
 
 	public class Terminal {
+		ITerminalDelegate tdelegate;
+
 		const int MINIMUM_COLS = 2;
 		const int MINIMUM_ROWS = 1;
 
@@ -17,13 +38,20 @@ namespace XtermSharp {
 		Dictionary<byte, string> charset;
 		int gcharset;
 
-		public Terminal (TerminalOptions options = null)
+		public Terminal (ITerminalDelegate tdel = null, TerminalOptions options = null)
 		{
 			if (options == null)
 				options = new TerminalOptions ();
+			if (tdel == null)
+				tdel = new SimpleTerminalDelegate ();
 
 			Options = options;
 			Setup ();
+			tdelegate = tdel;
+		}
+
+		public Terminal ()
+		{
 		}
 
 		void Setup ()
@@ -325,12 +353,13 @@ namespace XtermSharp {
 			UpdateRange (endRow);
 		}
 
-		public virtual void ShowCursor ()
+		public void ShowCursor ()
 		{
 			if (cursorHidden == false)
 				return;
 			cursorHidden = false;
 			Refresh (Buffer.Y, Buffer.Y);
+			tdelegate.ShowCursor (this);
 		}
 
 		static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();
@@ -353,25 +382,15 @@ namespace XtermSharp {
 		{
 		}
 
-		string terminalTitle;
-		/// <summary>
-		/// Tracks the terminal title.
-		/// </summary>
-		public virtual string TerminalTitle {
-			get => terminalTitle;
-
-			set {
-				terminalTitle = value;
-			}
-		}
-
+		string TerminalTitle { get; set; }
 		/// <summary>
 		/// Override to set the current terminal text
 		/// </summary>
 		/// <param name="text"></param>
-		protected void SetTitle (string text)
+		internal void SetTitle (string text)
 		{
-			terminalTitle = text;
+			TerminalTitle = text;
+			tdelegate.SetTerminalTitle (this, text);
 		}
 
 		internal void TabSet ()

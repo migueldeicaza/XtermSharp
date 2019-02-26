@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuiCsHost", "GuiCsHost\GuiC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimpleTester", "SimpleTester\SimpleTester.csproj", "{AF871559-B69C-41EA-B1A7-C05EA6B456B9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XtermSharp.Mac", "XtermSharp.Mac\XtermSharp.Mac.csproj", "{1058A595-AA72-4BF3-B6F1-06F9F4FED6DC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MacTerminal", "MacTerminal\MacTerminal.csproj", "{1F7FAA67-E10C-4C71-8DA9-91A2A08E5F46}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +31,14 @@ Global
 		{AF871559-B69C-41EA-B1A7-C05EA6B456B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AF871559-B69C-41EA-B1A7-C05EA6B456B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AF871559-B69C-41EA-B1A7-C05EA6B456B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1058A595-AA72-4BF3-B6F1-06F9F4FED6DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1058A595-AA72-4BF3-B6F1-06F9F4FED6DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1058A595-AA72-4BF3-B6F1-06F9F4FED6DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1058A595-AA72-4BF3-B6F1-06F9F4FED6DC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F7FAA67-E10C-4C71-8DA9-91A2A08E5F46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F7FAA67-E10C-4C71-8DA9-91A2A08E5F46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F7FAA67-E10C-4C71-8DA9-91A2A08E5F46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F7FAA67-E10C-4C71-8DA9-91A2A08E5F46}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		Policies = $0

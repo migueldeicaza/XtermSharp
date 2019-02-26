@@ -37,7 +37,7 @@ namespace SimpleTester {
 					continue;
 				}
 				Console.WriteLine ("Parsing " + Path.GetFileName (f));
-				var x = new Terminal (new TerminalOptions ());
+				var x = new Terminal (null, new TerminalOptions ());
 				var bytes = File.ReadAllBytes (f);
 
 				x.Feed (bytes);
