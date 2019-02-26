@@ -11,14 +11,14 @@ namespace XtermSharp {
 
 	public interface IDcsHandler {
 		void Hook (string collect, int [] parameters, int flag);
-		void Put (uint [] data, int start, int end);
+		void Put (byte [] data, int start, int end);
 		void Unhook ();
 	}
 
 	// Dummy DCS Handler as defaulta fallback
 	class DcsDummy : IDcsHandler {
 		public void Hook (string collect, int [] parameters, int flag) { }
-		public void Put (uint [] data, int start, int end) { }
+		public void Put (byte [] data, int start, int end) { }
 		public void Unhook () { }
 	}
 
@@ -278,11 +278,11 @@ namespace XtermSharp {
 		public delegate void CsiHandler (int [] parameters, string collect);
 		public delegate void OscHandler (string data);
 		public delegate void EscHandler (string collect, int flag);
-		public delegate void PrintHandler (uint [] data, int start, int end);
+		public delegate void PrintHandler (byte [] data, int start, int end);
 		public delegate void ExecuteHandler ();
 
 		// Handler lookup container
-		public Dictionary<Rune, List<CsiHandler>> CsiHandlers;
+		public Dictionary<byte, List<CsiHandler>> CsiHandlers;
 		public Dictionary<int, List<OscHandler>> OscHandlers;
 		public Dictionary<byte, ExecuteHandler> ExecuteHandlers;
 		public Dictionary<string, EscHandler> EscHandlers;
@@ -314,7 +314,7 @@ namespace XtermSharp {
 		public EscapeSequenceParser ()
 		{
 			table = BuildVt500TransitionTable ();
-			CsiHandlers = new Dictionary<Rune, List<CsiHandler>> ();
+			CsiHandlers = new Dictionary<byte, List<CsiHandler>> ();
 			OscHandlers = new Dictionary<int, List<OscHandler>> ();
 			ExecuteHandlers = new Dictionary<byte, ExecuteHandler> ();
 			EscHandlers = new Dictionary<string, EscHandler> ();
@@ -368,7 +368,7 @@ namespace XtermSharp {
 			}
 		}
 
-		IDisposable AddCsiHandler (Rune flag, CsiHandler callback)
+		IDisposable AddCsiHandler (byte flag, CsiHandler callback)
 		{
 			List<CsiHandler> list;
 
@@ -385,8 +385,8 @@ namespace XtermSharp {
 			};
 		}
 
-		public void SetCsiHandler (Rune flag, CsiHandler callback) => CsiHandlers [flag] = new List<CsiHandler> () { callback };
-		public void ClearCsiHandler (Rune flag) => CsiHandlers.Remove (flag);
+		public void SetCsiHandler (char flag, CsiHandler callback) => CsiHandlers [(byte)flag] = new List<CsiHandler> () { callback };
+		public void ClearCsiHandler (byte flag) => CsiHandlers.Remove (flag);
 		public void SetCsiHandlerFallback (Action<string,int[],int> fallback) => CsiHandlerFallback = fallback;
 
 		class OscHandlerRemover : IDisposable {
@@ -437,9 +437,9 @@ namespace XtermSharp {
 			ActiveDcsHandler = null;
 		}
 
-		public void Parse (uint [] data, int len)
+		public void Parse (byte [] data, int len)
 		{
-			var code = 0;
+			byte code = 0;
 			var transition = 0;
 			var error = false;
 			var currentState = this.currentState;
@@ -452,7 +452,7 @@ namespace XtermSharp {
 
 			// process input string
 			for (var i = 0; i < len; ++i) {
-				code = (int) data [i];
+				code = data [i];
 
 				// shortcut for most chars (print action)
 				if (currentState == ParserState.Ground && code > 0x1f && code < 0x80) {
@@ -480,10 +480,10 @@ namespace XtermSharp {
 						printHandler (data, print, i);
 						print = -1;
 					}
-					if (ExecuteHandlers.TryGetValue ((byte)code, out var callback))
+					if (ExecuteHandlers.TryGetValue (code, out var callback))
 						callback ();
 					else
-						ExecuteHandlerFallback ((byte)code);
+						ExecuteHandlerFallback (code);
 					break;
 				case ParserAction.Ignore:
 					// handle leftover print or dcs chars
@@ -538,7 +538,7 @@ namespace XtermSharp {
 					break;
 				case ParserAction.CsiDispatch:
 					// Trigger CSI handler
-					if (CsiHandlers.TryGetValue ((Rune)code, out var csiHandlers)) {
+					if (CsiHandlers.TryGetValue (code, out var csiHandlers)) {
 
 						var jj = csiHandlers.Count - 1;
 						for (; jj >= 0; jj--) {
@@ -607,11 +607,13 @@ namespace XtermSharp {
 				case ParserAction.OscPut:
 					for (var j = i + 1; ; j++) {
 						if (j > len || (data [j] < 0x20) || (data [j] > 0x7f && data [j] < 0x9f)) {
-							var runes = new Rune [j - i];
+							var block = new byte [j - i];
 							for (int k = i; k < j; k++)
-								runes [k] = (Rune) data [j];
-			    				// TODO: Audit
-							osc += ustring.Make (runes).ToString ();
+								block [k] = data [j];
+							// TODO: Audit, the code below as I would not like the code below to abort on invalid UTF8
+			    // So we need a way of producing memory blocks.
+							osc += System.Text.Encoding.UTF8.GetString (block);
+								 
 							i = j - 1;
 							break;
 						}

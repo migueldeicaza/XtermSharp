@@ -16,7 +16,7 @@ namespace XtermSharp {
 	//   Request Status String (DECRQSS), VT420 and up.
 	// Response: DECRPSS (https://vt100.net/docs/vt510-rm/DECRPSS.html)
 	class DECRQSS : IDcsHandler {
-		List<Rune> data;
+		List<byte> data;
 		Terminal terminal;
 
 		public DECRQSS (Terminal terminal)
@@ -26,18 +26,18 @@ namespace XtermSharp {
 
 		public void Hook (string collect, int [] parameters, int flag)
 		{
-			data = new List<Rune> ();
+			data = new List<byte> ();
 		}
 
-		public void Put (uint [] data, int start, int end)
+		public void Put (byte [] data, int start, int end)
 		{
 			for (int i = start; i < end; i++)
-				this.data.Add ((Rune)data [i]);
+				this.data.Add (data [i]);
 		}
 
 		public void Unhook ()
 		{
-			var newData = ustring.Make (this.data).ToString ();
+			var newData = System.Text.Encoding.Default.GetString (data.ToArray ());
 			switch (newData) {
 			case "\"q": // DECCSA
 				terminal.Handler ("\x1bP1$r0\"q$\x1b\\");
@@ -235,9 +235,8 @@ namespace XtermSharp {
 
 			if (terminal.Debug)
 				terminal.Log ("data: " + data);
-			var ustr = ustring.Make (data);
-			var runes = ustr.ToRunes ();
-			parser.Parse (runes, runes.Length);
+		
+			parser.Parse (data, data.Length);
 
 			buffer = terminal.Buffer;
 			if (buffer.X != cursorStartX || buffer.Y != cursorStartY) {
@@ -1864,7 +1863,7 @@ namespace XtermSharp {
 			terminal.UpdateRange (buffer.Y);
 		}
 
-		void Print (uint [] data, int start, int end)
+		void Print (byte [] data, int start, int end)
 		{
 			var buffer = terminal.Buffer;
 			var charset = terminal.Charset;
@@ -1894,7 +1893,7 @@ namespace XtermSharp {
 					// MIGUEL-FIXME - this is broken for dutch cahrset that returns two letters "ij", need to figure out what to do
 					charset.TryGetValue ((byte)code, out var str);
 					ch = str [0];
-					code = (uint)ch;
+					code = (byte) ch;
 				}
 				if (screenReaderMode)
 					terminal.EmitChar (ch);
