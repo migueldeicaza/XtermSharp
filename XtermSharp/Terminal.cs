@@ -106,9 +106,9 @@ namespace XtermSharp {
 		}
 
 
-		public void Feed (byte [] data)
+		public void Feed (byte [] data, int len = -1)
 		{
-			input.Parse (data);
+			input.Parse (data, len);
 		}
 
 		public Dictionary<byte, string> Charset { get; set; }

@@ -1,8 +1,11 @@
 ﻿using System;
-
 using AppKit;
 using Foundation;
 using XtermSharp.Mac;
+using XtermSharp;
+using ObjCRuntime;
+using CoreFoundation;
+using System.Runtime.InteropServices;
 
 namespace MacTerminal {
 	public partial class ViewController : NSViewController {
@@ -12,11 +15,40 @@ namespace MacTerminal {
 		{
 		}
 
+		int pid, fd;
+		byte [] readBuffer = new byte [8192];
+
+		void ChildProcessRead (DispatchData data, int error)
+		{
+			using (var map = data.CreateMap (out var buffer, out var size)) {
+				Marshal.Copy (buffer, readBuffer, 0, (int) size);
+				terminalView.Feed (readBuffer, (int) size);
+				for (nuint i = 0; i < size; i++) {
+					Console.Write ("[{0}]", Marshal.ReadByte (buffer, (int) i));
+				}
+				terminalView.NeedsDisplay = true;
+			}
+			DispatchIO.Read (fd, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
+		}
+
+		void ChildProcessWrite (DispatchData left, int error)
+		{
+			if (error != 0) {
+				throw new Exception ("Error writing data to child");
+			}
+		}
+
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
+			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, out fd);
+			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
+
 			terminalView = new TerminalView (View.Frame);
-			terminalView.Feed ("Hello world from the terminal!");
+			terminalView.UserInput += (byte [] data) => {
+				DispatchIO.Write (fd, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
+			};
+			terminalView.Feed ("Welcome to XtermSharp - NSView frontend!\n");
 			terminalView.TitleChanged += (TerminalView sender, string title) => {
 				View.Window.Title = title;
 			};

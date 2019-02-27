@@ -227,16 +227,19 @@ namespace XtermSharp {
 
 		public event Action<InputHandler> CursorMoved;
 
-		public void Parse (byte [] data)
+		public void Parse (byte [] data, int length = -1)
 		{
+			if (length == -1)
+				length = data.Length;
+
 			var buffer = terminal.Buffer;
 			var cursorStartX = buffer.X;
 			var cursorStartY = buffer.Y;
 
 			if (terminal.Debug)
 				terminal.Log ("data: " + data);
-		
-			parser.Parse (data, data.Length);
+
+			parser.Parse (data, length);
 
 			buffer = terminal.Buffer;
 			if (buffer.X != cursorStartX || buffer.Y != cursorStartY) {
