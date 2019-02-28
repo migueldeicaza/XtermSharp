@@ -4,6 +4,8 @@ using CoreGraphics;
 using AppKit;
 using CoreText;
 using ObjCRuntime;
+using System.Text;
+using System.Collections.Generic;
 
 namespace XtermSharp.Mac {
 	/// <summary>
@@ -13,15 +15,96 @@ namespace XtermSharp.Mac {
 		static CGAffineTransform textMatrix;
 
 		Terminal terminal;
+		NSAttributedString [] buffer;
 		NSFont font;
+
+		StringBuilder basBuilder = new StringBuilder ();
+
+		NSColor MapColor (int color)
+		{
+			switch (color) {
+			case 0: return NSColor.Black;
+			case 1: return NSColor.Red;
+			case 2: return NSColor.Green;
+			case 3: return NSColor.Yellow;
+			case 4: return NSColor.Blue;
+			case 5: return NSColor.Magenta;
+			case 6: return NSColor.Cyan;
+			case 7: return NSColor.White;
+			case 8: return NSColor.Black; // Original
+			default:
+				return NSColor.Brown;
+			}
+		}
+
+		Dictionary<int, NSStringAttributes> attributes = new Dictionary<int, NSStringAttributes> ();
+		NSStringAttributes GetAttributes (int attribute)
+		{
+			// ((int)flags << 18) | (fg << 9) | bg;
+			int bg = attribute & 0x1ff;
+			int fg = (attribute >> 9) & 0x1ff;
+			if (attributes.TryGetValue (attribute, out var result))
+				return result;
+
+			var color = new NSStringAttributes () { Font = font, ForegroundColor = MapColor (fg) };
+			attributes [attribute] = color;
+			return color;
+		}
+
+		NSAttributedString BuildAttributedString (BufferLine line, int cols)
+		{
+			var res = new NSMutableAttributedString ();
+			int attr = 0;
+
+			basBuilder.Clear ();
+			for (int col = 0; col < cols; col++) {
+				var ch = line [col];
+				if (col == 0)
+					attr = ch.Attribute;
+				else {
+					if (attr != ch.Attribute) {
+						res.Append (new NSAttributedString (basBuilder.ToString (), GetAttributes (attr)));
+						basBuilder.Clear ();
+						attr = ch.Attribute;
+					}
+				}
+				basBuilder.Append (ch.Code == 0 ? ' ' : (char)ch.Rune);
+			}
+			res.Append (new NSAttributedString (basBuilder.ToString (), GetAttributes (attr)));
+			return res;
+		}
+
+		void FullBufferUpdate ()
+		{
+			var rows = terminal.Rows;
+			if (buffer == null)
+				buffer = new NSAttributedString [rows];
+			var cols = terminal.Cols;
+			for (int row = 0; row < rows; row++)
+				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
+		}
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
 			terminal = new Terminal (this, null);
 			font = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
+			FullBufferUpdate ();
 			textMatrix = CGAffineTransform.MakeIdentity ();
 			textMatrix.Scale (1, -1);
 		}
+
+		void UpdateDisplay ()
+		{
+			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
+			var cols = terminal.Cols;
+			Console.WriteLine ($"{rowStart}, {rowEnd}");
+			for (int row = rowStart; row <= rowEnd; row++) 
+				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
+			
+	    		// Should compute the rectangle instead
+			NeedsDisplay = true;
+		}
+
 		// Flip coordinate system.
 		public override bool IsFlipped => true;
 
@@ -29,11 +112,13 @@ namespace XtermSharp.Mac {
 		public void Feed (string text)
 		{
 			terminal.Feed (System.Text.Encoding.UTF8.GetBytes (text));
+			UpdateDisplay ();
 		}
 
 		public void Feed (byte [] text, int length = -1)
 		{
 			terminal.Feed (text, length);
+			UpdateDisplay ();
 		}
 
 
@@ -202,6 +287,9 @@ namespace XtermSharp.Mac {
 			case "cancelOperation:":
 				UserInput?.Invoke (new byte [] { 0x1b });
 				break;
+			case "deleteBackward:":
+				UserInput?.Invoke (new byte [] { 0x7f });
+				break;
 			}
 			Console.WriteLine ("Got: " + selector.Name);
 			NeedsDisplay = true;
@@ -242,6 +330,7 @@ namespace XtermSharp.Mac {
 			CGContext context = NSGraphicsContext.CurrentContext.GraphicsPort;
 			context.TextMatrix = textMatrix;
 
+#if false
 			var maxCol = terminal.Cols;
 			var maxRow = terminal.Rows;
 
@@ -256,6 +345,16 @@ namespace XtermSharp.Mac {
 				
 				ctline.Draw (context);
 			}
+#else
+			var maxRow = terminal.Rows;
+
+			for (int row = 0; row < maxRow; row++) {
+				context.TextPosition = new CGPoint (0, 15 + row * 15);
+				var ctline = new CTLine (buffer [row]);
+
+				ctline.Draw (context);
+			}
+#endif
 		}
 
 		void ITerminalDelegate.ShowCursor (Terminal terminal)

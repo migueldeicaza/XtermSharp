@@ -18,15 +18,12 @@ namespace MacTerminal {
 		int pid, fd;
 		byte [] readBuffer = new byte [8192];
 
+
 		void ChildProcessRead (DispatchData data, int error)
 		{
 			using (var map = data.CreateMap (out var buffer, out var size)) {
 				Marshal.Copy (buffer, readBuffer, 0, (int) size);
 				terminalView.Feed (readBuffer, (int) size);
-				for (nuint i = 0; i < size; i++) {
-					Console.Write ("[{0}]", Marshal.ReadByte (buffer, (int) i));
-				}
-				terminalView.NeedsDisplay = true;
 			}
 			DispatchIO.Read (fd, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}

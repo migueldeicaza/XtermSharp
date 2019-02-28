@@ -150,6 +150,12 @@ namespace XtermSharp {
 				refreshEnd = y;
 		}
 
+		public void GetUpdateRange (out int startY, out int endY)
+		{
+			startY = refreshStart;
+			endY = refreshEnd;
+		}
+
 		internal void EmitChar (char ch)
 		{
 			// For accessibility purposes 'a11y.char' in the original source.
@@ -320,14 +326,14 @@ namespace XtermSharp {
 		internal void SyncScrollArea ()
 		{
 			// This should call the viewport syncscrollarea
-			throw new NotImplementedException ();
+			//throw new NotImplementedException ();
 		}
 
 		internal void EnableMouseEvents ()
 		{
 			// TODO:
 			// DISABLE SELECTION MANAGER.
-			throw new NotImplementedException ();
+			// throw new NotImplementedException ();
 		}
 
 		internal void DisableMouseEvents ()
