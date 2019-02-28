@@ -11,14 +11,14 @@ namespace XtermSharp {
 
 	public interface IDcsHandler {
 		void Hook (string collect, int [] parameters, int flag);
-		void Put (byte [] data, int start, int end);
+		unsafe void Put (byte *data, int start, int end);
 		void Unhook ();
 	}
 
 	// Dummy DCS Handler as defaulta fallback
 	class DcsDummy : IDcsHandler {
 		public void Hook (string collect, int [] parameters, int flag) { }
-		public void Put (byte [] data, int start, int end) { }
+		public  unsafe void Put (byte *data, int start, int end) { }
 		public void Unhook () { }
 	}
 
@@ -278,7 +278,7 @@ namespace XtermSharp {
 		public delegate void CsiHandler (int [] parameters, string collect);
 		public delegate void OscHandler (string data);
 		public delegate void EscHandler (string collect, int flag);
-		public delegate void PrintHandler (byte [] data, int start, int end);
+		public unsafe delegate void PrintHandler (byte * data, int start, int end);
 		public delegate void ExecuteHandler ();
 
 		// Handler lookup container
@@ -296,7 +296,7 @@ namespace XtermSharp {
 		static ParsingState EmptyErrorHandler (ParsingState state) => state;
 
 		// Fallback handlers
-		public PrintHandler PrintHandlerFallback = (data, start, end) => { };
+		public unsafe PrintHandler PrintHandlerFallback = (data, start, end) => { };
 		public Action<byte> ExecuteHandlerFallback = EmptyExecuteHandler;
 		public Action<string, int [], int> CsiHandlerFallback = (collect, parameters, flag) => { Console.WriteLine ("Can not handle ESC-[" + flag); };
 		public EscHandler EscHandlerFallback = (collect, flag) => { };
@@ -308,7 +308,7 @@ namespace XtermSharp {
 		string _osc;
 		List<int> _pars;
 		string _collect;
-		PrintHandler printHandler = (data, start, end) => { };
+		unsafe PrintHandler printHandler = (data, start, end) => { };
 
 		TransitionTable table;
 		public EscapeSequenceParser ()
@@ -437,7 +437,7 @@ namespace XtermSharp {
 			ActiveDcsHandler = null;
 		}
 
-		public void Parse (byte [] data, int len)
+		unsafe public void Parse (byte *data, int len)
 		{
 			byte code = 0;
 			var transition = 0;
@@ -609,7 +609,7 @@ namespace XtermSharp {
 						if (j > len || (data [j] < 0x20) || (data [j] > 0x7f && data [j] < 0x9f)) {
 							var block = new byte [j - i];
 							for (int k = i; k < j; k++)
-								block [k] = data [j];
+								block [k-i] = data [j];
 							// TODO: Audit, the code below as I would not like the code below to abort on invalid UTF8
 			    // So we need a way of producing memory blocks.
 							osc += System.Text.Encoding.UTF8.GetString (block);

@@ -105,8 +105,12 @@ namespace XtermSharp {
 
 		}
 
-
 		public void Feed (byte [] data, int len = -1)
+		{
+			input.Parse (data, len);
+		}
+
+		public void Feed (IntPtr data, int len = -1)
 		{
 			input.Parse (data, len);
 		}
@@ -146,6 +150,8 @@ namespace XtermSharp {
 		{
 			if (y < refreshStart)
 				refreshStart = y;
+			if (y == 25)
+				throw new Exception ();
 			if (y > refreshEnd)
 				refreshEnd = y;
 		}
@@ -303,9 +309,11 @@ namespace XtermSharp {
 			throw new NotImplementedException ();
 		}
 
-		internal void SetgCharset (int v, Dictionary<byte, string> @default)
+		internal void SetgCharset (byte v, Dictionary<byte, string> charset)
 		{
-			throw new NotImplementedException ();
+			CharSets.All [v] = charset;
+			if (gLevel == v)
+				this.charset = charset;
 		}
 
 		internal void Resize (int cols, int rows)
@@ -340,7 +348,7 @@ namespace XtermSharp {
 		{
 			// TODO:
 			// ENABLE SELECTION MANAGER.
-			throw new NotImplementedException ();
+			//throw new NotImplementedException ();
 		}
 
 		/// <summary>

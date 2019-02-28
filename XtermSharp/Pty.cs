@@ -9,14 +9,17 @@ namespace XtermSharp {
 		[DllImport ("libc")]
 		extern static int execv (string process, string [] args);
 
-		public static int Fork (string process, string [] args, out int master)
+		[DllImport ("libc")]
+		extern static int execve (string process, string [] args, string [] env);
+
+		public static int Fork (string process, string [] args, string [] env, out int master)
 		{
 			var pid = forkpty (out master, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 			if (pid < 0)
 				throw new Exception ("Could not create Pty");
 
 			if (pid == 0) {
-				execv (process, args);
+				execve (process, args, env);
 			}
 			return pid;
 		}

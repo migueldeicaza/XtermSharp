@@ -18,6 +18,37 @@ namespace XtermSharp.Mac {
 		Terminal terminal;
 		CircularList<NSAttributedString> buffer;
 		NSFont font;
+		NSView caret;
+		
+		nfloat cellHeight, cellWidth, cellDelta;
+
+		public TerminalView (CGRect rect) : base (rect)
+		{
+			terminal = new Terminal (this, null);
+			font = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
+			FullBufferUpdate ();
+			textMatrix = CGAffineTransform.MakeIdentity ();
+			textMatrix.Scale (1, -1);
+			ComputeCellDimensions ();
+			
+			caret = new NSView (new CGRect (0, cellDelta, cellHeight, cellWidth)) {
+				WantsLayer = true
+			};
+			AddSubview (caret);
+
+			var caretColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.5f);
+
+			caret.Layer.BackgroundColor = caretColor.CGColor;
+		}
+
+		void ComputeCellDimensions ()
+		{
+			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = font }));
+			var bounds = line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
+			cellWidth = bounds.Width;
+			cellHeight = bounds.Height;
+			cellDelta = bounds.Y;
+		}
 
 		StringBuilder basBuilder = new StringBuilder ();
 
@@ -34,6 +65,7 @@ namespace XtermSharp.Mac {
 			case 7: return NSColor.White;
 			case 8: return NSColor.Black; // Original
 			default:
+				Console.WriteLine ("Color: " + color);
 				return NSColor.Brown;
 			}
 		}
@@ -85,25 +117,18 @@ namespace XtermSharp.Mac {
 				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
 		}
 
-		public TerminalView (CGRect rect) : base (rect)
-		{
-			terminal = new Terminal (this, null);
-			font = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
-			FullBufferUpdate ();
-			textMatrix = CGAffineTransform.MakeIdentity ();
-			textMatrix.Scale (1, -1);
-		}
-
 		void UpdateDisplay ()
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
 			var cols = terminal.Cols;
 			var tb = terminal.Buffer;
 			Console.WriteLine ($"{rowStart}, {rowEnd}");
-			for (int row = rowStart; row <= rowEnd; row++) 
-				buffer [row+tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row+tb.YDisp], cols);
-			
-	    		// Should compute the rectangle instead
+			for (int row = rowStart; row <= rowEnd; row++) {
+				buffer [row + tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row + tb.YDisp], cols);
+			}
+
+			caret.Frame = new CGRect (terminal.Buffer.X * cellWidth-1, terminal.Buffer.Y * cellHeight-cellDelta-1, cellWidth+2, cellHeight+2);
+			// Should compute the rectangle instead
 			NeedsDisplay = true;
 		}
 
@@ -113,7 +138,7 @@ namespace XtermSharp.Mac {
 		// Simple tester API.
 		public void Feed (string text)
 		{
-			terminal.Feed (System.Text.Encoding.UTF8.GetBytes (text));
+			terminal.Feed (Encoding.UTF8.GetBytes (text));
 			UpdateDisplay ();
 		}
 
@@ -123,6 +148,11 @@ namespace XtermSharp.Mac {
 			UpdateDisplay ();
 		}
 
+		public void Feed (IntPtr buffer, int length)
+		{
+			terminal.Feed (buffer, length);
+			UpdateDisplay ();
+		}
 
 		NSTrackingArea trackingArea;
 
@@ -240,7 +270,19 @@ namespace XtermSharp.Mac {
 		    => true;
 
 		public override void KeyDown (NSEvent theEvent)
-		    => InterpretKeyEvents (new [] { theEvent });
+		{
+			if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
+				var ch = theEvent.CharactersIgnoringModifiers;
+				if (ch.Length == 1) {
+					var d = Char.ToUpper (ch [0]);
+					if (d >= 'A' && d <= 'Z')
+						Send (new byte [] { (byte)(d - 'A' + 1) });
+					return;
+				}
+			}
+
+			InterpretKeyEvents (new [] { theEvent });
+		}
 
 		[Export ("validAttributesForMarkedText")]
 		public NSArray<NSString> ValidAttributesForMarkedText ()
@@ -251,7 +293,7 @@ namespace XtermSharp.Mac {
 		{
 			if (text is NSString str) {
 				var data = str.Encode (NSStringEncoding.UTF8);
-				UserInput?.Invoke (data.ToArray ());
+				Send (data.ToArray ());
 			}
 			NeedsDisplay = true;
 		}
@@ -276,25 +318,117 @@ namespace XtermSharp.Mac {
 
 		}
 
+		void ProcessUnhandledEvent (NSEvent evt)
+		{
+			// Handle Control-letter
+			if (evt.ModifierFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
+				
+			}
+		}
+
 		// Invoked to raise input on the control, which should probably be sent to the actual child process or remote connection
 		public Action<byte []> UserInput;
+
+		void Send (byte [] data)
+		{
+			UserInput?.Invoke (data);
+		}
+
+		byte [] cmdNewline = new byte [] { 10 };
+		byte [] cmdEsc = new byte [] { 0x1b };
+		byte [] cmdDel = new byte [] { 0x7f };
+		byte [] moveUpApp = new byte [] { 0x1b, (byte)'O', (byte)'A' };
+		byte [] moveUpNormal = new byte [] { 0x1b, (byte)'[', (byte)'A' };
+		byte [] moveDownApp = new byte [] { 0x1b, (byte)'O', (byte)'B' };
+		byte [] moveDownNormal = new byte [] { 0x1b, (byte)'[', (byte)'B' };
+		byte [] moveLeftApp = new byte [] { 0x1b, (byte)'O', (byte)'D' };
+		byte [] moveLeftNormal = new byte [] { 0x1b, (byte)'[', (byte)'D' };
+		byte [] moveRightApp = new byte [] { 0x1b, (byte)'O', (byte)'C' };
+		byte [] moveRightNormal = new byte [] { 0x1b, (byte)'[', (byte)'C' };
+		byte [] moveHomeApp = new byte [] { 0x1b, (byte)'O', (byte)'H' };
+		byte [] moveHomeNormal = new byte [] { 0x1b, (byte)'[', (byte)'H' };
+		byte [] moveEndApp = new byte [] { 0x1b, (byte)'O', (byte)'F' };
+		byte [] moveEndNormal = new byte [] { 0x1b, (byte)'[', (byte)'F' };
+		byte [] cmdTab = new byte [] { 9 };
+		byte [] cmdBackTab = new byte []{ 0x1b, (byte)'[', (byte)'Z' };
+		byte [] cmdPageUp = new byte [] { 0x1b, (byte)'[', (byte)'5', (byte)'~' };
+		byte [] cmdPageDown = new byte [] { 0x1b, (byte)'[', (byte)'6', (byte)'~' };
 
 		[Export ("doCommandBySelector:")]
 		public void DoCommandBySelector (Selector selector)
 		{
 			switch (selector.Name){
 			case "insertNewline:":
-				UserInput?.Invoke (new byte [] { 10 });
+				Send (cmdNewline);
 				break;
 			case "cancelOperation:":
-				UserInput?.Invoke (new byte [] { 0x1b });
+				Send (cmdEsc);
 				break;
 			case "deleteBackward:":
-				UserInput?.Invoke (new byte [] { 0x7f });
+				Send (new byte [] { 0x7f });
+				break;
+			case "moveUp:":
+				Send (terminal.ApplicationCursor ? moveUpApp : moveUpNormal);
+				break;
+			case "moveDown:":
+				Send (terminal.ApplicationCursor ? moveDownApp : moveDownNormal );
+				break;
+			case "moveLeft:":
+				Send (terminal.ApplicationCursor ?  moveLeftApp : moveLeftNormal);
+				break;
+			case "moveRight:":
+				Send (terminal.ApplicationCursor ? moveRightApp : moveRightNormal);
+				break;
+			case "insertTab:":
+				Send (cmdTab);
+				break;
+			case "insertBackTab:":
+				Send (cmdBackTab);
+				break;
+			case "moveToBeginningOfLine:":
+				Send (terminal.ApplicationCursor ? moveHomeApp: moveHomeNormal);
+				break;
+			case "moveToEndOfLine:":
+				Send (terminal.ApplicationCursor ? moveEndApp : moveEndNormal);
+				break;
+			case "noop:":
+				ProcessUnhandledEvent (NSApplication.SharedApplication.CurrentEvent);
+				break;
+
+				// Here the semantics depend on app mode, if set, then we function as scroll up, otherwise the modifier acts as scroll up.
+			case "pageUp:":
+				if (terminal.ApplicationCursor)
+					Send (cmdPageUp);
+				else {
+					// TODO: view should scroll one page up.
+				}
+				break;
+
+			case "pageUpAndModifySelection":
+				if (terminal.ApplicationCursor){
+					// TODO: view should scroll one page up.
+				}
+				else
+					Send (cmdPageUp);
+				break;
+			case "pageDown:":
+				if (terminal.ApplicationCursor)
+					Send (cmdPageDown);
+				else {
+					// TODO: view should scroll one page down
+				}
+				break;
+			case "pageDownAndModifySelection:":
+				if (terminal.ApplicationCursor) {
+					// TODO: view should scroll one page up.
+				} else
+					Send (cmdPageDown);
+				break;
+			default:
+				Console.WriteLine ("Unhandled key event: " + selector.Name);
 				break;
 			}
-			Console.WriteLine ("Got: " + selector.Name);
-			NeedsDisplay = true;
+			
 		}
 
 		[Export ("selectedRange")]
@@ -351,7 +485,7 @@ namespace XtermSharp.Mac {
 			var maxRow = terminal.Rows;
 			var yDisp = terminal.Buffer.YDisp;
 			for (int row = 0; row < maxRow; row++) {
-				context.TextPosition = new CGPoint (0, 15 + row * 15);
+				context.TextPosition = new CGPoint (0, cellHeight + row * cellHeight);
 				var ctline = new CTLine (buffer [row+yDisp]);
 
 				ctline.Draw (context);

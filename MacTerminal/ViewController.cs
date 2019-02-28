@@ -16,14 +16,17 @@ namespace MacTerminal {
 		}
 
 		int pid, fd;
-		byte [] readBuffer = new byte [64*1024];
-
+		byte [] readBuffer = new byte [4*1024];
 
 		void ChildProcessRead (DispatchData data, int error)
 		{
 			using (var map = data.CreateMap (out var buffer, out var size)) {
-				Marshal.Copy (buffer, readBuffer, 0, (int) size);
-				terminalView.Feed (readBuffer, (int) size);
+				// Faster, but harder to debug:
+				// terminalView.Feed (buffer, (int) size);
+				byte [] copy = new byte [(int)size];
+				Marshal.Copy (buffer, copy, 0, (int)size);
+				System.IO.File.WriteAllBytes ("/tmp/log", copy);
+				terminalView.Feed (copy);
 			}
 			DispatchIO.Read (fd, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}
@@ -38,7 +41,7 @@ namespace MacTerminal {
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
-			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, out fd);
+			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, new string [] { "TERM=xterm-color" }, out fd);
 			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 
 			terminalView = new TerminalView (View.Frame);

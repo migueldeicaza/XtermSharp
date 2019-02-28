@@ -29,7 +29,7 @@ namespace XtermSharp {
 			data = new List<byte> ();
 		}
 
-		public void Put (byte [] data, int start, int end)
+		unsafe public void Put (byte * data, int start, int end)
 		{
 			for (int i = start; i < end; i++)
 				this.data.Add (data [i]);
@@ -91,7 +91,7 @@ namespace XtermSharp {
 			});
 
 			// Print handler
-			parser.SetPrintHandler (Print);
+			unsafe { parser.SetPrintHandler (Print); }
 
 			// CSI handler
 			parser.SetCsiHandler ('@', (pars, collect) => InsertChars (pars));
@@ -205,7 +205,8 @@ namespace XtermSharp {
 			parser.SetEscHandler ("~", (c, f) => SetgLevel (1));
 			parser.SetEscHandler ("%@", (c, f) => SelectDefaultCharset ());
 			parser.SetEscHandler ("%G", (c, f) => SelectDefaultCharset ());
-			foreach (var flag in CharSets.All.Keys) {
+			foreach (var bflag in CharSets.All.Keys) {
+				char flag = (char)bflag;
 				parser.SetEscHandler ("(" + flag, (code, f) => SelectCharset ("(" + flag));
 				parser.SetEscHandler (")" + flag, (code, f) => SelectCharset (")" + flag));
 				parser.SetEscHandler ("*" + flag, (code, f) => SelectCharset ("*" + flag));
@@ -225,8 +226,6 @@ namespace XtermSharp {
 			parser.SetDcsHandler ("$q", new DECRQSS (terminal));
 		}
 
-		public event Action<InputHandler> CursorMoved;
-
 		public void Parse (byte [] data, int length = -1)
 		{
 			if (length == -1)
@@ -235,17 +234,25 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 			var cursorStartX = buffer.X;
 			var cursorStartY = buffer.Y;
-
-			if (terminal.Debug)
-				terminal.Log ("data: " + data);
-
-			parser.Parse (data, length);
+			
+			unsafe {
+				fixed (byte* p = &data [0]) {
+					parser.Parse (p, length);
+				}
+			}
 
 			buffer = terminal.Buffer;
-			if (buffer.X != cursorStartX || buffer.Y != cursorStartY) {
-				if (CursorMoved != null)
-					CursorMoved (this);
-			}
+		}
+
+		public void Parse (IntPtr data, int length)
+		{
+			var buffer = terminal.Buffer;
+			var cursorStartX = buffer.X;
+			var cursorStartY = buffer.Y;
+
+			unsafe { parser.Parse ((byte*)data, length); }
+			
+			buffer = terminal.Buffer;
 		}
 
 		// 
@@ -295,7 +302,7 @@ namespace XtermSharp {
 		{
 			if (p.Length != 2)
 				SelectDefaultCharset ();
-			int ch;
+			byte ch;
 			
 			Dictionary<byte,string> charset;
 			if (!CharSets.All.TryGetValue ((byte) p [1], out charset))
@@ -1209,7 +1216,7 @@ namespace XtermSharp {
 			if (collect == "") {
 				switch (par) {
 				case 4:
-					throw new NotImplementedException ("THis needs to handle the replace mode as well");
+					//Console.WriteLine ("This needs to handle the replace mode as well");
 					// https://vt100.net/docs/vt510-rm/IRM.html
 					terminal.InsertMode = true;
 					break;
@@ -1661,7 +1668,7 @@ namespace XtermSharp {
 				for (; j < terminal.Rows; j++) {
 					ResetBufferLine (j);
 				}
-				terminal.UpdateRange (j);
+				terminal.UpdateRange (j-1);
 				break;
 			case 1:
 				j = buffer.Y;
@@ -1866,7 +1873,7 @@ namespace XtermSharp {
 			terminal.UpdateRange (buffer.Y);
 		}
 
-		void Print (byte [] data, int start, int end)
+		unsafe void Print (byte * data, int start, int end)
 		{
 			var buffer = terminal.Buffer;
 			var charset = terminal.Charset;
