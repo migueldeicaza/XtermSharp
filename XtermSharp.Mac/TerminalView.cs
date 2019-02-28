@@ -6,6 +6,7 @@ using CoreText;
 using ObjCRuntime;
 using System.Text;
 using System.Collections.Generic;
+using XtermSharp;
 
 namespace XtermSharp.Mac {
 	/// <summary>
@@ -15,7 +16,7 @@ namespace XtermSharp.Mac {
 		static CGAffineTransform textMatrix;
 
 		Terminal terminal;
-		NSAttributedString [] buffer;
+		CircularList<NSAttributedString> buffer;
 		NSFont font;
 
 		StringBuilder basBuilder = new StringBuilder ();
@@ -78,7 +79,7 @@ namespace XtermSharp.Mac {
 		{
 			var rows = terminal.Rows;
 			if (buffer == null)
-				buffer = new NSAttributedString [rows];
+				buffer = new CircularList<NSAttributedString> (terminal.Buffer.Lines.MaxLength);
 			var cols = terminal.Cols;
 			for (int row = 0; row < rows; row++)
 				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
@@ -97,9 +98,10 @@ namespace XtermSharp.Mac {
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
 			var cols = terminal.Cols;
+			var tb = terminal.Buffer;
 			Console.WriteLine ($"{rowStart}, {rowEnd}");
 			for (int row = rowStart; row <= rowEnd; row++) 
-				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
+				buffer [row+tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row+tb.YDisp], cols);
 			
 	    		// Should compute the rectangle instead
 			NeedsDisplay = true;
@@ -347,10 +349,10 @@ namespace XtermSharp.Mac {
 			}
 #else
 			var maxRow = terminal.Rows;
-
+			var yDisp = terminal.Buffer.YDisp;
 			for (int row = 0; row < maxRow; row++) {
 				context.TextPosition = new CGPoint (0, 15 + row * 15);
-				var ctline = new CTLine (buffer [row]);
+				var ctline = new CTLine (buffer [row+yDisp]);
 
 				ctline.Draw (context);
 			}

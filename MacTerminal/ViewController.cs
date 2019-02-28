@@ -16,7 +16,7 @@ namespace MacTerminal {
 		}
 
 		int pid, fd;
-		byte [] readBuffer = new byte [8192];
+		byte [] readBuffer = new byte [64*1024];
 
 
 		void ChildProcessRead (DispatchData data, int error)
