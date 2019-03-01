@@ -607,9 +607,9 @@ namespace XtermSharp {
 				case ParserAction.OscPut:
 					for (var j = i + 1; ; j++) {
 						if (j > len || (data [j] < 0x20) || (data [j] > 0x7f && data [j] < 0x9f)) {
-							var block = new byte [j - i];
-							for (int k = i; k < j; k++)
-								block [k-i] = data [j];
+							var block = new byte [j - (i+1)];
+							for (int k = i+1; k < j; k++)
+								block [k-i-1] = data [k];
 							// TODO: Audit, the code below as I would not like the code below to abort on invalid UTF8
 			    // So we need a way of producing memory blocks.
 							osc += System.Text.Encoding.UTF8.GetString (block);
@@ -639,6 +639,7 @@ namespace XtermSharp {
 								c = ohandlers.Count - 1;
 								for (; c >= 0; c--) {
 									ohandlers [c] (content);
+									break;
 								}
 							}
 							if (c < 0)

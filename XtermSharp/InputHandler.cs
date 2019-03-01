@@ -1872,7 +1872,7 @@ namespace XtermSharp {
 
 			terminal.UpdateRange (buffer.Y);
 		}
-
+		
 		unsafe void Print (byte * data, int start, int end)
 		{
 			var buffer = terminal.Buffer;
@@ -1885,14 +1885,33 @@ namespace XtermSharp {
 			var bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
 
 			terminal.UpdateRange (buffer.Y);
+			
 			for (var pos = start; pos < end; ++pos) {
-				var code = data [pos];
+				int code;
+				var n = RuneExt.ExpectedSizeFromFirstByte (data [pos]);
+				if (n == 1)
+					code = data [pos];
+				else if (pos + n <= end) {
+					var x = new byte [n];
+					for (int j = 0; j < n; j++)
+						x [j] = data [pos++];
+					(var r, var size) = Rune.DecodeRune (x);
+					code = (int)(uint)r;
+					pos--;
+				} else {
+					// Alternative: keep a buffer here that can be cleared on Reset(), and use that to process the data on partial inputs
+					throw new Exception ("Partial data, need to tell the caller that a partial UTF-8 string was received and process later");
+				}
 
 				// MIGUEL-TODO: I suspect this needs to be a stirng in C# to cope with Grapheme clusters
-				var ch = (char)code;
+				var ch = code;
 
 				// calculate print space
 				// expensive call, therefore we save width in line buffer
+
+				// TODO: This is wrong, we only have one byte at this point, we do not have a full rune.
+				// The correct fix includes the upper parser tracking the "pending" data across invocations
+				// until a valid UTF-8 string comes in, and *then* we can call this method
 				var chWidth = Rune.ColumnWidth ((Rune)code);
 
 				// get charset replacement character
@@ -1903,7 +1922,7 @@ namespace XtermSharp {
 					// MIGUEL-FIXME - this is broken for dutch cahrset that returns two letters "ij", need to figure out what to do
 					charset.TryGetValue ((byte)code, out var str);
 					ch = str [0];
-					code = (byte) ch;
+					code = ch;
 				}
 				if (screenReaderMode)
 					terminal.EmitChar (ch);
@@ -1926,12 +1945,12 @@ namespace XtermSharp {
 								var chMinusTwo = bufferRow [buffer.X - 2];
 
 								chMinusTwo.Code += ch;
-								chMinusTwo.Rune = code;
+								chMinusTwo.Rune = (Rune) code;
 								bufferRow [buffer.X - 2] = chMinusTwo; // must be set explicitly now
 							}
 						} else {
 							chMinusOne.Code += ch;
-							chMinusOne.Rune = code;
+							chMinusOne.Rune = (Rune) code;
 							bufferRow [buffer.X - 1] = chMinusOne; // must be set explicitly now
 						}
 					}
@@ -1985,7 +2004,7 @@ namespace XtermSharp {
 				}
 
 				// write current char to buffer and advance cursor
-				var charData = new CharData (curAttr, code, chWidth, ch);
+				var charData = new CharData (CharData.DefaultAttr , (Rune) code, chWidth, ch);
 				bufferRow [buffer.X++] = charData;
 
 				// fullwidth char - also set next cell to placeholder stub and advance cursor

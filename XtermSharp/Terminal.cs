@@ -115,7 +115,12 @@ namespace XtermSharp {
 			input.Parse (data, len);
 		}
 
-		public Dictionary<byte, string> Charset { get; set; }
+		public Dictionary<byte, string> Charset {
+			get => charset;
+			set {
+				charset = value;
+			}
+		}
 
 		public Buffer Buffer => buffers.Active;
 		public BufferSet Buffers => buffers;
@@ -162,7 +167,7 @@ namespace XtermSharp {
 			endY = refreshEnd;
 		}
 
-		internal void EmitChar (char ch)
+		internal void EmitChar (int ch)
 		{
 			// For accessibility purposes 'a11y.char' in the original source.
 		}
