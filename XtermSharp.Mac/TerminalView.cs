@@ -122,7 +122,6 @@ namespace XtermSharp.Mac {
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
 			var cols = terminal.Cols;
 			var tb = terminal.Buffer;
-			Console.WriteLine ($"{rowStart}, {rowEnd}");
 			for (int row = rowStart; row <= rowEnd; row++) {
 				buffer [row + tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row + tb.YDisp], cols);
 			}
