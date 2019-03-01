@@ -155,8 +155,6 @@ namespace XtermSharp {
 		{
 			if (y < refreshStart)
 				refreshStart = y;
-			if (y == 25)
-				throw new Exception ();
 			if (y > refreshEnd)
 				refreshEnd = y;
 		}
@@ -305,7 +303,7 @@ namespace XtermSharp {
 
 		internal int EraseAttr ()
 		{
-			return (CharData.DefaultAttr & 0x1ff) | CurAttr & 0x1ff;
+			return (CharData.DefaultAttr & ~0x1ff) | CurAttr & 0x1ff;
 		}
 
 		internal void EmitScroll (int v)
@@ -321,7 +319,7 @@ namespace XtermSharp {
 				this.charset = charset;
 		}
 
-		internal void Resize (int cols, int rows)
+		public void Resize (int cols, int rows)
 		{
 			if (cols < MINIMUM_COLS)
 				cols = MINIMUM_COLS;

@@ -24,12 +24,14 @@ namespace XtermSharp.Mac {
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
-			terminal = new Terminal (this, null);
 			font = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
-			FullBufferUpdate ();
-			textMatrix = CGAffineTransform.MakeIdentity ();
-			textMatrix.Scale (1, -1);
 			ComputeCellDimensions ();
+
+			var cols = (int)(rect.Width / cellWidth);
+			var rows = (int)(rect.Height / cellHeight);
+
+			terminal = new Terminal (this, new TerminalOptions () { Cols = cols, Rows = rows });
+			FullBufferUpdate ();
 			
 			caret = new NSView (new CGRect (0, cellDelta, cellHeight, cellWidth)) {
 				WantsLayer = true
@@ -40,6 +42,7 @@ namespace XtermSharp.Mac {
 
 			caret.Layer.BackgroundColor = caretColor.CGColor;
 		}
+		public Terminal Terminal => terminal;
 
 		void ComputeCellDimensions ()
 		{
@@ -52,22 +55,24 @@ namespace XtermSharp.Mac {
 
 		StringBuilder basBuilder = new StringBuilder ();
 
-		NSColor MapColor (int color)
+		NSColor [] colors = new NSColor [257];
+
+		NSColor MapColor (int color, bool isFg)
 		{
-			switch (color) {
-			case 0: return NSColor.Black;
-			case 1: return NSColor.Red;
-			case 2: return NSColor.Green;
-			case 3: return NSColor.Yellow;
-			case 4: return NSColor.Blue;
-			case 5: return NSColor.Magenta;
-			case 6: return NSColor.Cyan;
-			case 7: return NSColor.White;
-			case 8: return NSColor.Black; // Original
-			default:
-				Console.WriteLine ("Color: " + color);
-				return NSColor.Brown;
+			// The default color
+			if (color == 256) {
+				if (isFg)
+					return NSColor.Black;
+				else
+					return NSColor.White;
 			}
+
+			if (colors [color] == null) {
+				Color tcolor = Color.DefaultAnsiColors [color];
+
+				colors [color] = NSColor.FromCalibratedRgb (tcolor.Red / 255f, tcolor.Green / 255f, tcolor.Blue / 255f);
+			}
+			return colors [color];
 		}
 
 		Dictionary<int, NSStringAttributes> attributes = new Dictionary<int, NSStringAttributes> ();
@@ -76,10 +81,23 @@ namespace XtermSharp.Mac {
 			// ((int)flags << 18) | (fg << 9) | bg;
 			int bg = attribute & 0x1ff;
 			int fg = (attribute >> 9) & 0x1ff;
+			var flags = (FLAGS) (attribute >> 18);
+
+			if (flags.HasFlag (FLAGS.INVERSE)) {
+				var tmp = bg;
+				bg = fg;
+				fg = tmp;
+
+				if (fg == Renderer.DefaultColor)
+					fg = Renderer.InvertedDefaultColor;
+				if (bg == Renderer.DefaultColor)
+					bg = Renderer.InvertedDefaultColor;
+			}
+
 			if (attributes.TryGetValue (attribute, out var result))
 				return result;
 
-			var color = new NSStringAttributes () { Font = font, ForegroundColor = MapColor (fg) };
+			var color = new NSStringAttributes () { Font = font, ForegroundColor = MapColor (fg, true),  BackgroundColor = MapColor (bg, false)  };
 			attributes [attribute] = color;
 			return color;
 		}
@@ -117,6 +135,11 @@ namespace XtermSharp.Mac {
 				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
 		}
 
+		void UpdateCursorPosition ()
+		{
+			caret.Frame = new CGRect (terminal.Buffer.X * cellWidth - 1, Frame.Height - cellHeight - (terminal.Buffer.Y * cellHeight - cellDelta - 1), cellWidth + 2, cellHeight + 2);
+		}
+
 		void UpdateDisplay ()
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
@@ -125,14 +148,16 @@ namespace XtermSharp.Mac {
 			for (int row = rowStart; row <= rowEnd; row++) {
 				buffer [row + tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row + tb.YDisp], cols);
 			}
-
-			caret.Frame = new CGRect (terminal.Buffer.X * cellWidth-1, terminal.Buffer.Y * cellHeight-cellDelta-1, cellWidth+2, cellHeight+2);
+			//var baseLine = Frame.Height - cellDelta;
+			// new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
+			UpdateCursorPosition ();
+			
 			// Should compute the rectangle instead
 			NeedsDisplay = true;
 		}
 
 		// Flip coordinate system.
-		public override bool IsFlipped => true;
+		//public override bool IsFlipped => true;
 
 		// Simple tester API.
 		public void Feed (string text)
@@ -170,6 +195,16 @@ namespace XtermSharp.Mac {
 				var oldSize = base.Frame.Size;
 				base.Frame = value;
 				OnSizeChanged (oldSize, value.Size);
+
+				var newRows = (int) (value.Height / cellHeight);
+				var newCols = (int) (value.Width / cellWidth);
+
+				if (newRows != terminal.Cols || newRows != terminal.Rows) {
+					//terminal.Resize (newCols, newRows);
+					//FullBufferUpdate ();
+				}
+
+				UpdateCursorPosition ();
 				// It might seem like this wrong place to call Loaded, and that
 				// ViewDidMoveToSuperview might make more sense
 				// but Editor code expects Loaded to be called after ViewportWidth and ViewportHeight are set
@@ -463,7 +498,7 @@ namespace XtermSharp.Mac {
 			NSGraphics.RectFill (dirtyRect);
 
 			CGContext context = NSGraphicsContext.CurrentContext.GraphicsPort;
-			context.TextMatrix = textMatrix;
+			//context.TextMatrix = textMatrix;
 
 #if false
 			var maxCol = terminal.Cols;
@@ -483,8 +518,9 @@ namespace XtermSharp.Mac {
 #else
 			var maxRow = terminal.Rows;
 			var yDisp = terminal.Buffer.YDisp;
+			var baseLine = Frame.Height - cellDelta;
 			for (int row = 0; row < maxRow; row++) {
-				context.TextPosition = new CGPoint (0, cellHeight + row * cellHeight);
+				context.TextPosition = new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
 				var ctline = new CTLine (buffer [row+yDisp]);
 
 				ctline.Draw (context);

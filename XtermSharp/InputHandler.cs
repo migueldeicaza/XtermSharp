@@ -9,6 +9,17 @@ using NStack;
 //  DCS + p Pt ST (xterm) * set terminfo data
 
 namespace XtermSharp {
+	[Flags]
+	public enum FLAGS {
+		BOLD = 1,
+		UNDERLINE = 2,
+		BLINK = 4,
+		INVERSE = 8,
+		INVISIBLE = 16,
+		DIM = 32,
+		ITALIC = 64
+	}
+
 	// DCS Subparser implementations
 
 	// DCS $ q Pt ST
@@ -725,16 +736,7 @@ namespace XtermSharp {
 			}
 		}
 
-		[Flags]
-		enum FLAGS {
-			BOLD = 1,
-			UNDERLINE = 2,
-			BLINK = 4,
-			INVERSE = 8,
-			INVISIBLE = 16,
-			DIM = 32,
-			ITALIC = 64
-		}
+		
 		// 
 		// CSI Pm m  Character Attributes (SGR).
 		//     Ps = 0  -> Normal (default).
@@ -2004,7 +2006,7 @@ namespace XtermSharp {
 				}
 
 				// write current char to buffer and advance cursor
-				var charData = new CharData (CharData.DefaultAttr , (Rune) code, chWidth, ch);
+				var charData = new CharData (curAttr , (Rune) code, chWidth, ch);
 				bufferRow [buffer.X++] = charData;
 
 				// fullwidth char - also set next cell to placeholder stub and advance cursor

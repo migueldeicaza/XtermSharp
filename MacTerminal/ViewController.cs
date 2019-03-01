@@ -41,10 +41,14 @@ namespace MacTerminal {
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
-			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, new string [] { "TERM=xterm-color" }, out fd);
+			terminalView = new TerminalView (View.Frame);
+			var t = terminalView.Terminal;
+			MacWinSize size = new MacWinSize () { col = (short) t.Cols, row = (short) t.Rows, xpixel = (short) View.Frame.Width, ypixel = (short) View.Frame.Height };
+
+			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, new string [] { "TERM=xterm-color" }, out fd, size);
 			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 
-			terminalView = new TerminalView (View.Frame);
+			
 			terminalView.UserInput += (byte [] data) => {
 				DispatchIO.Write (fd, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
 			};
