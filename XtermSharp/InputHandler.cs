@@ -1874,7 +1874,7 @@ namespace XtermSharp {
 
 			terminal.UpdateRange (buffer.Y);
 		}
-		
+
 		unsafe void Print (byte * data, int start, int end)
 		{
 			var buffer = terminal.Buffer;
@@ -1902,7 +1902,8 @@ namespace XtermSharp {
 					pos--;
 				} else {
 					// Alternative: keep a buffer here that can be cleared on Reset(), and use that to process the data on partial inputs
-					throw new Exception ("Partial data, need to tell the caller that a partial UTF-8 string was received and process later");
+					Console.WriteLine ("Partial data, need to tell the caller that a partial UTF-8 string was received and process later");
+					return;
 				}
 
 				// MIGUEL-TODO: I suspect this needs to be a stirng in C# to cope with Grapheme clusters
@@ -1914,7 +1915,10 @@ namespace XtermSharp {
 				// TODO: This is wrong, we only have one byte at this point, we do not have a full rune.
 				// The correct fix includes the upper parser tracking the "pending" data across invocations
 				// until a valid UTF-8 string comes in, and *then* we can call this method
-				var chWidth = Rune.ColumnWidth ((Rune)code);
+				// var chWidth = Rune.ColumnWidth ((Rune)code);
+
+				// 1 until we get a fixed NStack
+				var chWidth = 1;
 
 				// get charset replacement character
 				// charset are only defined for ASCII, therefore we only

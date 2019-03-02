@@ -42,7 +42,19 @@ namespace XtermSharp.Mac {
 
 			caret.Layer.BackgroundColor = caretColor.CGColor;
 		}
+
+		/// <summary>
+		/// Gets the Terminal object that is being used for this terminal
+		/// </summary>
+		/// <value>The terminal.</value>
 		public Terminal Terminal => terminal;
+
+		/// <summary>
+		/// Gets or sets a value indicating whether this <see cref="T:XtermSharp.Mac.TerminalView"/> treats the "Alt/Option" key on the mac keyboard as a meta key,
+		/// which has the effect of sending ESC+letter when Meta-letter is pressed.   Otherwise, it passes the keystroke that MacOS provides from the OS keyboard.
+		/// </summary>
+		/// <value><c>true</c> if option acts as a meta key; otherwise, <c>false</c>.</value>
+		public bool OptionAsMetaKey { get; set; } = true;
 
 		void ComputeCellDimensions ()
 		{
@@ -303,9 +315,25 @@ namespace XtermSharp.Mac {
 		public override bool AcceptsFirstResponder ()
 		    => true;
 
+		byte [][] cmdF = new byte [][]{
+			new byte [] { 0x1b, (byte) 'O', (byte) 'P' }, /* F1 */
+			new byte [] { 0x1b, (byte) 'O', (byte) 'Q' }, /* F2 */
+			new byte [] { 0x1b, (byte) 'O', (byte) 'R' }, /* F3 */
+			new byte [] { 0x1b, (byte) 'O', (byte) 'S' }, /* F4 */
+			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '5', (byte) '~' }, /* F5 */
+			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '7', (byte) '~' }, /* F6 */
+			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '8', (byte) '~' }, /* F7 */
+			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '9', (byte) '~' }, /* F8 */
+			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '0', (byte) '~' }, /* F9 */
+			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '1', (byte) '~' }, /* F10 */
+			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '3', (byte) '~' }, /* F11 */
+			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '4', (byte) '~' }, /* F12 */
+		};
+
 		public override void KeyDown (NSEvent theEvent)
 		{
-			if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
+			var eventFlags = theEvent.ModifierFlags;
+			if (eventFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
 				var ch = theEvent.CharactersIgnoringModifiers;
 				if (ch.Length == 1) {
 					var d = Char.ToUpper (ch [0]);
@@ -313,6 +341,52 @@ namespace XtermSharp.Mac {
 						Send (new byte [] { (byte)(d - 'A' + 1) });
 					return;
 				}
+			} else if (eventFlags.HasFlag (NSEventModifierMask.FunctionKeyMask)) {
+				var ch = theEvent.CharactersIgnoringModifiers;
+				if (ch.Length == 1) {
+					NSFunctionKey code = (NSFunctionKey)ch [0];
+					switch (code) {
+					case NSFunctionKey.F1:
+						Send (cmdF [0]);
+						break;
+					case NSFunctionKey.F2:
+						Send (cmdF [1]);
+						break;
+					case NSFunctionKey.F3:
+						Send (cmdF [2]);
+						break;
+					case NSFunctionKey.F4:
+						Send (cmdF [3]);
+						break;
+					case NSFunctionKey.F5:
+						Send (cmdF [4]);
+						break;
+					case NSFunctionKey.F6:
+						Send (cmdF [5]);
+						break;
+					case NSFunctionKey.F7:
+						Send (cmdF [6]);
+						break;
+					case NSFunctionKey.F8:
+						Send (cmdF [7]);
+						break;
+					case NSFunctionKey.F9:
+						Send (cmdF [8]);
+						break;
+					case NSFunctionKey.F10:
+						Send (cmdF [9]);
+						break;
+					case NSFunctionKey.F11:
+						Send (cmdF [10]);
+						break;
+					case NSFunctionKey.F12:
+						Send (cmdF [11]);
+						break;
+					}
+				}
+			} else if (eventFlags.HasFlag (NSEventModifierMask.AlternateKeyMask) && OptionAsMetaKey) {
+				// Handle keystroks as meta.
+								// TODO
 			}
 
 			InterpretKeyEvents (new [] { theEvent });

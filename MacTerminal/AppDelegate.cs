@@ -17,5 +17,11 @@ namespace MacTerminal {
 		{
 			// Insert code here to tear down your application
 		}
+
+		static void Main (string [] args)
+		{
+			NSApplication.Init ();
+			NSApplication.Main (args);
+		}
 	}
 }

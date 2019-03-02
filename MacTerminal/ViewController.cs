@@ -1,4 +1,8 @@
-﻿using System;
+﻿//
+// This sample shows how to embed a TerminalView in a ViewController
+// and how to wire it up to a bash shell on MacOS.
+//
+using System;
 using AppKit;
 using Foundation;
 using XtermSharp.Mac;
@@ -25,6 +29,7 @@ namespace MacTerminal {
 				// terminalView.Feed (buffer, (int) size);
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
+
 				//System.IO.File.WriteAllBytes ("/tmp/log2", copy);
 				terminalView.Feed (copy);
 			}

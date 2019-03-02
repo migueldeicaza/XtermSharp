@@ -454,6 +454,7 @@ namespace XtermSharp {
 			for (var i = 0; i < len; ++i) {
 				code = data [i];
 
+#if false
 				// shortcut for most chars (print action)
 				if (currentState == ParserState.Ground && code > 0x1f && code < 0x80) {
 					print = (~print != 0) ? print : i;
@@ -461,6 +462,16 @@ namespace XtermSharp {
 					i--;
 					continue;
 				}
+#else
+				// This version eliminates the check for < 0x80, as we allow any UTF8 sequences.
+				if (currentState == ParserState.Ground && code > 0x1f) {
+					print = (~print != 0) ? print : i;
+					do { i++; } while (i < len && data [i] > 0x1f);
+					i--;
+					continue;
+				}
+
+#endif
 
 				// shorcut for CSI params
 				if (currentState == ParserState.CsiParam && (code > 0x2f && code < 0x39)) {
