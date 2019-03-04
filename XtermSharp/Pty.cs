@@ -29,5 +29,17 @@ namespace XtermSharp {
 			return pid;
 		}
 
+		[DllImport ("libc", SetLastError = true)]
+		extern static int ioctl (int fd, long cmd, ref MacWinSize WinSz);
+
+		public static int SetWinSize (int fd, ref MacWinSize winSize)
+		{
+			var r = ioctl (fd, 0x80087467, ref winSize);
+			if (r == -1) {
+				var lastErr = Marshal.GetLastWin32Error ();
+				Console.WriteLine (lastErr);
+			}
+			return r;
+		}
 	}
 }

@@ -100,7 +100,9 @@ namespace XtermSharp
 		/// <param name="newRows">New rows.</param>
 		public void Resize (int newCols, int newRows)
 		{
-			throw new NotImplementedException ();
+			Clear ();
+			FillViewportRows ();
+			tabStops.Length = newCols;
 		}
 
 		/// <summary>
@@ -126,8 +128,9 @@ namespace XtermSharp
 			int cols = Terminal.Cols;
 
 			if (index != -1 && tabStops != null) {
-				if (!tabStops [index])
-					index = PreviousTabStop (index);
+				var from = Math.Min (index, cols - 1);
+				if (!tabStops [from])
+					index = PreviousTabStop (from);
 			} else 
 				tabStops = new BitArray (cols);
 

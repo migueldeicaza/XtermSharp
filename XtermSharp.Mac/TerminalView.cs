@@ -206,14 +206,13 @@ namespace XtermSharp.Mac {
 			get => base.Frame; set {
 				var oldSize = base.Frame.Size;
 				base.Frame = value;
-				OnSizeChanged (oldSize, value.Size);
 
 				var newRows = (int) (value.Height / cellHeight);
 				var newCols = (int) (value.Width / cellWidth);
 
-				if (newRows != terminal.Cols || newRows != terminal.Rows) {
-					//terminal.Resize (newCols, newRows);
-					//FullBufferUpdate ();
+				if (newCols != terminal.Cols || newRows != terminal.Rows) {
+					terminal.Resize (newCols, newRows);
+					FullBufferUpdate ();
 				}
 
 				UpdateCursorPosition ();
@@ -224,12 +223,15 @@ namespace XtermSharp.Mac {
 					loadedCalled = true;
 					Loaded?.Invoke ();
 				}
+
+				SizeChanged?.Invoke (newCols, newRows);
 			}
 		}
 
-		void OnSizeChanged (CGSize oldSize, CGSize newSize)
-		{
-		}
+		/// <summary>
+		///  This event is raised when the terminal size has change, due to a NSView frame changed.
+		/// </summary>
+		public event Action<int, int> SizeChanged;
 
 		[Export ("validateUserInterfaceItem:")]
 		bool INSUserInterfaceValidations.ValidateUserInterfaceItem (INSValidatedUserInterfaceItem item)
@@ -612,6 +614,11 @@ namespace XtermSharp.Mac {
 		{
 			if (TitleChanged != null)
 				TitleChanged (this, title);
+		}
+
+		void ITerminalDelegate.SizeChanged (Terminal source)
+		{
+			throw new NotImplementedException ();
 		}
 	}
 }

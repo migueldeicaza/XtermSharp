@@ -43,12 +43,23 @@ namespace MacTerminal {
 			}
 		}
 
+		void GetSize (Terminal terminal, ref MacWinSize size)
+		{
+			 size = new MacWinSize () { 
+				col = (short)terminal.Cols, 
+				row = (short)terminal.Rows, 
+			 	xpixel = (short)View.Frame.Width, 
+		 		ypixel = (short)View.Frame.Height 
+ 			};
+		}
+
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
 			terminalView = new TerminalView (View.Frame);
 			var t = terminalView.Terminal;
-			MacWinSize size = new MacWinSize () { col = (short) t.Cols, row = (short) t.Rows, xpixel = (short) View.Frame.Width, ypixel = (short) View.Frame.Height };
+			var size = new MacWinSize ();
+			GetSize (t, ref size);
 
 			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, new string [] { "TERM=xterm-color" }, out fd, size);
 			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
@@ -60,6 +71,12 @@ namespace MacTerminal {
 			terminalView.Feed ("Welcome to XtermSharp - NSView frontend!\n");
 			terminalView.TitleChanged += (TerminalView sender, string title) => {
 				View.Window.Title = title;
+			};
+			terminalView.SizeChanged += (newCols, newRows) => {
+				MacWinSize nz = new MacWinSize ();
+				GetSize (t, ref nz);
+				var res = Pty.SetWinSize (fd, ref nz);
+				Console.WriteLine (res);
 			};
 			View.AddSubview (terminalView);
 

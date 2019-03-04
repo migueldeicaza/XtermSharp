@@ -5,6 +5,11 @@ namespace XtermSharp {
 	public interface ITerminalDelegate {
 		void ShowCursor (Terminal source);
 		void SetTerminalTitle (Terminal source, string title);
+		/// <summary>
+		/// This event is triggered from the engine, when the request to resize the window is received from an escape sequence.
+		/// </summary>
+		/// <param name="source">Source.</param>
+		void SizeChanged (Terminal source);
 	}
 
 	//
@@ -18,6 +23,10 @@ namespace XtermSharp {
 		}
 
 		public virtual void ShowCursor (Terminal source)
+		{
+		}
+
+		public virtual void SizeChanged (Terminal source)
 		{
 		}
 	}
@@ -327,9 +336,9 @@ namespace XtermSharp {
 				rows = MINIMUM_ROWS;
 			if (cols == Cols && rows == Rows)
 				return;
-			Buffers.Resize (cols, rows);
 			Cols = cols;
 			Rows = rows;
+			Buffers.Resize (cols, rows);
 			buffers.SetupTabStops (cols);
 			Refresh (0, Rows - 1);
 		}

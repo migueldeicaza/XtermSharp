@@ -1,6 +1,16 @@
 
 # TODO
 
+General bits:
+* Resize
+* Buffer managerment and scrollback support
+* Rendering glitches in Mac port (the in-between line thing)
+* Mouse support
+* Caret shape support
+
+
+Porting:
+
 - [ ] AccessibilityManager.ts
 - [x] Buffer.ts
 - [x] BufferLine.ts
@@ -14,21 +24,21 @@
 - [ ] SelectionManager.ts
 - [ ] SelectionModel.ts
 - [ ] SoundManager.ts
-- [ ] Strings.ts
+- [   ] Strings.ts
 - [ ] Terminal.integration.ts
 - [ ] Terminal.ts
 - [ ] Types.ts
 - [ ] Viewport.ts
 - [ ] xterm.ts
-- [ ] common/CircularList.ts
+- [x] common/CircularList.ts
 - [ ] common/Clone.ts
 - [ ] common/EventEmitter.ts
 - [ ] common/Lifecycle.ts
 - [ ] common/TypedArrayUtils.ts
 - [ ] common/Types.ts
-- [ ] common/data/EscapeSequences.ts
+- [x] common/data/EscapeSequences.ts
 - [x] core/data/Charsets.ts
-- [ ] core/input/Keyboard.ts
+- [x] core/input/Keyboard.ts
 - [ ] core/input/TextDecoder.ts
 - [ ] core/Platform.ts
 - [ ] Renderer/*
