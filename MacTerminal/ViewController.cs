@@ -10,6 +10,7 @@ using XtermSharp;
 using ObjCRuntime;
 using CoreFoundation;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
 
 namespace MacTerminal {
 	public partial class ViewController : NSViewController {
@@ -28,7 +29,10 @@ namespace MacTerminal {
 				// Faster, but harder to debug:
 				// terminalView.Feed (buffer, (int) size);
 				//Console.WriteLine ("Read {0} bytes", size);
-
+				if (size == 0) {
+					View.Window.Close ();
+					return;
+				}
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 
@@ -55,6 +59,18 @@ namespace MacTerminal {
  			};
 		}
 
+		public string [] GetEnvironmentVariables ()
+		{
+			var l = new List<string> ();
+			l.Add ("TERM=xterm-color");
+
+			var env = Environment.GetEnvironmentVariables ();
+			foreach (var x in new [] { "LANGUAGE", "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
+				if (env.Contains (x))
+					l.Add ($"{x}={env [x]}");
+			return l.ToArray ();
+		}
+
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
@@ -63,7 +79,7 @@ namespace MacTerminal {
 			var size = new MacWinSize ();
 			GetSize (t, ref size);
 
-			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, new string [] { "TERM=xterm-color" }, out fd, size);
+			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, GetEnvironmentVariables (), out fd, size);
 			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 
 			
