@@ -174,6 +174,12 @@ namespace XtermSharp {
 			endY = refreshEnd;
 		}
 
+		public void ClearUpdateRange ()
+		{
+			refreshStart = Int32.MaxValue;
+			refreshEnd = -1;
+		}
+
 		internal void EmitChar (int ch)
 		{
 			// For accessibility purposes 'a11y.char' in the original source.

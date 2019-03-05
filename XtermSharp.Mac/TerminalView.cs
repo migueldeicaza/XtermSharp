@@ -7,6 +7,7 @@ using ObjCRuntime;
 using System.Text;
 using System.Collections.Generic;
 using XtermSharp;
+using CoreFoundation;
 
 namespace XtermSharp.Mac {
 	/// <summary>
@@ -18,7 +19,7 @@ namespace XtermSharp.Mac {
 		Terminal terminal;
 		CircularList<NSAttributedString> buffer;
 		NSFont font;
-		NSView caret;
+		NSView caret, debug;
 		
 		nfloat cellHeight, cellWidth, cellDelta;
 
@@ -37,10 +38,16 @@ namespace XtermSharp.Mac {
 				WantsLayer = true
 			};
 			AddSubview (caret);
+			debug = new NSView (new CGRect (0, 0, 10, 10)) {
+				WantsLayer = true
+			};
+			//AddSubview (debug);
 
 			var caretColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.5f);
 
 			caret.Layer.BackgroundColor = caretColor.CGColor;
+
+			debug.Layer.BackgroundColor = caretColor.CGColor;
 		}
 
 		/// <summary>
@@ -155,6 +162,7 @@ namespace XtermSharp.Mac {
 		void UpdateDisplay ()
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
+			terminal.ClearUpdateRange ();
 			var cols = terminal.Cols;
 			var tb = terminal.Buffer;
 			for (int row = rowStart; row <= rowEnd; row++) {
@@ -163,9 +171,15 @@ namespace XtermSharp.Mac {
 			//var baseLine = Frame.Height - cellDelta;
 			// new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
 			UpdateCursorPosition ();
-			
+
 			// Should compute the rectangle instead
-			NeedsDisplay = true;
+			//Console.WriteLine ($"Dirty range: {rowStart},{rowEnd}");
+			var region = new CGRect (0, Frame.Height - cellHeight - (rowEnd * cellHeight - cellDelta - 1), Frame.Width, (cellHeight - cellDelta) * (rowEnd-rowStart+1));
+
+			//debug.Frame = region;
+			SetNeedsDisplayInRect (region);
+			//Console.WriteLine ("Dirty rectangle: " + region);
+			pendingDisplay = false;
 		}
 
 		// Flip coordinate system.
@@ -175,19 +189,36 @@ namespace XtermSharp.Mac {
 		public void Feed (string text)
 		{
 			terminal.Feed (Encoding.UTF8.GetBytes (text));
-			UpdateDisplay ();
+			QueuePendingDisplay ();
+		}
+
+		// 
+		// The code below is intended to not repaint too often, which can produce flicker, for example
+		// when the user refreshes the display, and this repains the screen, as dispatch delivers data
+		// in blocks of 1024 bytes, which is not enough to cover the whole screen, so this delays
+		// the update for a 1/600th of a secon.
+		bool pendingDisplay;
+		void QueuePendingDisplay ()
+		{
+			// throttle
+			if (!pendingDisplay) {
+				pendingDisplay = true;
+				DispatchQueue.CurrentQueue.DispatchAfter (new DispatchTime (DispatchTime.Now, 16670000*2), UpdateDisplay);
+			}
 		}
 
 		public void Feed (byte [] text, int length = -1)
 		{
 			terminal.Feed (text, length);
-			UpdateDisplay ();
+
+			// The problem is calling UpdateDisplay here, because there is still data pending.
+			QueuePendingDisplay ();
 		}
 
 		public void Feed (IntPtr buffer, int length)
 		{
 			terminal.Feed (buffer, length);
-			UpdateDisplay ();
+			QueuePendingDisplay ();
 		}
 
 		NSTrackingArea trackingArea;
@@ -570,6 +601,7 @@ namespace XtermSharp.Mac {
 		int count;
 		public override void DrawRect (CGRect dirtyRect)
 		{
+			//Console.WriteLine ($"DrawRect: {dirtyRect}");
 			NSColor.White.Set ();
 			NSGraphics.RectFill (dirtyRect);
 

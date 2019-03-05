@@ -27,6 +27,8 @@ namespace MacTerminal {
 			using (var map = data.CreateMap (out var buffer, out var size)) {
 				// Faster, but harder to debug:
 				// terminalView.Feed (buffer, (int) size);
+				//Console.WriteLine ("Read {0} bytes", size);
+
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 

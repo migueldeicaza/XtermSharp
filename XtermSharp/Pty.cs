@@ -41,5 +41,18 @@ namespace XtermSharp {
 			}
 			return r;
 		}
+
+		[DllImport ("libc", SetLastError = true)]
+		extern static int ioctl (int fd, long cmd, ref long size);
+
+		public static int AvailableBytes (int fd, ref long size)
+		{
+			var r = ioctl (fd, 0x4004667f, ref size);
+			if (r == -1) {
+				var lastErr = Marshal.GetLastWin32Error ();
+				Console.WriteLine (lastErr);
+			}
+			return r;
+		}
 	}
 }
