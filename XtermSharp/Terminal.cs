@@ -425,11 +425,6 @@ namespace XtermSharp {
 			tdelegate.SetTerminalTitle (this, text);
 		}
 
-		internal void TabSet ()
-		{
-			throw new NotImplementedException ();
-		}
-
 		internal void ReverseIndex ()
 		{
 			var buffer = Buffer;

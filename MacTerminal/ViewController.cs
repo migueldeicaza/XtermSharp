@@ -23,6 +23,7 @@ namespace MacTerminal {
 		int pid, fd;
 		byte [] readBuffer = new byte [4*1024];
 
+		static int x;
 		void ChildProcessRead (DispatchData data, int error)
 		{
 			using (var map = data.CreateMap (out var buffer, out var size)) {
@@ -36,7 +37,7 @@ namespace MacTerminal {
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 
-				//System.IO.File.WriteAllBytes ("/tmp/log2", copy);
+				//System.IO.File.WriteAllBytes ("/tmp/log-" + (x++), copy);
 				terminalView.Feed (copy);
 			}
 			DispatchIO.Read (fd, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
@@ -64,8 +65,10 @@ namespace MacTerminal {
 			var l = new List<string> ();
 			l.Add ("TERM=xterm-color");
 
+						// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
+			l.Add ("LANG=en_US.UTF-8");
 			var env = Environment.GetEnvironmentVariables ();
-			foreach (var x in new [] { "LANGUAGE", "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
+			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
 				if (env.Contains (x))
 					l.Add ($"{x}={env [x]}");
 			return l.ToArray ();

@@ -139,6 +139,11 @@ namespace XtermSharp
 				tabStops [i] = true;
 		}
 
+		public void TabSet (int pos)
+		{
+			tabStops [pos] = true;
+		}
+
 		public void ClearStop (int pos)
 		{
 			tabStops [pos] = false;

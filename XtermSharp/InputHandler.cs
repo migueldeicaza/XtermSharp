@@ -459,7 +459,7 @@ namespace XtermSharp {
 		// 
 		void TabSet ()
 		{
-			terminal.TabSet ();
+			terminal.Buffer.TabSet (terminal.Buffer.X);
 		}
 
 		// 
@@ -1891,7 +1891,11 @@ namespace XtermSharp {
 			for (var pos = start; pos < end; ++pos) {
 				int code;
 				var n = RuneExt.ExpectedSizeFromFirstByte (data [pos]);
-				if (n == 1)
+				if (n == -1) {
+					// Invalid UTF-8 sequence, client sent us some junk, happens if we run with the wrong locale set
+					// for example if LANG=en
+					code = (int) ((uint)data [pos]);
+				} else if (n == 1)
 					code = data [pos];
 				else if (pos + n <= end) {
 					var x = new byte [n];
@@ -1991,6 +1995,7 @@ namespace XtermSharp {
 							continue;
 						}
 						// FIXME: Do we have to set buffer.x to cols - 1, if not wrapping?
+						buffer.X = cols - 1;
 					}
 				}
 
