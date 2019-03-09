@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace XtermSharp {
 	public interface ITerminalDelegate {
@@ -122,6 +123,12 @@ namespace XtermSharp {
 		public void Feed (IntPtr data, int len = -1)
 		{
 			input.Parse (data, len);
+		}
+
+		public void Feed (string text)
+		{
+			var bytes = Encoding.UTF8.GetBytes (text);
+			Feed (bytes, bytes.Length);
 		}
 
 		public Dictionary<byte, string> Charset {

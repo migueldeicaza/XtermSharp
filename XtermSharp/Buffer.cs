@@ -12,7 +12,17 @@ namespace XtermSharp
 	public class Buffer {
 		CircularList<BufferLine> lines;
 		public int YDisp, YBase;
-		public int X, Y;
+		public int X;
+		int y;
+		public int Y {
+			get => y;
+			set {
+				if (value < 0 || value > Terminal.Rows-1)
+					throw new Exception ();
+				else
+					y = value;
+			}
+		}
 		public int ScrollBottom, ScrollTop;
 		BitArray tabStops;
 		public int SavedX, SavedY, SavedAttr = CharData.DefaultAttr;

@@ -524,11 +524,14 @@ namespace XtermSharp {
 		void LineFeedBasic ()
 		{
 			var buffer = terminal.Buffer;
-			buffer.Y++;
-			if (buffer.Y > buffer.ScrollBottom) {
-				buffer.Y--;
+			var by = buffer.Y;
+
+			// If we are inside the scroll region, or we hit the last row of the display
+			if (by == buffer.ScrollBottom || by == terminal.Rows-1) {
 				terminal.Scroll (isWrapped: false);
-			}
+			} else
+				buffer.Y = by + 1;
+
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
 			if (buffer.X >= terminal.Cols)
 				buffer.X--;
@@ -1885,6 +1888,7 @@ namespace XtermSharp {
 			var insertMode = terminal.InsertMode;
 			var curAttr = terminal.CurAttr;
 			var bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
+
 
 			terminal.UpdateRange (buffer.Y);
 			
