@@ -10,7 +10,10 @@ namespace XtermSharp {
 		public int Width;
 		public int Code;
 
+		// ((int)flags << 18) | (fg << 9) | bg;
+
 		public const int DefaultAttr = Renderer.DefaultColor << 9 | (256 << 0);
+		public const int InvertedAttr = Renderer.InvertedDefaultColor << 9 | (256 << 0) | Renderer.InvertedDefaultColor;
 
 		public static CharData Null = new CharData (DefaultAttr, '\u0200', 1, 0);
 		public static CharData WhiteSpace = new CharData (DefaultAttr, ' ', 1, 32);

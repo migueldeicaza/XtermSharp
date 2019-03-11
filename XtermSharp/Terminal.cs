@@ -11,6 +11,12 @@ namespace XtermSharp {
 		/// </summary>
 		/// <param name="source">Source.</param>
 		void SizeChanged (Terminal source);
+
+		/// <summary>
+		/// Used to respond to the client running on the other end.  This information should be sent to the remote end or subshell.
+		/// </summary>
+		/// <param name="data"></param>
+		void Send (byte [] data);
 	}
 
 	//
@@ -18,6 +24,10 @@ namespace XtermSharp {
 	// do a lot of work to use.
     	//
 	public class SimpleTerminalDelegate : ITerminalDelegate {
+		public void Send (byte [] data)
+		{
+		}
+
 		public virtual void SetTerminalTitle (Terminal source, string title)
 		{
 	
@@ -92,8 +102,9 @@ namespace XtermSharp {
 			// TODO REST
 		}
 
-		public void Handler (string txt)
+		public void SendResponse (string txt)
 		{
+			tdelegate.Send (Encoding.UTF8.GetBytes (txt));
 		}
 
 		public void Error (string txt, params object [] args)

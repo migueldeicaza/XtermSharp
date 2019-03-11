@@ -18,14 +18,17 @@ namespace XtermSharp.Mac {
 
 		Terminal terminal;
 		CircularList<NSAttributedString> buffer;
-		NSFont font;
+		NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
 		NSView caret, debug;
 		
 		nfloat cellHeight, cellWidth, cellDelta;
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
-			font = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
+			fontNormal = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
+			fontBold = NSFont.FromFontName ("Lucida Sans Typewriter Bold", 14);
+			fontItalic = NSFont.FromFontName ("Lucida Sans Typewriter Oblique", 14);
+			fontBoldItalic = NSFont.FromFontName ("Lucida Sans Typewriter Bold Oblique", 14);
 			ComputeCellDimensions ();
 
 			var cols = (int)(rect.Width / cellWidth);
@@ -65,7 +68,7 @@ namespace XtermSharp.Mac {
 
 		void ComputeCellDimensions ()
 		{
-			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = font }));
+			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = fontNormal }));
 			var bounds = line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
 			cellWidth = bounds.Width;
 			cellHeight = bounds.Height;
@@ -79,11 +82,16 @@ namespace XtermSharp.Mac {
 		NSColor MapColor (int color, bool isFg)
 		{
 			// The default color
-			if (color == 256) {
+			if (color == Renderer.DefaultColor) {
 				if (isFg)
 					return NSColor.Black;
 				else
 					return NSColor.White;
+			} else if (color == Renderer.InvertedDefaultColor) {
+				if (isFg)
+					return NSColor.White;
+				else
+					return NSColor.Black;
 			}
 
 			if (colors [color] == null) {
@@ -116,9 +124,25 @@ namespace XtermSharp.Mac {
 			if (attributes.TryGetValue (attribute, out var result))
 				return result;
 
-			var color = new NSStringAttributes () { Font = font, ForegroundColor = MapColor (fg, true),  BackgroundColor = MapColor (bg, false)  };
-			attributes [attribute] = color;
-			return color;
+			NSFont font;
+			if (flags.HasFlag (FLAGS.BOLD)){
+				if (flags.HasFlag (FLAGS.ITALIC))
+					font = fontBoldItalic;
+				else
+					font = fontBold;
+			} else if (flags.HasFlag (FLAGS.ITALIC))
+				font = fontItalic;
+			else
+				font = fontNormal;
+			
+			var nsattr = new NSStringAttributes () { Font = font, ForegroundColor = MapColor (fg, true),  BackgroundColor = MapColor (bg, false)  };
+			if (flags.HasFlag (FLAGS.UNDERLINE)) {
+				nsattr.UnderlineColor = nsattr.ForegroundColor;
+				nsattr.UnderlineStyle = (int) NSUnderlineStyle.Single;
+		
+			}
+			attributes [attribute] = nsattr;
+			return nsattr;
 		}
 
 		NSAttributedString BuildAttributedString (BufferLine line, int cols)
@@ -470,7 +494,7 @@ namespace XtermSharp.Mac {
 		// Invoked to raise input on the control, which should probably be sent to the actual child process or remote connection
 		public Action<byte []> UserInput;
 
-		void Send (byte [] data)
+		public void Send (byte [] data)
 		{
 			UserInput?.Invoke (data);
 		}

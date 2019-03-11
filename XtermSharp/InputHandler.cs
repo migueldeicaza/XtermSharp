@@ -40,7 +40,7 @@ namespace XtermSharp {
 			data = new List<byte> ();
 		}
 
-		unsafe public void Put (byte * data, int start, int end)
+		unsafe public void Put (byte* data, int start, int end)
 		{
 			for (int i = start; i < end; i++)
 				this.data.Add (data [i]);
@@ -51,15 +51,15 @@ namespace XtermSharp {
 			var newData = System.Text.Encoding.Default.GetString (data.ToArray ());
 			switch (newData) {
 			case "\"q": // DECCSA
-				terminal.Handler ("\x1bP1$r0\"q$\x1b\\");
+				terminal.SendResponse ("\x1bP1$r0\"q$\x1b\\");
 				return;
 			case "\"p": // DECSCL
-				terminal.Handler ("\x1bP1$r61\"p$\x1b\\");
+				terminal.SendResponse ("\x1bP1$r61\"p$\x1b\\");
 				return;
 			case "r": // DECSTBM
 				var pt = "" + (terminal.Buffer.ScrollTop + 1) +
 					';' + (terminal.Buffer.ScrollBottom + 1) + 'r';
-				terminal.Handler ("\x1bP1$r$" + pt + "\x1b\\");
+				terminal.SendResponse ("\x1bP1$r$" + pt + "\x1b\\");
 				return;
 			case "m": // SGR
 				  // TODO: report real settings instead of 0m
@@ -67,7 +67,7 @@ namespace XtermSharp {
 			default:
 				// invalid: DCS 0 $ r Pt ST (xterm)
 				terminal.Error ($"Unknown DCS + {newData}");
-				terminal.Handler ("\x1bP0$r$\x1b");
+				terminal.SendResponse ("\x1bP0$r$\x1b");
 				break;
 			}
 		}
@@ -155,7 +155,7 @@ namespace XtermSharp {
 			// Comment in original FIXME:   What do to with missing? Old code just added those to print.
 
 			// some C1 control codes - FIXME: should those be enabled by default?
-			parser.SetExecuteHandler (0x84 /* Index */, ()=> terminal.Index ());
+			parser.SetExecuteHandler (0x84 /* Index */, () => terminal.Index ());
 			parser.SetExecuteHandler (0x85 /* Next Line */, NextLine);
 			parser.SetExecuteHandler (0x88 /* Horizontal Tabulation Set */, TabSet);
 
@@ -202,12 +202,12 @@ namespace XtermSharp {
 			// 
 			parser.SetEscHandler ("7", SaveCursor);
 			parser.SetEscHandler ("8", RestoreCursor);
-			parser.SetEscHandler ("D", (c,f) => terminal.Index ());
-			parser.SetEscHandler ("E", (c,b)=>NextLine ());
-			parser.SetEscHandler ("H", (c,f)=>TabSet ());
-			parser.SetEscHandler ("M", (c,f)=>ReverseIndex());
-			parser.SetEscHandler ("=", (c, f) => KeypadApplicationMode());
-			parser.SetEscHandler (">", (c, f) => KeypadNumericMode());
+			parser.SetEscHandler ("D", (c, f) => terminal.Index ());
+			parser.SetEscHandler ("E", (c, b) => NextLine ());
+			parser.SetEscHandler ("H", (c, f) => TabSet ());
+			parser.SetEscHandler ("M", (c, f) => ReverseIndex ());
+			parser.SetEscHandler ("=", (c, f) => KeypadApplicationMode ());
+			parser.SetEscHandler (">", (c, f) => KeypadNumericMode ());
 			parser.SetEscHandler ("c", (c, f) => Reset ());
 			parser.SetEscHandler ("n", (c, f) => SetgLevel (2));
 			parser.SetEscHandler ("o", (c, f) => SetgLevel (3));
@@ -245,7 +245,7 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 			var cursorStartX = buffer.X;
 			var cursorStartY = buffer.Y;
-			
+
 			unsafe {
 				fixed (byte* p = &data [0]) {
 					parser.Parse (p, length);
@@ -262,7 +262,7 @@ namespace XtermSharp {
 			var cursorStartY = buffer.Y;
 
 			unsafe { parser.Parse ((byte*)data, length); }
-			
+
 			buffer = terminal.Buffer;
 		}
 
@@ -314,18 +314,18 @@ namespace XtermSharp {
 			if (p.Length != 2)
 				SelectDefaultCharset ();
 			byte ch;
-			
-			Dictionary<byte,string> charset;
-			if (!CharSets.All.TryGetValue ((byte) p [1], out charset))
+
+			Dictionary<byte, string> charset;
+			if (!CharSets.All.TryGetValue ((byte)p [1], out charset))
 				charset = null;
 
-			switch (p [0]){
+			switch (p [0]) {
 			case '(':
 				ch = 0;
 				break;
 			case ')':
 			case '-':
-				ch = 1; 
+				ch = 1;
 				break;
 			case '*':
 			case '.':
@@ -410,7 +410,7 @@ namespace XtermSharp {
 		// 
 		void ReverseIndex ()
 		{
-			terminal.ReverseIndex ();	
+			terminal.ReverseIndex ();
 		}
 
 		//
@@ -527,7 +527,7 @@ namespace XtermSharp {
 			var by = buffer.Y;
 
 			// If we are inside the scroll region, or we hit the last row of the display
-			if (by == buffer.ScrollBottom || by == terminal.Rows-1) {
+			if (by == buffer.ScrollBottom || by == terminal.Rows - 1) {
 				terminal.Scroll (isWrapped: false);
 			} else
 				buffer.Y = by + 1;
@@ -570,8 +570,8 @@ namespace XtermSharp {
 		{
 			var buffer = terminal.Buffer;
 			buffer.X = buffer.SavedX;
-    			buffer.Y = buffer.SavedY;
-    			terminal.CurAttr = buffer.SavedAttr;
+			buffer.Y = buffer.SavedY;
+			terminal.CurAttr = buffer.SavedAttr;
 		}
 
 		//
@@ -598,8 +598,8 @@ namespace XtermSharp {
 			if (collect != "")
 				return;
 			var buffer = terminal.Buffer;
-		    	buffer.ScrollTop = pars.Length > 0 ? pars [0]-1 : 0;
-    			buffer.ScrollBottom = (pars.Length > 1 ? Math.Min (pars [1], terminal.Rows) : terminal.Rows) -1;
+			buffer.ScrollTop = pars.Length > 0 ? pars [0] - 1 : 0;
+			buffer.ScrollBottom = (pars.Length > 1 ? Math.Min (pars [1], terminal.Rows) : terminal.Rows) - 1;
 			buffer.X = 0;
 			buffer.Y = 0;
 		}
@@ -739,7 +739,7 @@ namespace XtermSharp {
 			}
 		}
 
-		
+
 		// 
 		// CSI Pm m  Character Attributes (SGR).
 		//     Ps = 0  -> Normal (default).
@@ -808,13 +808,13 @@ namespace XtermSharp {
 		void CharAttributes (int [] pars)
 		{
 			// Optimize a single SGR0.
-			if (pars.Length == 1 && pars[0] == 0) {
-      				terminal.CurAttr = CharData.DefaultAttr;
-      				return;
-    			}
+			if (pars.Length == 1 && pars [0] == 0) {
+				terminal.CurAttr = CharData.DefaultAttr;
+				return;
+			}
 
-    			var l = pars.Length;
-			var flags = (FLAGS) (terminal.CurAttr >> 18);
+			var l = pars.Length;
+			var flags = (FLAGS)(terminal.CurAttr >> 18);
 			var fg = (terminal.CurAttr >> 9) & 0x1ff;
 			var bg = terminal.CurAttr & 0x1ff;
 			var def = CharData.DefaultAttr;
@@ -1034,85 +1034,89 @@ namespace XtermSharp {
 		void ResetMode (int par, string collect)
 		{
 			if (collect == "") {
-      			switch (par) {
-        		case 4:
-          			terminal.InsertMode = false;
-          			break;
-        		case 20:
-          			// this._t.convertEol = false;
-          			break;
-				}
-      		} else if (collect == "?") {
 				switch (par) {
-					case 1:
-						terminal.ApplicationCursor = false;
-						break;
-					case 3:
-						if (terminal.Cols == 132 && terminal.SavedCols != 0)
-							terminal.Resize(terminal.SavedCols, terminal.Rows);
-
-						terminal.SavedCols = 0;
-						break;
-					case 6:
-						terminal.OriginMode = false;
-						break;
-					case 7:
-						terminal.Wraparound = false;
-						break;
-					case 12:
-						// this.cursorBlink = false;
-						break;
-					case 66:
-						terminal.Log("Switching back to normal keypad.");
-						terminal.ApplicationKeypad = false;
-						terminal.SyncScrollArea ();
-						break;
-					case 9: // X10 Mouse
-					case 1000: // vt200 mouse
-					case 1002: // button event mouse
-					case 1003: // any event mouse
-						terminal.X10Mouse = false;
-						terminal.Vt200Mouse = false;
-						terminal.NormalMouse = false;
-						terminal.MouseEvents = false;
-						terminal.DisableMouseEvents();
-						break;
-					case 1004: // send focusin/focusout events
-						terminal.SendFocus = false;
-						break;
-					case 1005: // utf8 ext mode mouse
-						terminal.UtfMouse = false;
-						break;
-					case 1006: // sgr ext mode mouse
-						terminal.SgrMouse = false;
-						break;
-					case 1015: // urxvt ext mode mouse
-						terminal.UrxvtMouse = false;
-						break;
-					case 25: // hide cursor
-						terminal.CursorHidden = true;
-						break;
-					case 1048: // alt screen cursor
-						this.RestoreCursor(Array.Empty<int>());
-						break;
-					case 1049: // alt screen buffer cursor
-						// FALL-THROUGH
-						goto case 47;
-					case 47: // normal screen buffer
-					case 1047: // normal screen buffer - clearing it first
-						// Ensure the selection manager has the correct buffer
-						terminal.Buffers.ActivateNormalBuffer();
-						if (par == 1049) 
-							this.RestoreCursor(Array.Empty<int>());
-						terminal.Refresh (0, terminal.Rows - 1);
-						terminal.SyncScrollArea ();
-						terminal.ShowCursor();
-						break;
-					case 2004: // bracketed paste mode (https://cirw.in/blog/bracketed-paste)
-						terminal.BracketedPasteMode = false;
-						break;
+				case 4:
+					terminal.InsertMode = false;
+					break;
+				case 20:
+					// this._t.convertEol = false;
+					break;
 				}
-			  }
+			} else if (collect == "?") {
+				switch (par) {
+				case 1:
+					terminal.ApplicationCursor = false;
+					break;
+				case 3:
+					if (terminal.Cols == 132 && terminal.SavedCols != 0)
+						terminal.Resize (terminal.SavedCols, terminal.Rows);
+
+					terminal.SavedCols = 0;
+					break;
+				case 5:
+					// Reset default color
+					terminal.CurAttr = CharData.DefaultAttr;
+					break;
+				case 6:
+					terminal.OriginMode = false;
+					break;
+				case 7:
+					terminal.Wraparound = false;
+					break;
+				case 12:
+					// this.cursorBlink = false;
+					break;
+				case 66:
+					terminal.Log ("Switching back to normal keypad.");
+					terminal.ApplicationKeypad = false;
+					terminal.SyncScrollArea ();
+					break;
+				case 9: // X10 Mouse
+				case 1000: // vt200 mouse
+				case 1002: // button event mouse
+				case 1003: // any event mouse
+					terminal.X10Mouse = false;
+					terminal.Vt200Mouse = false;
+					terminal.NormalMouse = false;
+					terminal.MouseEvents = false;
+					terminal.DisableMouseEvents ();
+					break;
+				case 1004: // send focusin/focusout events
+					terminal.SendFocus = false;
+					break;
+				case 1005: // utf8 ext mode mouse
+					terminal.UtfMouse = false;
+					break;
+				case 1006: // sgr ext mode mouse
+					terminal.SgrMouse = false;
+					break;
+				case 1015: // urxvt ext mode mouse
+					terminal.UrxvtMouse = false;
+					break;
+				case 25: // hide cursor
+					terminal.CursorHidden = true;
+					break;
+				case 1048: // alt screen cursor
+					this.RestoreCursor (Array.Empty<int> ());
+					break;
+				case 1049: // alt screen buffer cursor
+					   // FALL-THROUGH
+					goto case 47;
+				case 47: // normal screen buffer
+				case 1047: // normal screen buffer - clearing it first
+					   // Ensure the selection manager has the correct buffer
+					terminal.Buffers.ActivateNormalBuffer ();
+					if (par == 1049)
+						this.RestoreCursor (Array.Empty<int> ());
+					terminal.Refresh (0, terminal.Rows - 1);
+					terminal.SyncScrollArea ();
+					terminal.ShowCursor ();
+					break;
+				case 2004: // bracketed paste mode (https://cirw.in/blog/bracketed-paste)
+					terminal.BracketedPasteMode = false;
+					break;
+				}
+			}
 		}
 
 		// 
@@ -1226,6 +1230,8 @@ namespace XtermSharp {
 					terminal.InsertMode = true;
 					break;
 				case 20:
+
+					// Automatic New Line (LNM)
 					// this._t.convertEol = true;
 					break;
 				}
@@ -1244,6 +1250,10 @@ namespace XtermSharp {
 				case 3: // 132 col mode
 					terminal.SavedCols = terminal.Cols;
 					terminal.Resize (132, terminal.Rows);
+					break;
+				case 5:
+					// Inverted colors
+					terminal.CurAttr = CharData.InvertedAttr;  
 					break;
 				case 6:
 					terminal.OriginMode = true;
@@ -1447,25 +1457,25 @@ namespace XtermSharp {
 
 			var name = terminal.Options.TermName;
 			if (collect == "") {
-				if (name.StartsWith ("xterm") || name.StartsWith ("rxvt-unicode") || name.StartsWith ("screen")) {
-					terminal.Handler ("\x1b[?1;2c");
-				} else if (name.StartsWith ("linux")) {
-					terminal.Handler ("\x1b[?6c");
+				if (name.StartsWith ("xterm", StringComparison.Ordinal) || name.StartsWith ("rxvt-unicode", StringComparison.Ordinal) || name.StartsWith ("screen", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[?1;2c");
+				} else if (name.StartsWith ("linux", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[?6c");
 				}
 			} else if (collect == ">") {
 				// xterm and urxvt
 				// seem to spit this
 				// out around ~370 times (?).
-				if (name.StartsWith ("xterm")) {
-					terminal.Handler ("\x1b[>0;276;0c");
-				} else if (name.StartsWith ("rxvt-unicode")) {
-					terminal.Handler ("\x1b[>85;95;0c");
-				} else if (name.StartsWith ("linux")) {
+				if (name.StartsWith ("xterm", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[>0;276;0c");
+				} else if (name.StartsWith ("rxvt-unicode", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[>85;95;0c");
+				} else if (name.StartsWith ("linux", StringComparison.Ordinal)) {
 					// not supported by linux console.
 					// linux console echoes parameters.
-					terminal.Handler ("" + pars [0] + 'c');
-				} else if (name.StartsWith ("screen")) {
-					terminal.Handler ("\x1b[>83;40003;0c");
+					terminal.SendResponse ("" + pars [0] + 'c');
+				} else if (name.StartsWith ("screen", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[>83;40003;0c");
 				}
 			}
 		}
@@ -1673,7 +1683,7 @@ namespace XtermSharp {
 				for (; j < terminal.Rows; j++) {
 					ResetBufferLine (j);
 				}
-				terminal.UpdateRange (j-1);
+				terminal.UpdateRange (j - 1);
 				break;
 			case 1:
 				j = buffer.Y;
@@ -1840,8 +1850,9 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 
 			buffer.Y += param;
-			if (buffer.Y > buffer.ScrollBottom)
-				buffer.Y = buffer.ScrollBottom - 1;
+			// review
+			//if (buffer.Y > buffer.ScrollBottom)
+			//	buffer.Y = buffer.ScrollBottom - 1;
 			if (buffer.Y > terminal.Rows)
 				buffer.Y = terminal.Rows - 1;
 
@@ -1880,7 +1891,7 @@ namespace XtermSharp {
 			terminal.UpdateRange (buffer.Y);
 		}
 
-		unsafe void Print (byte * data, int start, int end)
+		unsafe void Print (byte* data, int start, int end)
 		{
 			var buffer = terminal.Buffer;
 			var charset = terminal.Charset;
@@ -1893,14 +1904,14 @@ namespace XtermSharp {
 
 
 			terminal.UpdateRange (buffer.Y);
-			
+
 			for (var pos = start; pos < end; ++pos) {
 				int code;
 				var n = RuneExt.ExpectedSizeFromFirstByte (data [pos]);
 				if (n == -1) {
 					// Invalid UTF-8 sequence, client sent us some junk, happens if we run with the wrong locale set
 					// for example if LANG=en
-					code = (int) ((uint)data [pos]);
+					code = (int)((uint)data [pos]);
 				} else if (n == 1)
 					code = data [pos];
 				else if (pos + n <= end) {
@@ -1961,12 +1972,12 @@ namespace XtermSharp {
 								var chMinusTwo = bufferRow [buffer.X - 2];
 
 								chMinusTwo.Code += ch;
-								chMinusTwo.Rune = (Rune) code;
+								chMinusTwo.Rune = (Rune)code;
 								bufferRow [buffer.X - 2] = chMinusTwo; // must be set explicitly now
 							}
 						} else {
 							chMinusOne.Code += ch;
-							chMinusOne.Rune = (Rune) code;
+							chMinusOne.Rune = (Rune)code;
 							bufferRow [buffer.X - 1] = chMinusOne; // must be set explicitly now
 						}
 					}
@@ -2021,7 +2032,7 @@ namespace XtermSharp {
 				}
 
 				// write current char to buffer and advance cursor
-				var charData = new CharData (curAttr , (Rune) code, chWidth, ch);
+				var charData = new CharData (curAttr, (Rune)code, chWidth, ch);
 				bufferRow [buffer.X++] = charData;
 
 				// fullwidth char - also set next cell to placeholder stub and advance cursor
