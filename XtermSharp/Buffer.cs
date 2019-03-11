@@ -187,8 +187,13 @@ namespace XtermSharp
 		{
 			if (index == -1) 
 				index = X;
-			while (index < Terminal.Cols && !tabStops [index++])
-				;
+			do {
+				index++;
+				if (index == Terminal.Cols)
+					break;
+				if (tabStops [index])
+					break;
+			} while (index < Terminal.Cols);
 			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
 		}
 	}

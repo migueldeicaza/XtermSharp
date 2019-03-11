@@ -37,7 +37,7 @@ namespace MacTerminal {
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 
-				//System.IO.File.WriteAllBytes ("/tmp/log-" + (x++), copy);
+				System.IO.File.WriteAllBytes ("/tmp/log-" + (x++), copy);
 				terminalView.Feed (copy);
 			}
 			DispatchIO.Read (fd, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);

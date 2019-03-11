@@ -1315,7 +1315,7 @@ namespace XtermSharp {
 					goto case 47;
 				case 47: // alt screen buffer
 				case 1047: // alt screen buffer
-					terminal.Buffers.ActivateAltBuffert (terminal.EraseAttr ());
+					terminal.Buffers.ActivateAltBuffer (terminal.EraseAttr ());
 					terminal.Refresh (0, terminal.Rows - 1);
 					terminal.SyncScrollArea ();
 					terminal.ShowCursor ();
@@ -1840,6 +1840,8 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 
 			buffer.Y += param;
+			if (buffer.Y > buffer.ScrollBottom)
+				buffer.Y = buffer.ScrollBottom - 1;
 			if (buffer.Y > terminal.Rows)
 				buffer.Y = terminal.Rows - 1;
 
