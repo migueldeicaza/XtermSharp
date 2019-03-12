@@ -1947,9 +1947,10 @@ namespace XtermSharp {
 				if (code < 127 && charset != null) {
 
 					// MIGUEL-FIXME - this is broken for dutch cahrset that returns two letters "ij", need to figure out what to do
-					charset.TryGetValue ((byte)code, out var str);
-					ch = str [0];
-					code = ch;
+					if (charset.TryGetValue ((byte)code, out var str)) {
+						ch = str [0];
+						code = ch;
+					}
 				}
 				if (screenReaderMode)
 					terminal.EmitChar (ch);
