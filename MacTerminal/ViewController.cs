@@ -60,20 +60,6 @@ namespace MacTerminal {
  			};
 		}
 
-		public string [] GetEnvironmentVariables ()
-		{
-			var l = new List<string> ();
-			l.Add ("TERM=xterm-color");
-
-						// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
-			l.Add ("LANG=en_US.UTF-8");
-			var env = Environment.GetEnvironmentVariables ();
-			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
-				if (env.Contains (x))
-					l.Add ($"{x}={env [x]}");
-			return l.ToArray ();
-		}
-
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
@@ -82,7 +68,7 @@ namespace MacTerminal {
 			var size = new MacWinSize ();
 			GetSize (t, ref size);
 
-			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, GetEnvironmentVariables (), out fd, size);
+			pid = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, Terminal.GetEnvironmentVariables (), out fd, size);
 			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 
 			

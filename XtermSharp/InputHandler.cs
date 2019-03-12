@@ -216,6 +216,10 @@ namespace XtermSharp {
 			parser.SetEscHandler ("~", (c, f) => SetgLevel (1));
 			parser.SetEscHandler ("%@", (c, f) => SelectDefaultCharset ());
 			parser.SetEscHandler ("%G", (c, f) => SelectDefaultCharset ());
+			parser.SetEscHandler ("#3", (c, f) => SetDoubleHeightTop ());		    // dhtop
+			parser.SetEscHandler ("#4", (c, f) => SetDoubleHeightBottom ());            // dhbot
+			parser.SetEscHandler ("#5", (c, f) => SingleWidthSingleHeight ());          // swsh
+			parser.SetEscHandler ("#6", (c, f) => DoubleWidthSingleHeight ());          // dwsh
 			foreach (var bflag in CharSets.All.Keys) {
 				char flag = (char)bflag;
 				parser.SetEscHandler ("(" + flag, (code, f) => SelectCharset ("(" + flag));
@@ -340,6 +344,26 @@ namespace XtermSharp {
 			}
 			terminal.SetgCharset (ch, charset);
 		}
+
+		//
+		// ESC # NUMBER
+		//
+		void DoubleWidthSingleHeight ()
+		{
+		}
+
+		//
+		// dhtop
+		//
+		void SetDoubleHeightTop () {}
+
+		// dhbot
+		void SetDoubleHeightBottom () { }          // dhbot
+
+		//
+		// swsh
+		//
+		void SingleWidthSingleHeight () { }
 
 		// 
 		// ESC % @

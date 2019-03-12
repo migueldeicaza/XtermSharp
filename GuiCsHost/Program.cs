@@ -1,10 +1,15 @@
 ﻿using System;
+using System.Threading;
 using Terminal.Gui;
 
 namespace GuiCsHost {
 	class MainClass {
+		
 		public static void Main (string [] args)
 		{
+			// Needed to initialize some handles.
+			Console.WriteLine (" ");
+
 			Application.Init ();
 			var top = Application.Top;
 			var win = new Window ("MyApp") {
@@ -30,13 +35,13 @@ namespace GuiCsHost {
 			});
 			top.Add (menu);
 
-			var terminal = new TerminalView () {
+			var terminal = new SubprocessTerminalView () {
 				X = 0,
 				Y = 0,
 				Width = Dim.Fill (),
 				Height = Dim.Fill ()
 			};
-			top.Add (terminal);
+			win.Add (terminal);
 
 			Application.Run ();
 		}

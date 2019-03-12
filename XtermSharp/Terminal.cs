@@ -460,5 +460,25 @@ namespace XtermSharp {
 				buffer.Y--;
 			}
 		}
+
+
+		/// <summary>
+		/// Provides a baseline set of environment variables that would be useful to run the terminal,
+		/// you can customzie these accordingly.
+		/// </summary>
+		/// <returns></returns>
+		public static string [] GetEnvironmentVariables ()
+		{
+			var l = new List<string> ();
+			l.Add ("TERM=xterm-256color");
+
+			// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
+			l.Add ("LANG=en_US.UTF-8");
+			var env = Environment.GetEnvironmentVariables ();
+			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
+				if (env.Contains (x))
+					l.Add ($"{x}={env [x]}");
+			return l.ToArray ();
+		}
 	}
 }

@@ -20,18 +20,18 @@ namespace XtermSharp {
 			// reference above. xterm seems in line with the reference
 			// when running vttest however.
 			// The table below now uses xterm's output from vttest.
-			// 
+			//
 			All [(byte)'0'] = new Dictionary<byte, string> ()  {
 				{ (byte) '`', "\u25c6"}, // '◆'
 				{ (byte) 'a', "\u2592"}, // '▒'
-				{ (byte) 'b', "\u0009"}, // '\t'
-				{ (byte) 'c', "\u000c"}, // '\f'
-				{ (byte) 'd', "\u000d"}, // '\r'
-				{ (byte) 'e', "\u000a"}, // '\n'
+				{ (byte) 'b', "\u2409"}, // [ht]
+				{ (byte) 'c', "\u240c"}, // [ff]
+				{ (byte) 'd', "\u240d"}, // [cr]
+				{ (byte) 'e', "\u240a"}, // [lf]
 				{ (byte) 'f', "\u00b0"}, // '°'
 				{ (byte) 'g', "\u00b1"}, // '±'
-				{ (byte) 'h', "\u2424"}, // '\u2424' (NL)
-				{ (byte) 'i', "\u000b"}, // '\v'
+				{ (byte) 'h', "\u2424"}, // [nl]
+				{ (byte) 'i', "\u240b"}, // [vt]
 				{ (byte) 'j', "\u2518"}, // '┘'
 				{ (byte) 'k', "\u2510"}, // '┐'
 				{ (byte) 'l', "\u250c"}, // '┌'
@@ -54,6 +54,9 @@ namespace XtermSharp {
 				{ (byte) '}', "\u00a3"}, // '£'
 				{ (byte) '~', "\u00b7"}  // '·'
 			};
+
+			// (DEC Alternate character ROM special graphics)
+			All [(byte)'2'] = All [(byte)'0'];
 
 			/**
 			 * British character set
