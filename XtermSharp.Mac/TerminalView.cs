@@ -372,20 +372,6 @@ namespace XtermSharp.Mac {
 		public override bool AcceptsFirstResponder ()
 		    => true;
 
-		byte [][] cmdF = new byte [][]{
-			new byte [] { 0x1b, (byte) 'O', (byte) 'P' }, /* F1 */
-			new byte [] { 0x1b, (byte) 'O', (byte) 'Q' }, /* F2 */
-			new byte [] { 0x1b, (byte) 'O', (byte) 'R' }, /* F3 */
-			new byte [] { 0x1b, (byte) 'O', (byte) 'S' }, /* F4 */
-			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '5', (byte) '~' }, /* F5 */
-			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '7', (byte) '~' }, /* F6 */
-			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '8', (byte) '~' }, /* F7 */
-			new byte [] { 0x1b, (byte) '[', (byte) '1', (byte) '9', (byte) '~' }, /* F8 */
-			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '0', (byte) '~' }, /* F9 */
-			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '1', (byte) '~' }, /* F10 */
-			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '3', (byte) '~' }, /* F11 */
-			new byte [] { 0x1b, (byte) '[', (byte) '2', (byte) '4', (byte) '~' }, /* F12 */
-		};
 
 		public override void KeyDown (NSEvent theEvent)
 		{
@@ -404,40 +390,40 @@ namespace XtermSharp.Mac {
 					NSFunctionKey code = (NSFunctionKey)ch [0];
 					switch (code) {
 					case NSFunctionKey.F1:
-						Send (cmdF [0]);
+						Send (EscapeSequences.CmdF [0]);
 						break;
 					case NSFunctionKey.F2:
-						Send (cmdF [1]);
+						Send (EscapeSequences.CmdF [1]);
 						break;
 					case NSFunctionKey.F3:
-						Send (cmdF [2]);
+						Send (EscapeSequences.CmdF [2]);
 						break;
 					case NSFunctionKey.F4:
-						Send (cmdF [3]);
+						Send (EscapeSequences.CmdF [3]);
 						break;
 					case NSFunctionKey.F5:
-						Send (cmdF [4]);
+						Send (EscapeSequences.CmdF [4]);
 						break;
 					case NSFunctionKey.F6:
-						Send (cmdF [5]);
+						Send (EscapeSequences.CmdF [5]);
 						break;
 					case NSFunctionKey.F7:
-						Send (cmdF [6]);
+						Send (EscapeSequences.CmdF [6]);
 						break;
 					case NSFunctionKey.F8:
-						Send (cmdF [7]);
+						Send (EscapeSequences.CmdF [7]);
 						break;
 					case NSFunctionKey.F9:
-						Send (cmdF [8]);
+						Send (EscapeSequences.CmdF [8]);
 						break;
 					case NSFunctionKey.F10:
-						Send (cmdF [9]);
+						Send (EscapeSequences.CmdF [9]);
 						break;
 					case NSFunctionKey.F11:
-						Send (cmdF [10]);
+						Send (EscapeSequences.CmdF [10]);
 						break;
 					case NSFunctionKey.F12:
-						Send (cmdF [11]);
+						Send (EscapeSequences.CmdF [11]);
 						break;
 					}
 				}
@@ -499,62 +485,44 @@ namespace XtermSharp.Mac {
 			UserInput?.Invoke (data);
 		}
 
-		byte [] cmdNewline = new byte [] { 10 };
-		byte [] cmdEsc = new byte [] { 0x1b };
-		byte [] cmdDel = new byte [] { 0x7f };
-		byte [] moveUpApp = new byte [] { 0x1b, (byte)'O', (byte)'A' };
-		byte [] moveUpNormal = new byte [] { 0x1b, (byte)'[', (byte)'A' };
-		byte [] moveDownApp = new byte [] { 0x1b, (byte)'O', (byte)'B' };
-		byte [] moveDownNormal = new byte [] { 0x1b, (byte)'[', (byte)'B' };
-		byte [] moveLeftApp = new byte [] { 0x1b, (byte)'O', (byte)'D' };
-		byte [] moveLeftNormal = new byte [] { 0x1b, (byte)'[', (byte)'D' };
-		byte [] moveRightApp = new byte [] { 0x1b, (byte)'O', (byte)'C' };
-		byte [] moveRightNormal = new byte [] { 0x1b, (byte)'[', (byte)'C' };
-		byte [] moveHomeApp = new byte [] { 0x1b, (byte)'O', (byte)'H' };
-		byte [] moveHomeNormal = new byte [] { 0x1b, (byte)'[', (byte)'H' };
-		byte [] moveEndApp = new byte [] { 0x1b, (byte)'O', (byte)'F' };
-		byte [] moveEndNormal = new byte [] { 0x1b, (byte)'[', (byte)'F' };
-		byte [] cmdTab = new byte [] { 9 };
-		byte [] cmdBackTab = new byte []{ 0x1b, (byte)'[', (byte)'Z' };
-		byte [] cmdPageUp = new byte [] { 0x1b, (byte)'[', (byte)'5', (byte)'~' };
-		byte [] cmdPageDown = new byte [] { 0x1b, (byte)'[', (byte)'6', (byte)'~' };
+		
 
 		[Export ("doCommandBySelector:")]
 		public void DoCommandBySelector (Selector selector)
 		{
 			switch (selector.Name){
 			case "insertNewline:":
-				Send (cmdNewline);
+				Send (EscapeSequences.CmdNewline);
 				break;
 			case "cancelOperation:":
-				Send (cmdEsc);
+				Send (EscapeSequences.CmdEsc);
 				break;
 			case "deleteBackward:":
 				Send (new byte [] { 0x7f });
 				break;
 			case "moveUp:":
-				Send (terminal.ApplicationCursor ? moveUpApp : moveUpNormal);
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveUpApp : EscapeSequences.MoveUpNormal);
 				break;
 			case "moveDown:":
-				Send (terminal.ApplicationCursor ? moveDownApp : moveDownNormal );
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveDownApp : EscapeSequences.MoveDownNormal);
 				break;
 			case "moveLeft:":
-				Send (terminal.ApplicationCursor ?  moveLeftApp : moveLeftNormal);
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveLeftApp : EscapeSequences.MoveLeftNormal);
 				break;
 			case "moveRight:":
-				Send (terminal.ApplicationCursor ? moveRightApp : moveRightNormal);
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveRightApp : EscapeSequences.MoveRightNormal);
 				break;
 			case "insertTab:":
-				Send (cmdTab);
+				Send (EscapeSequences.CmdTab);
 				break;
 			case "insertBackTab:":
-				Send (cmdBackTab);
+				Send (EscapeSequences.CmdBackTab);
 				break;
 			case "moveToBeginningOfLine:":
-				Send (terminal.ApplicationCursor ? moveHomeApp: moveHomeNormal);
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveHomeApp : EscapeSequences.MoveHomeNormal);
 				break;
 			case "moveToEndOfLine:":
-				Send (terminal.ApplicationCursor ? moveEndApp : moveEndNormal);
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveEndApp : EscapeSequences.MoveEndNormal);
 				break;
 			case "noop:":
 				ProcessUnhandledEvent (NSApplication.SharedApplication.CurrentEvent);
@@ -563,7 +531,7 @@ namespace XtermSharp.Mac {
 				// Here the semantics depend on app mode, if set, then we function as scroll up, otherwise the modifier acts as scroll up.
 			case "pageUp:":
 				if (terminal.ApplicationCursor)
-					Send (cmdPageUp);
+					Send (EscapeSequences.CmdPageUp);
 				else {
 					// TODO: view should scroll one page up.
 				}
@@ -574,11 +542,11 @@ namespace XtermSharp.Mac {
 					// TODO: view should scroll one page up.
 				}
 				else
-					Send (cmdPageUp);
+					Send (EscapeSequences.CmdPageUp);
 				break;
 			case "pageDown:":
 				if (terminal.ApplicationCursor)
-					Send (cmdPageDown);
+					Send (EscapeSequences.CmdPageDown);
 				else {
 					// TODO: view should scroll one page down
 				}
@@ -587,7 +555,7 @@ namespace XtermSharp.Mac {
 				if (terminal.ApplicationCursor) {
 					// TODO: view should scroll one page up.
 				} else
-					Send (cmdPageDown);
+					Send (EscapeSequences.CmdPageDown);
 				break;
 			default:
 				Console.WriteLine ("Unhandled key event: " + selector.Name);

@@ -12,6 +12,7 @@ namespace GuiCsHost {
 		public TerminalView ()
 		{
 			terminal = new XtermSharp.Terminal (this, new TerminalOptions () { Cols = 80, Rows = 25 });
+			CanFocus = true;
 		}
 		
 		public override Rect Frame {
@@ -19,12 +20,117 @@ namespace GuiCsHost {
 			set {
 				base.Frame = value;
 				SetNeedsDisplay ();
+
+				if (value.Width != terminal.Cols || value.Height != terminal.Rows) {
+					terminal.Resize (value.Width, value.Height);
+				}
+
+				TerminalSizeChanged?.Invoke (value.Width, value.Height);
 			}
 		}
 
+		/// <summary>
+		///  This event is raised when the terminal size has change, due to a Gui.CS frame changed.
+		/// </summary>
+		public event Action<int, int> TerminalSizeChanged;
+
 		public override bool ProcessKey (KeyEvent keyEvent)
 		{
-			return base.ProcessKey (keyEvent);
+			switch (keyEvent.Key) {
+			case Key.Esc:
+				Send (0x1b);
+				break;
+			case Key.Space:
+				Send (0x20);
+				break;
+			case Key.Delete:
+				break;
+			case Key.Backspace:
+				Send (0x7f);
+				break;
+			case Key.CursorUp:
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveUpApp : EscapeSequences.MoveUpNormal);
+				break;
+			case Key.CursorDown:
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveDownApp : EscapeSequences.MoveDownNormal);
+				break;
+			case Key.CursorLeft:
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveLeftApp : EscapeSequences.MoveLeftNormal);
+				break;
+			case Key.CursorRight:
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveRightApp : EscapeSequences.MoveRightNormal);
+				break;
+			case Key.PageUp:
+				if (terminal.ApplicationCursor)
+					Send (EscapeSequences.CmdPageUp);
+				else {
+					// TODO: view should scroll one page up.
+				}
+				break;
+			case Key.PageDown:
+				if (terminal.ApplicationCursor)
+					Send (EscapeSequences.CmdPageDown);
+				else {
+					// TODO: view should scroll one page down
+				}
+				break;
+			case Key.Home:
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveHomeApp : EscapeSequences.MoveHomeNormal);
+				break;
+			case Key.End:
+				Send (terminal.ApplicationCursor ? EscapeSequences.MoveEndApp : EscapeSequences.MoveEndNormal);
+				break;
+			case Key.DeleteChar:
+				break;
+			case Key.InsertChar:
+				break;
+			case Key.F1:
+				Send (EscapeSequences.CmdF [0]);
+				break;
+			case Key.F2:
+				Send (EscapeSequences.CmdF [1]);
+				break;
+			case Key.F3:
+				Send (EscapeSequences.CmdF [2]);
+				break;
+			case Key.F4:
+				Send (EscapeSequences.CmdF [3]);
+				break;
+			case Key.F5:
+				Send (EscapeSequences.CmdF [4]);
+				break;
+			case Key.F6:
+				Send (EscapeSequences.CmdF [5]);
+				break;
+			case Key.F7:
+				Send (EscapeSequences.CmdF [6]);
+				break;
+			case Key.F8:
+				Send (EscapeSequences.CmdF [7]);
+				break;
+			case Key.F9:
+				Send (EscapeSequences.CmdF [8]);
+				break;
+			case Key.F10:
+				Send (EscapeSequences.CmdF [9]);
+				break;
+			case Key.BackTab:
+				Send (EscapeSequences.CmdBackTab);
+				break;
+			default:
+				if (keyEvent.Key >= Key.ControlA && keyEvent.Key <= Key.ControlZ) {
+					Send ((byte)keyEvent.Key);
+					break;
+				}
+
+				var rune = (Rune)(uint)keyEvent.Key;
+				var len = Rune.RuneLen (rune);
+				var buff = new byte [len];
+				var n = Rune.EncodeRune (rune, buff);
+				Send (buff);
+				break;
+			}
+			return true;
 		}
 
 		public override void Redraw (Rect region)
@@ -51,9 +157,18 @@ namespace GuiCsHost {
 					Debug.Print("" + (char)r);
 				}
 			}
+			PositionCursor ();
 		}
 
 		public Action<byte []> UserInput;
+
+		byte [] miniBuf = new byte [1];
+
+		void Send (byte b)
+		{
+			miniBuf [0] = b;
+			Send (miniBuf);
+		}
 
 		public void Send (byte [] data)
 		{
@@ -74,40 +189,90 @@ namespace GuiCsHost {
 		{
 			// Triggered by the terminal
 		}
+
+		public override void PositionCursor ()
+		{
+			Move (terminal.Buffer.X, terminal.Buffer.Y);
+		}
+
+		bool UpdateDisplay (Mono.Terminal.MainLoop mainloop)
+		{
+			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
+			terminal.ClearUpdateRange ();
+			var cols = terminal.Cols;
+			var tb = terminal.Buffer;
+			SetNeedsDisplay (new Rect (0, rowStart, Frame.Width, rowEnd+1));
+			//SetNeedsDisplay ();
+			pendingDisplay = false;
+			return false;
+		}
+
+		bool pendingDisplay;
+		void QueuePendingDisplay ()
+		{
+			// throttle
+			if (!pendingDisplay) {
+				pendingDisplay = true;
+				Application.MainLoop.AddTimeout (TimeSpan.FromMilliseconds (16.6), UpdateDisplay);
+			}
+		}
+
+		public void Feed (byte [] buffer, int n)
+		{
+			terminal.Feed (buffer, n);
+			QueuePendingDisplay ();
+		}
 	}
 
 	public class SubprocessTerminalView : TerminalView {
 		int ptyFd;
 		int childPid;
 
+		void SendDataToChild (byte [] data)
+		{
+			unsafe {
+				fixed (byte* p = &data [0]) {
+					var n = Mono.Posix.Syscall.write (ptyFd, (void*)((IntPtr)p), (IntPtr)data.Length);
+				}
+			}
+		}
+
+		void NotifyPtySizeChanged (int cols, int rows)
+		{
+			UnixWindowSize nz = new UnixWindowSize ();
+			nz.col = (short) Frame.Width;
+			nz.row = (short) Frame.Height;
+			var res = Pty.SetWinSize (ptyFd, ref nz);
+		}
+
 		public SubprocessTerminalView ()
 		{
-			var size = new MacWinSize () {
+			var size = new UnixWindowSize () {
 				col = (short) terminal.Cols,
 				row = (short) terminal.Rows,
 			};
 
-			childPid  = Pty.Fork ("/bin/bash", new string [] { "/bin/bash" }, XtermSharp.Terminal.GetEnvironmentVariables (), out ptyFd, size);
-			new Thread (IOLoop).Start (SynchronizationContext.Current);
+			childPid  = Pty.ForkAndExec ("/bin/bash", new string [] { "/bin/bash" }, XtermSharp.Terminal.GetEnvironmentVariables (), out ptyFd, size);
+			var unixMainLoop = Application.MainLoop.Driver as Mono.Terminal.UnixMainLoop;
+			unixMainLoop.AddWatch (ptyFd, Mono.Terminal.UnixMainLoop.Condition.PollIn, PtyReady);
+	
+			this.UserInput = SendDataToChild;
+			this.TerminalSizeChanged += NotifyPtySizeChanged;
 		}
 
-		void IOLoop (object arg)
+		byte [] buffer = new byte [8192];
+		bool PtyReady (Mono.Terminal.MainLoop mainloop)
 		{
-			var context = arg as SynchronizationContext;
-			var buffer = new byte [8192];
-
 			unsafe {
 				IntPtr n;
 				fixed (byte* p = &buffer[0]) {
-					
-					while ((n = Mono.Posix.Syscall.read (ptyFd, (void *)((IntPtr)p), (IntPtr) buffer.Length)) != IntPtr.Zero) {
-						Debug.Print(System.Text.Encoding.UTF8.GetString (buffer, 0, (int) n));
-						context.Send ((x) => {
-							terminal.Feed (buffer, (int) n);
-						}, null);
-					}
+
+					n = Mono.Posix.Syscall.read (ptyFd, (void*)((IntPtr)p), (IntPtr)buffer.Length);
+					Debug.Print(System.Text.Encoding.UTF8.GetString (buffer, 0, (int) n));
+					Feed (buffer, (int)n);
 				}
 			}
+			return true;
 		}
 	}
 }
