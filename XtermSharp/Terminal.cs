@@ -467,10 +467,13 @@ namespace XtermSharp {
 		/// you can customzie these accordingly.
 		/// </summary>
 		/// <returns></returns>
-		public static string [] GetEnvironmentVariables ()
+		public static string [] GetEnvironmentVariables (string termName = null)
 		{
 			var l = new List<string> ();
-			l.Add ("TERM=xterm-256color");
+			if (termName == null)
+				termName = "xterm-256color";
+
+			l.Add ("TERM=" + termName);
 
 			// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
 			l.Add ("LANG=en_US.UTF-8");

@@ -8,6 +8,7 @@ using System.Diagnostics;
 namespace GuiCsHost {
 	public class TerminalView : View, ITerminalDelegate {
 		internal XtermSharp.Terminal terminal;
+		bool cursesDriver = Application.Driver.GetType ().Name.IndexOf ("CursesDriver") != -1;
 
 		public TerminalView ()
 		{
@@ -122,15 +123,54 @@ namespace GuiCsHost {
 					Send ((byte)keyEvent.Key);
 					break;
 				}
-
+				if (keyEvent.IsAlt) {
+					Send (0x1b);
+				}
 				var rune = (Rune)(uint)keyEvent.Key;
 				var len = Rune.RuneLen (rune);
-				var buff = new byte [len];
-				var n = Rune.EncodeRune (rune, buff);
-				Send (buff);
+				if (len > 0) {
+					var buff = new byte [len];
+					var n = Rune.EncodeRune (rune, buff);
+					Send (buff);
+				} else {
+					Send ((byte)keyEvent.Key);
+				}
 				break;
 			}
 			return true;
+		}
+
+		void SetAttribute (int attribute)
+		{
+			int bg = attribute & 0x1ff;
+			int fg = (attribute >> 9) & 0x1ff;
+			var flags = (FLAGS)(attribute >> 18);
+
+			if (cursesDriver) {
+				var cattr = 0;
+				if (fg == Renderer.DefaultColor && bg == Renderer.DefaultColor)
+					cattr = 0;
+				else {
+					// Need this fix: https://github.com/migueldeicaza/gui.cs/issues/170
+					cattr = 0;
+				}
+
+				if (flags.HasFlag (FLAGS.BOLD))
+					cattr |= 0x200000; // A_BOLD
+				if (flags.HasFlag (FLAGS.INVERSE))
+					cattr |= 0x40000; // A_REVERSE
+				if (flags.HasFlag (FLAGS.BLINK))
+					cattr |= 0x80000; // A_BLINK
+				if (flags.HasFlag (FLAGS.DIM))
+					cattr |= 0x100000; // A_DIM
+				if (flags.HasFlag (FLAGS.UNDERLINE))
+					cattr |= 0x20000; // A_UNDERLINE
+				if (flags.HasFlag (FLAGS.ITALIC))
+					cattr |= 0x10000; // A_STANDOUT
+				Driver.SetAttribute (new Terminal.Gui.Attribute (cattr));
+			} else {
+				Driver.SetAttribute (ColorScheme.Normal);
+			}
 		}
 
 		public override void Redraw (Rect region)
@@ -149,6 +189,8 @@ namespace GuiCsHost {
 				var line = terminal.Buffer.Lines [row];
 				for (int col = 0; col < maxCol; col++) {
 					var ch = line [col];
+					SetAttribute (ch.Attribute);
+
 					var r = ch.Code == 0 ? ' ' : ch.Rune;
 					AddRune (col, row, r);
 					
@@ -252,7 +294,7 @@ namespace GuiCsHost {
 				row = (short) terminal.Rows,
 			};
 
-			childPid  = Pty.ForkAndExec ("/bin/bash", new string [] { "/bin/bash" }, XtermSharp.Terminal.GetEnvironmentVariables (), out ptyFd, size);
+			childPid  = Pty.ForkAndExec ("/bin/bash", new string [] { "/bin/bash" }, XtermSharp.Terminal.GetEnvironmentVariables ("xterm"), out ptyFd, size);
 			var unixMainLoop = Application.MainLoop.Driver as Mono.Terminal.UnixMainLoop;
 			unixMainLoop.AddWatch (ptyFd, Mono.Terminal.UnixMainLoop.Condition.PollIn, PtyReady);
 	
