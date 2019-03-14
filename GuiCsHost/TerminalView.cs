@@ -151,8 +151,13 @@ namespace GuiCsHost {
 				if (fg == Renderer.DefaultColor && bg == Renderer.DefaultColor)
 					cattr = 0;
 				else {
-					// Need this fix: https://github.com/migueldeicaza/gui.cs/issues/170
-					cattr = 0;
+					if (fg == Renderer.DefaultColor)
+						fg = (short)ConsoleColor.Gray;
+					if (bg == Renderer.DefaultColor)
+						bg = (short)ConsoleColor.Black;
+
+					Driver.SetColors ((ConsoleColor)fg, (ConsoleColor)bg);
+					return;
 				}
 
 				if (flags.HasFlag (FLAGS.BOLD))
