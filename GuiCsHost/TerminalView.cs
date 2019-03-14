@@ -44,7 +44,8 @@ namespace GuiCsHost {
 			case Key.Space:
 				Send (0x20);
 				break;
-			case Key.Delete:
+			case Key.DeleteChar:
+				Send (EscapeSequences.CmdDelKey);
 				break;
 			case Key.Backspace:
 				Send (0x7f);
@@ -80,8 +81,6 @@ namespace GuiCsHost {
 				break;
 			case Key.End:
 				Send (terminal.ApplicationCursor ? EscapeSequences.MoveEndApp : EscapeSequences.MoveEndNormal);
-				break;
-			case Key.DeleteChar:
 				break;
 			case Key.InsertChar:
 				break;
@@ -196,12 +195,56 @@ namespace GuiCsHost {
 					var ch = line [col];
 					SetAttribute (ch.Attribute);
 
-					var r = ch.Code == 0 ? ' ' : ch.Rune;
+					Rune r;
+					switch (ch.Code) {
+					case 0:
+						r = ' ';
+						break;
+					case 0x2518: // '┘'
+						r = 0x40006a; // ACS_LRCORNER;
+						break;
+					case 0x2510: // '┐'
+						r = 0x40006b; // ACS_URCORNER;
+						break;
+					case 0x250c: // '┌'
+						r = 0x40006c; // ACS_ULCORNER;
+						break;
+					case 0x2514: // '└'
+						r = 0x40006d; // ACS_LLCORNER;
+						break;
+					case 0x253c: // '┼'
+						r = 0x40006e; // ACS_PLUS;
+						break;
+					case 0x23ba: // '⎺'
+					case 0x23bb: // '⎻'
+					case 0x2500: // '─'
+					case 0x23bc: // '⎼'
+					case 0x23bd: // '⎽'
+						r = 0x400071; // ACS_VLINE
+						break;
+					case 0x251c: // '├'
+						r = 0x400074; // ACS_LTEE
+						break;
+					case 0x2524: // '┤'
+						r = 0x400075; // ACS_RTEE
+						break;	
+					case 0x2534: // '┴'
+						r = 0x400076; // ACS_BTEE
+						break;
+					case 0x252c: // '┬'
+						r = 0x400077; // ACS_TTEE
+						break;
+					case 0x2502: // '│'
+						r = 0x400078; // ACS_VLINE
+						break;
+					default:
+						r = ch.Rune;
+						break;
+					}
 					AddRune (col, row, r);
 					
 					if (r == ' ')
 						continue;
-					Debug.Print("" + (char)r);
 				}
 			}
 			PositionCursor ();
@@ -260,7 +303,7 @@ namespace GuiCsHost {
 			// throttle
 			if (!pendingDisplay) {
 				pendingDisplay = true;
-				Application.MainLoop.AddTimeout (TimeSpan.FromMilliseconds (16.6), UpdateDisplay);
+				Application.MainLoop.AddTimeout (TimeSpan.FromMilliseconds (1), UpdateDisplay);
 			}
 		}
 
@@ -279,7 +322,7 @@ namespace GuiCsHost {
 		{
 			unsafe {
 				fixed (byte* p = &data [0]) {
-					var n = Mono.Posix.Syscall.write (ptyFd, (void*)((IntPtr)p), (IntPtr)data.Length);
+					var n = Mono.Unix.Native.Syscall.write (ptyFd, (void*)((IntPtr)p), (ulong)data.Length);
 				}
 			}
 		}
@@ -311,10 +354,10 @@ namespace GuiCsHost {
 		bool PtyReady (Mono.Terminal.MainLoop mainloop)
 		{
 			unsafe {
-				IntPtr n;
+				long n;
 				fixed (byte* p = &buffer[0]) {
 
-					n = Mono.Posix.Syscall.read (ptyFd, (void*)((IntPtr)p), (IntPtr)buffer.Length);
+					n = Mono.Unix.Native.Syscall.read (ptyFd, (void*)((IntPtr)p), (ulong)buffer.Length);
 					Debug.Print(System.Text.Encoding.UTF8.GetString (buffer, 0, (int) n));
 					Feed (buffer, (int)n);
 				}

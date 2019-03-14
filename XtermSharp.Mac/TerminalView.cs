@@ -425,6 +425,9 @@ namespace XtermSharp.Mac {
 					case NSFunctionKey.F12:
 						Send (EscapeSequences.CmdF [11]);
 						break;
+					case NSFunctionKey.Delete:
+						Send (EscapeSequences.CmdDelKey);
+						break;
 					}
 				}
 			} else if (eventFlags.HasFlag (NSEventModifierMask.AlternateKeyMask) && OptionAsMetaKey) {

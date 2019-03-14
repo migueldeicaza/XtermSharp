@@ -37,7 +37,7 @@ namespace XtermSharp {
 
 		public override string ToString ()
 		{
-			return $"[CharData (Attr={Attribute},Rune={Rune},W={Width},Code={Code}]";
+			return $"[CharData (Attr={Attribute},Rune={Rune},W={Width},Code={Code})]";
 		}
 	}
 

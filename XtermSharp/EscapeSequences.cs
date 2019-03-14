@@ -4,6 +4,7 @@ namespace XtermSharp {
 		public static byte[] CmdNewline = new byte[] { 10 };
 		public static byte[] CmdEsc = new byte[] { 0x1b };
 		public static byte[] CmdDel = new byte[] { 0x7f };
+		public static byte [] CmdDelKey = new byte [] { 0x1b, (byte) '[', (byte) '3', (byte) '~' };
 		public static byte[] MoveUpApp = new byte[] { 0x1b, (byte)'O', (byte)'A' };
 		public static byte[] MoveUpNormal = new byte[] { 0x1b, (byte)'[', (byte)'A' };
 		public static byte[] MoveDownApp = new byte[] { 0x1b, (byte)'O', (byte)'B' };
