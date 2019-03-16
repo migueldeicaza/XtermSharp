@@ -155,7 +155,7 @@ namespace XtermSharp {
 		public bool ApplicationCursor { get; internal set; }
 		public int SavedCols { get; internal set; }
 		public bool ApplicationKeypad { get; internal set; }
-		public object X10Mouse { get; internal set; }
+		public bool X10Mouse { get; internal set; }
 		public bool SendFocus { get; internal set; }
 		public bool UtfMouse { get; internal set; }
 		public bool OriginMode { get; internal set; }
@@ -373,20 +373,6 @@ namespace XtermSharp {
 			//throw new NotImplementedException ();
 		}
 
-		internal void EnableMouseEvents ()
-		{
-			// TODO:
-			// DISABLE SELECTION MANAGER.
-			// throw new NotImplementedException ();
-		}
-
-		internal void DisableMouseEvents ()
-		{
-			// TODO:
-			// ENABLE SELECTION MANAGER.
-			//throw new NotImplementedException ();
-		}
-
 		/// <summary>
 		/// Implemented by subclasses - must refresh the display from the starting to the end row.
 		/// </summary>
@@ -410,6 +396,101 @@ namespace XtermSharp {
 			cursorHidden = false;
 			Refresh (Buffer.Y, Buffer.Y);
 			tdelegate.ShowCursor (this);
+		}
+
+		// Encode button and position to characters
+		void Encode (List<byte> data, int ch)
+		{
+			if (UtfMouse) {
+				if (ch == 2047) {
+					data.Add (0);
+					return;
+				}
+				if (ch < 127) {
+					data.Add ((byte)ch);
+				} else {
+					if (ch > 2047) 
+						ch = 2047;
+					data.Add ((byte)(0xC0 | (ch >> 6)));
+					data.Add ((byte)(0x80 | (ch & 0x3F)));
+				}
+			} else {
+				if (ch == 255) {
+					data.Add (0);
+					return;
+				}
+				if (ch > 127) 
+					ch = 127;
+				data.Add ((byte) ch);
+			}
+		}
+
+		/// <summary>
+		/// Encodes the button.
+		/// </summary>
+		/// <returns>The button.</returns>
+		/// <param name="button">Button (0, 1, 2 for left, middle, right) and 4 for wheel up, and 5 for wheel down.</param>
+		/// <param name="release">If set to <c>true</c> release.</param>
+		/// <param name="wheelUp">If set to <c>true</c> wheel up.</param>
+		/// <param name="shift">If set to <c>true</c> shift.</param>
+		/// <param name="meta">If set to <c>true</c> meta.</param>
+		/// <param name="control">If set to <c>true</c> control.</param>
+		public static int EncodeButton (int button, bool release, bool shift, bool meta, bool control)
+		{
+			int value;
+
+			if (release)
+				value = 3;
+			else {
+				switch (button) {
+				case 0:
+					value = 0;
+					break;
+				case 1:
+					value = 1;
+					break;
+				case 2:
+					value = 2;
+					break;
+				case 4:
+					value = 64;
+					break;
+				case 5:
+					value = 65;
+					break;
+				default:
+					value = 0;
+					break;
+				}
+			}
+			if (shift)
+				value |= 4;
+			if (meta)
+				value |= 8;
+			if (control)
+				value |= 16;
+
+			return value;
+		}
+
+		/// <summary>
+		/// Sends a mouse event for a specific button at the specific location
+		/// </summary>
+		/// <param name="buttonFlags">Button flags encoded in Cb mode.</param>
+		/// <param name="x">The x coordinate.</param>
+		/// <param name="y">The y coordinate.</param>
+		public void SendEvent (int buttonFlags, int x, int y)
+		{
+			// TODO
+			// Handle X10 Mouse,
+			// Urxvt Mouse
+			// SgrMouse
+			var res = new List<byte> () { 0x1b, (byte)'[', (byte)'M' };
+			Encode (res, buttonFlags);
+			Encode (res, x);
+			Encode (res, y);
+			tdelegate.Send (res.ToArray ());
+
 		}
 
 		static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();

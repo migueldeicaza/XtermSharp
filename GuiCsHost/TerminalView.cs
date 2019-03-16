@@ -9,11 +9,17 @@ namespace GuiCsHost {
 	public class TerminalView : View, ITerminalDelegate {
 		internal XtermSharp.Terminal terminal;
 		bool cursesDriver = Application.Driver.GetType ().Name.IndexOf ("CursesDriver") != -1;
+		bool terminalSupportsUtf8;
 
 		public TerminalView ()
 		{
 			terminal = new XtermSharp.Terminal (this, new TerminalOptions () { Cols = 80, Rows = 25 });
 			CanFocus = true;
+
+			if (cursesDriver)
+				terminalSupportsUtf8 = Environment.GetEnvironmentVariable ("LANG").IndexOf ("UTF-8", StringComparison.OrdinalIgnoreCase) != -1;
+			else
+				terminalSupportsUtf8 = true;
 		}
 		
 		public override Rect Frame {
@@ -194,60 +200,80 @@ namespace GuiCsHost {
 				for (int col = 0; col < maxCol; col++) {
 					var ch = line [col];
 					SetAttribute (ch.Attribute);
-
 					Rune r;
-					switch (ch.Code) {
-					case 0:
+
+					if (ch.Code == 0)
 						r = ' ';
-						break;
-					case 0x2518: // '┘'
-						r = 0x40006a; // ACS_LRCORNER;
-						break;
-					case 0x2510: // '┐'
-						r = 0x40006b; // ACS_URCORNER;
-						break;
-					case 0x250c: // '┌'
-						r = 0x40006c; // ACS_ULCORNER;
-						break;
-					case 0x2514: // '└'
-						r = 0x40006d; // ACS_LLCORNER;
-						break;
-					case 0x253c: // '┼'
-						r = 0x40006e; // ACS_PLUS;
-						break;
-					case 0x23ba: // '⎺'
-					case 0x23bb: // '⎻'
-					case 0x2500: // '─'
-					case 0x23bc: // '⎼'
-					case 0x23bd: // '⎽'
-						r = 0x400071; // ACS_VLINE
-						break;
-					case 0x251c: // '├'
-						r = 0x400074; // ACS_LTEE
-						break;
-					case 0x2524: // '┤'
-						r = 0x400075; // ACS_RTEE
-						break;	
-					case 0x2534: // '┴'
-						r = 0x400076; // ACS_BTEE
-						break;
-					case 0x252c: // '┬'
-						r = 0x400077; // ACS_TTEE
-						break;
-					case 0x2502: // '│'
-						r = 0x400078; // ACS_VLINE
-						break;
-					default:
-						r = ch.Rune;
-						break;
+					else {
+						if (terminalSupportsUtf8)
+							r = ch.Rune;
+						else {
+							switch (ch.Code) {
+							case 0:
+								r = ' ';
+								break;
+							case 0x2518: // '┘'
+								r = 0x40006a; // ACS_LRCORNER;
+								break;
+							case 0x2510: // '┐'
+								r = 0x40006b; // ACS_URCORNER;
+								break;
+							case 0x250c: // '┌'
+								r = 0x40006c; // ACS_ULCORNER;
+								break;
+							case 0x2514: // '└'
+								r = 0x40006d; // ACS_LLCORNER;
+								break;
+							case 0x253c: // '┼'
+								r = 0x40006e; // ACS_PLUS;
+								break;
+							case 0x23ba: // '⎺'
+							case 0x23bb: // '⎻'
+							case 0x2500: // '─'
+							case 0x23bc: // '⎼'
+							case 0x23bd: // '⎽'
+								r = 0x400071; // ACS_VLINE
+								break;
+							case 0x251c: // '├'
+								r = 0x400074; // ACS_LTEE
+								break;
+							case 0x2524: // '┤'
+								r = 0x400075; // ACS_RTEE
+								break;
+							case 0x2534: // '┴'
+								r = 0x400076; // ACS_BTEE
+								break;
+							case 0x252c: // '┬'
+								r = 0x400077; // ACS_TTEE
+								break;
+							case 0x2502: // '│'
+								r = 0x400078; // ACS_VLINE
+								break;
+							default:
+								r = ch.Rune;
+								break;
+							}
+						}
 					}
 					AddRune (col, row, r);
-					
-					if (r == ' ')
-						continue;
 				}
 			}
 			PositionCursor ();
+		}
+
+		public override bool MouseEvent (MouseEvent mouseEvent)
+		{
+			if (terminal.MouseEvents) {
+				if (mouseEvent.Flags.HasFlag (MouseFlags.Button1Pressed)){
+
+				}
+				switch (mouseEvent) {
+				}
+			} else {
+				// Not currently handled
+
+			}
+			return false;
 		}
 
 		public Action<byte []> UserInput;

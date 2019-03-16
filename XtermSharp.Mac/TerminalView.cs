@@ -348,6 +348,7 @@ namespace XtermSharp.Mac {
 		void ZoomReset (NSObject sender)
 		{ }
 
+
 		#region Input / NSTextInputClient
 
 		public override bool BecomeFirstResponder ()
@@ -646,6 +647,41 @@ namespace XtermSharp.Mac {
 		void ITerminalDelegate.SizeChanged (Terminal source)
 		{
 			throw new NotImplementedException ();
+		}
+
+		void SharedMouseEvent (NSEvent theEvent, bool down)
+		{
+			var point = theEvent.LocationInWindow;
+			var col = (int)(point.X / cellWidth);
+			var row = (int)((Frame.Height - point.Y) / cellHeight);
+
+			Console.WriteLine ($"Mouse at {col},{row}");
+			var flags = theEvent.ModifierFlags;
+
+			int buttonFlags = Terminal.EncodeButton (
+				(int) theEvent.ButtonNumber, release: false,
+				shift: flags.HasFlag (NSEventModifierMask.ShiftKeyMask),
+				meta: flags.HasFlag (NSEventModifierMask.AlternateKeyMask),
+				control: flags.HasFlag (NSEventModifierMask.ControlKeyMask));
+
+			terminal.SendEvent (buttonFlags, col, row);
+		}
+
+		public override void MouseDown (NSEvent theEvent)
+		{
+			if (!terminal.MouseEvents)
+				return;
+
+			SharedMouseEvent (theEvent, down: true);
+
+		}
+
+		public override void MouseUp (NSEvent theEvent)
+		{
+			if (!terminal.MouseEvents)
+				return;
+
+			SharedMouseEvent (theEvent, down: false);
 		}
 	}
 }

@@ -1103,7 +1103,6 @@ namespace XtermSharp {
 					terminal.Vt200Mouse = false;
 					terminal.NormalMouse = false;
 					terminal.MouseEvents = false;
-					terminal.DisableMouseEvents ();
 					break;
 				case 1004: // send focusin/focusout events
 					terminal.SendFocus = false;
@@ -1309,8 +1308,6 @@ namespace XtermSharp {
 					terminal.Vt200Mouse = par == 1000;
 					terminal.NormalMouse = par > 1000;
 					terminal.MouseEvents = true;
-					terminal.EnableMouseEvents ();
-					terminal.Log ("Binding to mouse events.");
 					break;
 				case 1004: // send focusin/focusout events
 					   // focusin: ^[[I
