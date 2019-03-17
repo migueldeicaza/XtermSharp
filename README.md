@@ -1,8 +1,7 @@
 XtermSharp
 ----------
 
-<img width="45%" alt="XtermSharpGui" src="https://user-images.githubusercontent.com/36863/54497310-80eda980-48cf-11e9-84c2-14ddc054a4b6.png">
-<img width="45%" alt="XtermSharpMac" src="https://user-images.githubusercontent.com/36863/54497311-80eda980-48cf-11e9-9695-d7425e43262d.png">
+<img width="45%" alt="XtermSharpGui" src="https://user-images.githubusercontent.com/36863/54497310-80eda980-48cf-11e9-84c2-14ddc054a4b6.png"><img width="45%" alt="XtermSharpMac" src="https://user-images.githubusercontent.com/36863/54497311-80eda980-48cf-11e9-9695-d7425e43262d.png">
 
 XtermSharp is a VT100/Xterm terminal emulator for .NET, the engine is
 intended to be agnostic from potential front-ends and backends.
