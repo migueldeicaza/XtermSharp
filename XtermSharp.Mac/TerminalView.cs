@@ -649,21 +649,25 @@ namespace XtermSharp.Mac {
 			throw new NotImplementedException ();
 		}
 
-		void SharedMouseEvent (NSEvent theEvent, bool down)
+		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags, out int col, out int row)
 		{
 			var point = theEvent.LocationInWindow;
-			var col = (int)(point.X / cellWidth);
-			var row = (int)((Frame.Height - point.Y) / cellHeight);
+			col = (int)(point.X / cellWidth);
+			row = (int)((Frame.Height - point.Y) / cellHeight);
 
 			Console.WriteLine ($"Mouse at {col},{row}");
 			var flags = theEvent.ModifierFlags;
 
-			int buttonFlags = Terminal.EncodeButton (
-				(int) theEvent.ButtonNumber, release: false,
+			buttonFlags = terminal.EncodeButton (
+				(int)theEvent.ButtonNumber, release: false,
 				shift: flags.HasFlag (NSEventModifierMask.ShiftKeyMask),
 				meta: flags.HasFlag (NSEventModifierMask.AlternateKeyMask),
 				control: flags.HasFlag (NSEventModifierMask.ControlKeyMask));
+		}
 
+		void SharedMouseEvent (NSEvent theEvent, bool down)
+		{
+			ComputeMouseEvent (theEvent, down, out var buttonFlags, out var col, out var row);
 			terminal.SendEvent (buttonFlags, col, row);
 		}
 
@@ -681,7 +685,21 @@ namespace XtermSharp.Mac {
 			if (!terminal.MouseEvents)
 				return;
 
-			SharedMouseEvent (theEvent, down: false);
+			if (terminal.MouseSendsRelease)
+				SharedMouseEvent (theEvent, down: false);
 		}
+
+		public override void MouseDragged (NSEvent theEvent)
+		{
+			if (!terminal.MouseEvents)
+				return;
+
+			if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
+				ComputeMouseEvent (theEvent, true, out var buttonFlags, out var col, out var row);
+				terminal.SendMotion (buttonFlags, col, row);
+			}
+		}
+
+
 	}
 }

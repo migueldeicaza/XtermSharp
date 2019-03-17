@@ -196,7 +196,7 @@ namespace GuiCsHost {
 				Move (Frame.X, Frame.Y + row);
 				if (row >= terminal.Rows)
 					continue;
-				var line = terminal.Buffer.Lines [row];
+				var line = terminal.Buffer.Lines [row+yDisp];
 				for (int col = 0; col < maxCol; col++) {
 					var ch = line [col];
 					SetAttribute (ch.Attribute);
@@ -265,13 +265,21 @@ namespace GuiCsHost {
 		{
 			if (terminal.MouseEvents) {
 				var f = mouseEvent.Flags;
+				int button = -1;
+				if (f.HasFlag (MouseFlags.Button1Clicked))
+					button = 0;
+				if (f.HasFlag (MouseFlags.Button2Clicked))
+					button = 1;
+				if (f.HasFlag (MouseFlags.Button3Clicked))
+					button = 2;
 
-				if (f.HasFlag (MouseFlags.Button1Clicked)) {
-					var e = XtermSharp.Terminal.EncodeButton (0, release: false, shift: false, meta: false, control: false);
+				if  (button != -1){
+					var e = terminal.EncodeButton (button, release: false, shift: false, meta: false, control: false);
 					terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
-					e = XtermSharp.Terminal.EncodeButton (0, release: true, shift: false, meta: false, control: false);
-					terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
-
+					if (terminal.MouseSendsRelease) {
+						e = terminal.EncodeButton (button, release: true, shift: false, meta: false, control: false);
+						terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
+					}
 					return true;
 				}
 			} else {

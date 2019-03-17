@@ -1096,13 +1096,16 @@ namespace XtermSharp {
 					terminal.SyncScrollArea ();
 					break;
 				case 9: // X10 Mouse
-				case 1000: // vt200 mouse
-				case 1002: // button event mouse
-				case 1003: // any event mouse
-					terminal.X10Mouse = false;
-					terminal.Vt200Mouse = false;
-					terminal.NormalMouse = false;
 					terminal.MouseEvents = false;
+					break;
+				case 1000: // vt200 mouse
+					terminal.MouseEvents = false;
+					break;
+				case 1002: // button event mouse
+					terminal.MouseSendsMotionWhenPressed = false;
+					break;
+				case 1003: // any event mouse
+					terminal.MouseSendsAllMotion = false;
 					break;
 				case 1004: // send focusin/focusout events
 					terminal.SendFocus = false;
@@ -1294,32 +1297,35 @@ namespace XtermSharp {
 					break;
 				case 9: // X10 Mouse
 					// no release, no motion, no wheel, no modifiers.
+					terminal.SetX10MouseStyle ();
+					break;
 				case 1000: // vt200 mouse
 					   // no motion.
 					   // no modifiers, except control on the wheel.
-				case 1002: // button event mouse
-				case 1003: // any event mouse
-					   // any event - sends motion events,
-					   // even if there is no button held down.
-
-					// TODO: Why are params[0] compares nested within a switch for params[0]?
-
-					terminal.X10Mouse = par == 9;
-					terminal.Vt200Mouse = par == 1000;
-					terminal.NormalMouse = par > 1000;
-					terminal.MouseEvents = true;
+					terminal.SetVT200MouseStyle ();
 					break;
+				case 1002:
+					// SET_BTN_EVENT_MOUSE
+					terminal.MouseSendsMotionWhenPressed = true;
+					break;
+
+				case 1003:
+					// SET_ANY_EVENT_MOUSE 
+					terminal.MouseSendsAllMotion = true;
+					break;
+
 				case 1004: // send focusin/focusout events
 					   // focusin: ^[[I
 					   // focusout: ^[[O
 					terminal.SendFocus = true;
 					break;
 				case 1005: // utf8 ext mode mouse
+					   // for wide terminals
+					   // simply encodes large values as utf8 characters
 					terminal.UtfMouse = true;
-					// for wide terminals
-					// simply encodes large values as utf8 characters
 					break;
 				case 1006: // sgr ext mode mouse
+					terminal.SetVT200MouseStyle ();
 					terminal.SgrMouse = true;
 					// for wide terminals
 					// does not add 32 to fields
@@ -1327,6 +1333,8 @@ namespace XtermSharp {
 					// release: ^[[<b;x;ym
 					break;
 				case 1015: // urxvt ext mode mouse
+					terminal.SetVT200MouseStyle ();
+
 					terminal.UrxvtMouse = true;
 					// for wide terminals
 					// numbers for fields

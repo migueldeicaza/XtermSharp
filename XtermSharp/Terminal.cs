@@ -155,15 +155,54 @@ namespace XtermSharp {
 		public bool ApplicationCursor { get; internal set; }
 		public int SavedCols { get; internal set; }
 		public bool ApplicationKeypad { get; internal set; }
-		public bool X10Mouse { get; internal set; }
+
+		internal bool X10Mouse { get; set; }
+		internal bool UtfMouse { get; set; }
+		internal bool Vt200Mouse { get; set; }
+
 		public bool SendFocus { get; internal set; }
-		public bool UtfMouse { get; internal set; }
 		public bool OriginMode { get; internal set; }
-		public bool Vt200Mouse { get; internal set; }
-		public bool NormalMouse { get; internal set; }
+
+
+		/// <summary>
+		/// If MouseEvents is set, then we are supposed to send some kind of mouse events, which
+		/// are determined by the boolean flags below.  Additionally, a "style" is encoded in
+		/// SgrMouse, UrxvtMouse which alter the responses.
+		/// </summary>
+		/// <value><c>true</c> if mouse events; otherwise, <c>false</c>.</value>
 		public bool MouseEvents { get; internal set; }
-		public bool SgrMouse { get; internal set; }
-		public bool UrxvtMouse { get; internal set; }
+
+		/// <summary>
+		/// If MouseEvents is set, then this value should be probed to determine whether a UI front-end needs to send the MouseRelease event.
+		/// </summary>
+		/// <value><c>true</c> if the UI is expected to send a mouse release event when the button is released.</value>
+		public bool MouseSendsRelease { get; internal set; }
+
+		/// <summary>
+		/// If MosueEvents is set, and this is set, then all motion events should be sent, regardless of the state of the mouse buttons. (Xterm flag 1003)
+		/// </summary>
+		/// <value><c>true</c> if mouse sends all motion; otherwise, <c>false</c>.</value>
+		public bool MouseSendsAllMotion { get; internal set; }
+
+		// Should sent motion events when a button is pressed (1002)
+		/// <summary>
+		/// If MouseEvents is set, then motion events should be sent when the mouse button is held down (Xterm flag 1002)
+		/// </summary>
+		/// <value><c>true</c> if mouse sends motion when pressed; otherwise, <c>false</c>.</value>
+		public bool MouseSendsMotionWhenPressed { get; internal set; }
+
+
+		/// <summary>
+		/// If MouseEvents is set, this determines whether the UI layer should send Wheel events.
+		/// </summary>
+		/// <value><c>true</c> if mouse sends wheel; otherwise, <c>false</c>.</value>
+		public bool MouseSendsWheel { get; internal set; }
+
+		// Whether control/meta/shift modifiers are encoded
+		internal bool MouseSendsModifiers = false;
+		internal bool SgrMouse;
+		internal bool UrxvtMouse;
+
 		public bool CursorHidden { get; internal set; }
 		public bool BracketedPasteMode { get; internal set; }
 
@@ -398,6 +437,28 @@ namespace XtermSharp {
 			tdelegate.ShowCursor (this);
 		}
 
+		internal void SetX10MouseStyle ()
+		{
+			X10Mouse = true;
+			MouseEvents = true;
+
+			MouseSendsRelease = false;
+			MouseSendsAllMotion = false;
+			MouseSendsWheel = false;
+			MouseSendsModifiers = false;
+		}
+
+		internal void SetVT200MouseStyle ()
+		{
+			Vt200Mouse = true;
+			MouseEvents = true;
+
+			MouseSendsRelease = true;
+			MouseSendsAllMotion = false;
+			MouseSendsWheel = true;
+			MouseSendsModifiers = false;
+		}
+
 		// Encode button and position to characters
 		void Encode (List<byte> data, int ch)
 		{
@@ -435,7 +496,7 @@ namespace XtermSharp {
 		/// <param name="shift">If set to <c>true</c> shift.</param>
 		/// <param name="meta">If set to <c>true</c> meta.</param>
 		/// <param name="control">If set to <c>true</c> control.</param>
-		public static int EncodeButton (int button, bool release, bool shift, bool meta, bool control)
+		public int EncodeButton (int button, bool release, bool shift, bool meta, bool control)
 		{
 			int value;
 
@@ -463,13 +524,14 @@ namespace XtermSharp {
 					break;
 				}
 			}
-			if (shift)
-				value |= 4;
-			if (meta)
-				value |= 8;
-			if (control)
-				value |= 16;
-
+			if (MouseSendsModifiers) {
+				if (shift)
+					value |= 4;
+				if (meta)
+					value |= 8;
+				if (control)
+					value |= 16;
+			}
 			return value;
 		}
 
@@ -491,12 +553,20 @@ namespace XtermSharp {
 				tdelegate.Send (Encoding.UTF8.GetBytes (sres));
 				return;
 			}
+			if (Vt200Mouse) {
 
+			}
 			var res = new List<byte> () { 0x1b, (byte)'[', (byte)'M' };
-			Encode (res, buttonFlags);
-			Encode (res, x);
-			Encode (res, y);
+			Encode (res, buttonFlags+32);
+			Encode (res, x+33);
+			Encode (res, y+33);
 			tdelegate.Send (res.ToArray ());
+
+		}
+
+		public void SendMotion (int buttonFlags, int x, int y)
+		{
+			SendEvent (buttonFlags + 32, x, y);
 
 		}
 
