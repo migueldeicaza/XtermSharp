@@ -485,6 +485,13 @@ namespace XtermSharp {
 			// Handle X10 Mouse,
 			// Urxvt Mouse
 			// SgrMouse
+			if (SgrMouse) {
+				var bflags = ((buttonFlags & 3) == 3) ? (buttonFlags & ~3) : buttonFlags;
+				var sres = "\x1b[<" + bflags + ";" + (x+1) + ";" + (y+1) + (((buttonFlags & 3) == 3) ? 'm' : 'M');
+				tdelegate.Send (Encoding.UTF8.GetBytes (sres));
+				return;
+			}
+
 			var res = new List<byte> () { 0x1b, (byte)'[', (byte)'M' };
 			Encode (res, buttonFlags);
 			Encode (res, x);

@@ -264,10 +264,15 @@ namespace GuiCsHost {
 		public override bool MouseEvent (MouseEvent mouseEvent)
 		{
 			if (terminal.MouseEvents) {
-				if (mouseEvent.Flags.HasFlag (MouseFlags.Button1Pressed)){
+				var f = mouseEvent.Flags;
 
-				}
-				switch (mouseEvent) {
+				if (f.HasFlag (MouseFlags.Button1Clicked)) {
+					var e = XtermSharp.Terminal.EncodeButton (0, release: false, shift: false, meta: false, control: false);
+					terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
+					e = XtermSharp.Terminal.EncodeButton (0, release: true, shift: false, meta: false, control: false);
+					terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
+
+					return true;
 				}
 			} else {
 				// Not currently handled
