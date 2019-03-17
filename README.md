@@ -1,6 +1,9 @@
 XtermSharp
 ----------
 
+<img width="45%" alt="XtermSharpGui" src="https://user-images.githubusercontent.com/36863/54497310-80eda980-48cf-11e9-84c2-14ddc054a4b6.png">
+<img width="45%" alt="XtermSharpMac" src="https://user-images.githubusercontent.com/36863/54497311-80eda980-48cf-11e9-9695-d7425e43262d.png">
+
 XtermSharp is a VT100/Xterm terminal emulator for .NET, the engine is
 intended to be agnostic from potential front-ends and backends.
 
@@ -26,6 +29,8 @@ MonoDevelop/VisualStudioMac that is a proper terminal, so I can debug
 things like gui.cs without launching an external window as well as
 having a full terminal for my Gui.cs library.
 
+
+
 XtermSharp.Mac
 --------------
 
@@ -38,6 +43,21 @@ process, this is something that your code still needs to do.
 
 An example terminal on how to connect a Unix shell process is
 available in the MacTerminal project.
+
+Features
+--------
+
+The engine is pretty good at this point and lets you use Emacs, vi,
+top, mc, blessed and gui.cs both with the keyboard and the mouse.
+Some features are only available on the Mac version, as the
+text-version with curses imposes some limitations.
+
+The unicode handling is pretty decent, but does not have support for
+Grapheme clusters yet, that is coming up later.
+
+Scrollback and reflow are currently missing, those are tied together,
+and I think it can be done better than the original xterm.js design
+supported.
 
 Roadmap
 -------
