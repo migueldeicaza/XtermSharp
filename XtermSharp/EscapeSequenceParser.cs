@@ -586,8 +586,8 @@ namespace XtermSharp {
 					dcs = -1;
 					break;
 				case ParserAction.DcsHook:
-					if (DcsHandlers.TryGetValue (collect + (char)code, out var dhandler))
-						dhandler.Hook (collect, pars.ToArray (), code);
+					if (DcsHandlers.TryGetValue (collect + (char)code, out dcsHandler))
+						dcsHandler.Hook (collect, pars.ToArray (), code);
 					else
 						DcsHandlerFallback.Hook (collect, pars.ToArray (), code);
 					break;

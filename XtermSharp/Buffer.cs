@@ -112,6 +112,8 @@ namespace XtermSharp
 		{
 			Clear ();
 			FillViewportRows ();
+
+			// FIXME: should this not fill int he additional tab stops?   Bug in original
 			tabStops.Length = newCols;
 		}
 
