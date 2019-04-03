@@ -5,9 +5,9 @@ steps:
     msbuild XtermSharp/XtermSharp.csproj
   displayName: Build XtermSharp
 - script: | 
-   msbuild GuiCsHost/GuiCsHost.csproj
+    msbuild GuiCsHost/GuiCsHost.csproj
   displayName: Sample: Build GuiCS Host
 - script: |
     cd Tests
     dotnet test
-  script: Built Test Suite
+  displayName: run tests
