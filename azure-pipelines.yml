@@ -4,7 +4,7 @@ jobs:
   pool:
     vmImage: 'macOS-10.13'
   steps:
-  - ls /Library/Frameworks/Mono.framework/Versions/
+  - script: ls /Library/Frameworks/Mono.framework/Versions/
   - template: templates/steps.yml  # Template reference
 
 - job: Windows
