@@ -4,10 +4,10 @@ jobs:
   pool:
     vmImage: 'macOS-10.13'
   steps:
-  - template: templates/build.yml  # Template reference
+  - template: templates/steps.yml  # Template reference
 
 - job: Windows
   pool:
     vmImage: 'vs2017-win2016'
   steps:
-  - template: templates/build.yml  # Template reference
+  - template: templates/steps.yml  # Template reference
