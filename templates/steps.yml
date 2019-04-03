@@ -1,0 +1,13 @@
+steps:
+- script: msbuild /t:restore
+  displayName: Restore packages
+- script: |
+    msbuild XtermSharp/XtermSharp.csproj
+  displayName: Build XtermSharp
+- script: | 
+   msbuild GuiCsHost/GuiCsHost.csproj
+  displayName: Sample: Build GuiCS Host
+- script: |
+    cd Tests
+    dotnet test
+  script: Built Test Suite
