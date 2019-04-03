@@ -6,7 +6,7 @@ steps:
   displayName: Build XtermSharp
 - script: | 
     msbuild GuiCsHost/GuiCsHost.csproj
-  displayName: Sample: Build GuiCS Host
+  displayName: Sample- Build GuiCS Host
 - script: |
     cd Tests
     dotnet test
