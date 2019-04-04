@@ -605,6 +605,7 @@ namespace XtermSharp {
 						transition |= (int)ParserState.Escape;
 					osc = "";
 					pars.Clear ();
+					pars.Add (0);
 					collect = "";
 					dcs = -1;
 					break;
@@ -661,6 +662,7 @@ namespace XtermSharp {
 						transition |= (int)ParserState.Escape;
 					osc = "";
 					pars.Clear ();
+					pars.Add (0);
 					collect = "";
 					dcs = -1;
 					break;
