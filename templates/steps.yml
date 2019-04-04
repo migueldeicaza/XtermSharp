@@ -3,6 +3,7 @@ steps:
   displayName: Restore packages
 - script: |
     msbuild XtermSharp/XtermSharp.csproj
+    nuget restore
   displayName: Build XtermSharp
 - script: | 
     msbuild GuiCsHost/GuiCsHost.csproj
