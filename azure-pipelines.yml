@@ -16,8 +16,8 @@ jobs:
   - script: |
       msbuild MacTerminal/MacTerminal.csproj
 
-- job: Windows
-  pool:
-    vmImage: 'vs2017-win2016'
-  steps:
-  - template: templates/steps.yml  # Template reference
+#- job: Windows
+#  pool:
+#    vmImage: 'vs2017-win2016'
+#  steps:
+#  - template: templates/steps.yml  # Template reference
