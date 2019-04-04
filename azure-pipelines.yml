@@ -15,6 +15,11 @@ jobs:
   - template: templates/steps.yml  # Template reference
   - script: |
       msbuild MacTerminal/MacTerminal.csproj
+    displayName: Build managed code and Mac Library
+  - script: |
+      cd helper
+      make
+    displayName: Build MacOS support library
 
 #- job: Windows
 #  pool:
