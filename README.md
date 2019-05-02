@@ -21,7 +21,7 @@ with data to the "Feed" method.
 
 Convenience classes exist to spawn a subprocess and connecting the
 terminal to a local process, and allow some customization of the
-environment variables to pass to the chidl.
+environment variables to pass to the child.
 
 The SampleTester program is an internal test program that exercises
 some of the Terminal API.
