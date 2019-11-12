@@ -153,12 +153,14 @@ namespace XtermSharp
 
 		public void TabSet (int pos)
 		{
-			tabStops [pos] = true;
+			if (pos < tabStops.Length)
+				tabStops [pos] = true;
 		}
 
 		public void ClearStop (int pos)
 		{
-			tabStops [pos] = false;
+			if (pos < tabStops.Length)
+				tabStops [pos] = false;
 		}
 
 		public void ClearTabStops ()
