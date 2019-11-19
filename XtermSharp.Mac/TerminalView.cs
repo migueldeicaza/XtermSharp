@@ -373,18 +373,25 @@ namespace XtermSharp.Mac {
 		public override bool AcceptsFirstResponder ()
 		    => true;
 
-
 		public override void KeyDown (NSEvent theEvent)
 		{
 			var eventFlags = theEvent.ModifierFlags;
-			if (eventFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
+
+			// Handle Option-letter to send the ESC sequence plus the letter as expected by terminals
+			if (eventFlags.HasFlag (NSEventModifierMask.AlternateKeyMask) && OptionAsMetaKey) {
+				var rawCharacter = theEvent.CharactersIgnoringModifiers;
+				Send (EscapeSequences.CmdEsc);
+				Send (Encoding.UTF8.GetBytes (rawCharacter));
+				return;
+			} else if (eventFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
+				// Sends the control sequence
 				var ch = theEvent.CharactersIgnoringModifiers;
 				if (ch.Length == 1) {
 					var d = Char.ToUpper (ch [0]);
 					if (d >= 'A' && d <= 'Z')
 						Send (new byte [] { (byte)(d - 'A' + 1) });
 					return;
-				}
+				} 
 			} else if (eventFlags.HasFlag (NSEventModifierMask.FunctionKeyMask)) {
 				var ch = theEvent.CharactersIgnoringModifiers;
 				if (ch.Length == 1) {
@@ -431,10 +438,8 @@ namespace XtermSharp.Mac {
 						break;
 					}
 				}
-			} else if (eventFlags.HasFlag (NSEventModifierMask.AlternateKeyMask) && OptionAsMetaKey) {
-				// Handle keystroks as meta.
-								// TODO
-			}
+				return;
+			} 
 
 			InterpretKeyEvents (new [] { theEvent });
 		}
