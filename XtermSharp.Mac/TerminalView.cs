@@ -25,10 +25,10 @@ namespace XtermSharp.Mac {
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
-			fontNormal = NSFont.FromFontName ("Lucida Sans Typewriter", 14);
-			fontBold = NSFont.FromFontName ("Lucida Sans Typewriter Bold", 14);
-			fontItalic = NSFont.FromFontName ("Lucida Sans Typewriter Oblique", 14);
-			fontBoldItalic = NSFont.FromFontName ("Lucida Sans Typewriter Bold Oblique", 14);
+			fontNormal = NSFont.FromFontName ("xLucida Sans Typewriter", 14) ?? NSFont.FromFontName ("Courier", 14);
+			fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", 14) ?? NSFont.FromFontName ("Courier Bold", 14);
+			fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", 14) ?? NSFont.FromFontName ("Courier Oblique", 14);
+			fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", 14) ?? NSFont.FromFontName ("Courier Bold Oblique", 14);
 			ComputeCellDimensions ();
 
 			var cols = (int)(rect.Width / cellWidth);
