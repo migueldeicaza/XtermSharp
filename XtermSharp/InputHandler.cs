@@ -1437,9 +1437,10 @@ namespace XtermSharp {
 			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
 			var buffer = terminal.Buffer;
 
-			buffer.Y = p - 1;
-			if (buffer.Y >= terminal.Rows)
+			if (p - 1 >= terminal.Rows)
 				buffer.Y = terminal.Rows - 1;
+			else
+				buffer.Y = p - 1;
 		}
 
 		// 
@@ -1815,8 +1816,11 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 
 			buffer.Y -= param;
-			if (buffer.Y < 0)
+			var newY = buffer.Y - param;
+			if (newY < 0)
 				buffer.Y = 0;
+			else
+				buffer.Y = newY;
 			buffer.X = 0;
 		}
 
@@ -2024,14 +2028,12 @@ namespace XtermSharp {
 					// automatically wraps to the beginning of the next line
 					if (wrapAroundMode) {
 						buffer.X = 0;
-						buffer.Y++;
-						if (buffer.Y > buffer.ScrollBottom) {
-							buffer.Y--;
+						if (buffer.Y >= buffer.ScrollBottom) {
 							terminal.Scroll (isWrapped: true);
 						} else {
 							// The line already exists (eg. the initial viewport), mark it as a
 							// wrapped line
-							buffer.Lines [buffer.Y].IsWrapped = true;
+							buffer.Lines [buffer.Y++].IsWrapped = true;
 						}
 						// row changed, get it again
 						bufferRow = buffer.Lines [buffer.Y + buffer.YBase];

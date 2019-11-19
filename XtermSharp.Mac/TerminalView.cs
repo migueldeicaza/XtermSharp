@@ -190,7 +190,10 @@ namespace XtermSharp.Mac {
 			var cols = terminal.Cols;
 			var tb = terminal.Buffer;
 			for (int row = rowStart; row <= rowEnd; row++) {
-				buffer [row + tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row + tb.YDisp], cols);
+				var rowIndex = row + tb.YDisp;
+				if (terminal.Buffer.Lines.Length > rowIndex) {
+					buffer [rowIndex] = BuildAttributedString (terminal.Buffer.Lines [rowIndex], cols);
+				}
 			}
 			//var baseLine = Frame.Height - cellDelta;
 			// new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
