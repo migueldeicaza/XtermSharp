@@ -496,7 +496,7 @@ namespace XtermSharp.Mac {
 		{
 			switch (selector.Name){
 			case "insertNewline:":
-				Send (EscapeSequences.CmdNewline);
+				Send (EscapeSequences.CmdRet);
 				break;
 			case "cancelOperation:":
 				Send (EscapeSequences.CmdEsc);
