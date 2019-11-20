@@ -502,7 +502,7 @@ namespace XtermSharp {
 						printHandler (data, print, i);
 						print = -1;
 					} else if (~dcs != 0) {
-						dcsHandler.Put (data, dcs, i);
+						dcsHandler?.Put (data, dcs, i);
 						dcs = -1;
 					}
 					break;

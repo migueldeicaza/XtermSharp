@@ -190,10 +190,7 @@ namespace XtermSharp.Mac {
 			var cols = terminal.Cols;
 			var tb = terminal.Buffer;
 			for (int row = rowStart; row <= rowEnd; row++) {
-				var rowIndex = row + tb.YDisp;
-				if (terminal.Buffer.Lines.Length > rowIndex) {
-					buffer [rowIndex] = BuildAttributedString (terminal.Buffer.Lines [rowIndex], cols);
-				}
+				buffer [row + tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row + tb.YDisp], cols);
 			}
 			//var baseLine = Frame.Height - cellDelta;
 			// new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
@@ -633,7 +630,10 @@ namespace XtermSharp.Mac {
 			var baseLine = Frame.Height - cellDelta;
 			for (int row = 0; row < maxRow; row++) {
 				context.TextPosition = new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
-				var ctline = new CTLine (buffer [row+yDisp]);
+				var attrLine = buffer [row + yDisp];
+				if (attrLine == null)
+					continue;
+				var ctline = new CTLine (attrLine);
 
 				ctline.Draw (context);
 			}

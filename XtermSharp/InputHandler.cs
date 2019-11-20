@@ -622,7 +622,7 @@ namespace XtermSharp {
 			if (collect != "")
 				return;
 			var buffer = terminal.Buffer;
-			buffer.ScrollTop = pars.Length > 0 ? pars [0] - 1 : 0;
+			buffer.ScrollTop = pars.Length > 0 ? Math.Max (pars [0] - 1, 0) : 0;
 			buffer.ScrollBottom = (pars.Length > 1 ? Math.Min (pars [1], terminal.Rows) : terminal.Rows) - 1;
 			buffer.X = 0;
 			buffer.Y = 0;
@@ -1419,10 +1419,13 @@ namespace XtermSharp {
 			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
 			var buffer = terminal.Buffer;
 
-			buffer.Y += p;
-			if (buffer.Y >= terminal.Rows) {
+			var newY = buffer.Y + p;
+
+			if (newY >= terminal.Rows) {
 				buffer.Y = terminal.Rows - 1;
-			}
+			} else
+				buffer.Y = newY;
+
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
 			if (buffer.X >= terminal.Cols)
 				buffer.X--;
@@ -1834,9 +1837,12 @@ namespace XtermSharp {
 			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
 			var buffer = terminal.Buffer;
 
-			buffer.Y += param;
-			if (buffer.Y >= terminal.Rows)
+			var newY = buffer.Y + param;
+
+			if (newY >= terminal.Rows)
 				buffer.Y = terminal.Rows - 1;
+			else
+				buffer.Y = newY;
 
 			buffer.X = 0;
 		}
@@ -1882,16 +1888,30 @@ namespace XtermSharp {
 			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
 			var buffer = terminal.Buffer;
 
-			buffer.Y += param;
+			var newY = buffer.Y + param;
+
 			// review
 			//if (buffer.Y > buffer.ScrollBottom)
 			//	buffer.Y = buffer.ScrollBottom - 1;
-			if (buffer.Y > terminal.Rows)
+			if (newY >= terminal.Rows)
 				buffer.Y = terminal.Rows - 1;
+			else
+				buffer.Y = newY;
 
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
 			if (buffer.X >= terminal.Cols)
 				buffer.X--;
+		}
+
+		void SetCursor (int x, int y)
+		{
+			if (terminal.OriginMode) {
+				terminal.Buffer.X = x;
+				terminal.Buffer.Y = terminal.Buffer.ScrollTop + y;
+			} else {
+				terminal.Buffer.X = x;
+				terminal.Buffer.Y = y;
+			}
 		}
 
 		// 
@@ -1902,9 +1922,10 @@ namespace XtermSharp {
 		{
 			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
 			var buffer = terminal.Buffer;
-			buffer.Y -= param;
-			if (buffer.Y < 0)
+			if (buffer.Y - param < 0)
 				buffer.Y = 0;
+			else
+				buffer.Y -= param;
 		}
 
 		//
@@ -2028,6 +2049,7 @@ namespace XtermSharp {
 					// automatically wraps to the beginning of the next line
 					if (wrapAroundMode) {
 						buffer.X = 0;
+
 						if (buffer.Y >= buffer.ScrollBottom) {
 							terminal.Scroll (isWrapped: true);
 						} else {

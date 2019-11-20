@@ -23,7 +23,18 @@ namespace XtermSharp
 					y = value;
 			}
 		}
-		public int ScrollBottom, ScrollTop;
+		public int ScrollBottom;
+		int st;
+		public int ScrollTop {
+			get {
+				return st;
+			}
+			set {
+				if (value < 0)
+					throw new Exception ();
+				st = value;
+			}
+		}
 		BitArray tabStops;
 		public int SavedX, SavedY, SavedAttr = CharData.DefaultAttr;
 		public Terminal Terminal { get; private set; }
@@ -193,7 +204,7 @@ namespace XtermSharp
 				index = X;
 			do {
 				index++;
-				if (index == Terminal.Cols)
+				if (index >= Terminal.Cols)
 					break;
 				if (tabStops [index])
 					break;

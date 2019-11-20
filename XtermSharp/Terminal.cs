@@ -219,6 +219,9 @@ namespace XtermSharp {
 
 		internal void UpdateRange (int y)
 		{
+			if (y < 0)
+				throw new ArgumentException ();
+
 			if (y < refreshStart)
 				refreshStart = y;
 			if (y > refreshEnd)
@@ -263,10 +266,11 @@ namespace XtermSharp {
 		internal void Index ()
 		{
 			var buffer = Buffer;
-			buffer.Y++;
-			if (buffer.Y > buffer.ScrollBottom) {
-				buffer.Y--;
+			var newY = buffer.Y + 1;
+			if (newY > buffer.ScrollBottom) {
 				Scroll ();
+			} else {
+				buffer.Y = newY;
 			}
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
 			if (buffer.X > Cols)
