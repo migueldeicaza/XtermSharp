@@ -429,6 +429,18 @@ namespace XtermSharp.Mac {
 					case NSFunctionKey.Delete:
 						Send (EscapeSequences.CmdDelKey);
 						break;
+					case NSFunctionKey.UpArrow:
+						Send (EscapeSequences.MoveUpNormal);
+						break;
+					case NSFunctionKey.DownArrow:
+						Send (EscapeSequences.MoveDownNormal);
+						break;
+					case NSFunctionKey.LeftArrow:
+						Send (EscapeSequences.MoveLeftNormal);
+						break;
+					case NSFunctionKey.RightArrow:
+						Send (EscapeSequences.MoveRightNormal);
+						break;
 					}
 				}
 			} else if (eventFlags.HasFlag (NSEventModifierMask.AlternateKeyMask) && OptionAsMetaKey) {
