@@ -53,7 +53,7 @@
     <Reference Include="System.Core" />
     <Reference Include="Xamarin.Mac" />
     <Reference Include="NStack">
-      <HintPath>..\packages\NStack.Core.0.12.0\lib\netstandard1.5\NStack.dll</HintPath>
+      <HintPath>$(SolutionDir)\packages\NStack.Core.0.12.0\lib\netstandard1.5\NStack.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
