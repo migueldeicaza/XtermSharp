@@ -71,7 +71,7 @@ namespace XtermSharp.Mac {
 			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = fontNormal }));
 			var bounds = line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
 			cellWidth = bounds.Width;
-			cellHeight = bounds.Height;
+			cellHeight = (int)bounds.Height;
 			cellDelta = bounds.Y;
 		}
 
