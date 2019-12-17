@@ -96,4 +96,7 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\Mac\Xamarin.Mac.CSharp.targets" />
+  <Target Name="AfterBuild">
+    <Copy SourceFiles="..\helper\libpty.dylib" DestinationFolder="$(OutputPath)\MacTerminal.app\Contents\MonoBundle" />
+  </Target>
 </Project>
