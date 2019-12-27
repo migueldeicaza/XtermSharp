@@ -80,13 +80,16 @@ namespace XtermSharp
 		/// <summary>
 		/// Clears the buffer to it's initial state, discarding all previous data.
 		/// </summary>
-		public void Clear ()
+		public void Clear (bool reset = true)
 		{
 			YDisp = 0;
 			YBase = 0;
 			X = 0;
 			Y = 0;
-			lines = new CircularList<BufferLine> (getCorrectBufferLength (Terminal.Rows));
+			if (reset)
+				lines = new CircularList<BufferLine> (getCorrectBufferLength (Terminal.Rows));
+			else
+				lines.Push (new BufferLine (Terminal.Cols, null));
 			ScrollTop = 0;
 			ScrollBottom = Terminal.Rows - 1;
 			SetupTabStops ();
@@ -121,7 +124,7 @@ namespace XtermSharp
 		/// <param name="newRows">New rows.</param>
 		public void Resize (int newCols, int newRows)
 		{
-			Clear ();
+			Clear (false);
 			FillViewportRows ();
 
 			// FIXME: should this not fill int he additional tab stops?   Bug in original

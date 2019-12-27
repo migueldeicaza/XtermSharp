@@ -550,18 +550,29 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 			var by = buffer.Y;
 
-			// If we are inside the scroll region, or we hit the last row of the display
-			if (by == buffer.ScrollBottom || by == terminal.Rows - 1) {
-				terminal.Scroll (isWrapped: false);
-			} else
-				buffer.Y = by + 1;
+			if (terminal.ScrollResizing && !terminal.Buffer.Lines.IsFull) {
+				terminal.Buffer.YDisp = terminal.Buffer.YBase;
+				if (by == buffer.ScrollBottom) {
+					terminal.Resize (terminal.Cols, terminal.Rows + 1);
+					terminal.EmitBufferLengthChanged ();
+				}
+				if (by + 1 <= terminal.Rows - 1)
+					buffer.Y = by + 1;
+				terminal.EmitLineFeed ();
+			} else {
+				// If we are inside the scroll region, or we hit the last row of the display
+				if (by == buffer.ScrollBottom || by == terminal.Rows - 1) {
+					terminal.Scroll (isWrapped: false);
+				} else
+					buffer.Y = by + 1;
 
-			// If the end of the line is hit, prevent this action from wrapping around to the next line.
-			if (buffer.X >= terminal.Cols)
-				buffer.X--;
+				// If the end of the line is hit, prevent this action from wrapping around to the next line.
+				if (buffer.X >= terminal.Cols)
+					buffer.X--;
 
-			// This event is emitted whenever the terminal outputs a LF or NL.
-			terminal.EmitLineFeed ();
+				// This event is emitted whenever the terminal outputs a LF or NL.
+				terminal.EmitLineFeed ();
+			}
 		}
 
 		// 

@@ -35,6 +35,8 @@ namespace XtermSharp.Mac {
 			var rows = (int)(rect.Height / cellHeight);
 
 			terminal = new Terminal (this, new TerminalOptions () { Cols = cols, Rows = rows });
+			terminal.BufferLengthChanged += Terminal_BufferLengthChanged;
+			terminal.ScrollResizing = true;
 			FullBufferUpdate ();
 			
 			caret = new NSView (new CGRect (0, cellDelta, cellHeight, cellWidth)) {
@@ -51,6 +53,16 @@ namespace XtermSharp.Mac {
 			caret.Layer.BackgroundColor = caretColor.CGColor;
 
 			debug.Layer.BackgroundColor = caretColor.CGColor;
+		}
+
+		private void Terminal_BufferLengthChanged (Terminal obj)
+		{
+			var lines = obj.Buffer.Lines.Length;
+			var rect = Frame;
+			rect.Height = lines * cellHeight;
+			Frame = rect;
+			NeedsDisplay = true;
+			QueuePendingDisplay ();
 		}
 
 		/// <summary>

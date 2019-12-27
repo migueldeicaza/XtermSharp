@@ -162,6 +162,7 @@ namespace XtermSharp {
 
 		public bool SendFocus { get; internal set; }
 		public bool OriginMode { get; internal set; }
+		public bool ScrollResizing { get; set; }
 
 
 		/// <summary>
@@ -361,7 +362,14 @@ namespace XtermSharp {
 				LineFeedEvent (this);
 		}
 
+		public void EmitBufferLengthChanged ()
+		{
+			if (BufferLengthChanged != null)
+				BufferLengthChanged (this);
+		}
+
 		public event Action<Terminal> LineFeedEvent;
+		public event Action<Terminal> BufferLengthChanged;
 
 		internal void EmitA11yTab (object p)
 		{

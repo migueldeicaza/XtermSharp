@@ -68,6 +68,13 @@ namespace MacTerminal {
 			var size = new UnixWindowSize ();
 			GetSize (t, ref size);
 
+			var scrollView = new NSScrollView (View.Frame);
+			scrollView.HasVerticalScroller = true;
+			scrollView.HasHorizontalScroller = true;
+			scrollView.BorderType = NSBorderType.BezelBorder;
+			scrollView.AutoresizingMask = NSViewResizingMask.WidthSizable | NSViewResizingMask.HeightSizable;
+			scrollView.DocumentView = terminalView;
+
 			pid = Pty.ForkAndExec ("/bin/bash", new string [] { "/bin/bash" }, Terminal.GetEnvironmentVariables (), out fd, size);
 			DispatchIO.Read (fd, (nuint) readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 
@@ -83,9 +90,8 @@ namespace MacTerminal {
 				UnixWindowSize nz = new UnixWindowSize ();
 				GetSize (t, ref nz);
 				var res = Pty.SetWinSize (fd, ref nz);
-				Console.WriteLine (res);
 			};
-			View.AddSubview (terminalView);
+			View.AddSubview (scrollView);
 
 		}
 
