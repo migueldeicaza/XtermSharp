@@ -224,8 +224,10 @@ namespace XtermSharp {
 
 			if (y < refreshStart)
 				refreshStart = y;
-			if (y > refreshEnd)
+			if (y > refreshEnd && y < Buffer.Lines.Length)
 				refreshEnd = y;
+			else
+				refreshEnd = Buffer.Lines.Length - 1;
 		}
 
 		public void GetUpdateRange (out int startY, out int endY)
