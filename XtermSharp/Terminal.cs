@@ -344,8 +344,7 @@ namespace XtermSharp {
 			 *
 			 * @event scroll
 			 */
-			if (Scrolled != null)
-				Scrolled (this, buffer.YDisp);
+			Scrolled?.Invoke (this, buffer.YDisp);
 		}
 
 		public event Action<Terminal, int> Scrolled;

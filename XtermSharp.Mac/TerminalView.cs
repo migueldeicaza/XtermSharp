@@ -51,6 +51,8 @@ namespace XtermSharp.Mac {
 			caret.Layer.BackgroundColor = caretColor.CGColor;
 
 			debug.Layer.BackgroundColor = caretColor.CGColor;
+
+			terminal.Scrolled += Terminal_Scrolled;
 		}
 
 		/// <summary>
@@ -65,6 +67,53 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		/// <value><c>true</c> if option acts as a meta key; otherwise, <c>false</c>.</value>
 		public bool OptionAsMetaKey { get; set; } = true;
+
+		/// <summary>
+		/// Gets a value indicating the relative position of the terminal viewport
+		/// </summary>
+		public double ScrollPosition {
+			get {
+				if (Terminal.Buffers.IsAlternateBuffer)
+					return 0;
+
+				// strictly speaking these ought not to be outside these bounds
+				if (Terminal.Buffer.YDisp <= 0)
+					return 0;
+
+				var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
+				if (Terminal.Buffer.YDisp >= maxScrollback)
+					return 1;
+
+				return (double)Terminal.Buffer.YDisp / (double)maxScrollback;
+			}
+		}
+
+		public event Action<double> TerminalScrolled;
+
+		bool userScrolling;
+		public void ScrollToPosition (double position)
+		{
+			userScrolling = true;
+			try {
+				var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
+				int newScrollPosition = (int)(maxScrollback * position);
+				if (newScrollPosition < 0)
+					newScrollPosition = 0;
+				if (newScrollPosition > maxScrollback)
+					newScrollPosition = maxScrollback;
+				Terminal.Buffer.YDisp = newScrollPosition;
+
+				Terminal.Refresh (0, Terminal.Rows);
+				UpdateDisplay ();
+			} finally {
+				userScrolling = false;
+			}
+		}
+
+		void Terminal_Scrolled (Terminal terminal, int yDisp)
+		{
+			TerminalScrolled?.Invoke (ScrollPosition);
+		}
 
 		void ComputeCellDimensions ()
 		{
@@ -648,6 +697,22 @@ namespace XtermSharp.Mac {
 				var ctline = new CTLine (attrLine);
 
 				ctline.Draw (context);
+
+#if DEBUG_DRAWING
+				// debug code
+				context.TextPosition = new CGPoint (Frame.Width - 40, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((row).ToString ()));
+				ctline.Draw (context);
+
+				context.TextPosition = new CGPoint (Frame.Width - 60, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((Terminal.Buffer.YBase).ToString ()));
+				ctline.Draw (context);
+
+				context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
+				ctline.Draw (context);
+#endif
+
 			}
 #endif
 		}

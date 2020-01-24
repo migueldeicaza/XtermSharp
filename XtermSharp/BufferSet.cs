@@ -27,6 +27,11 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Gets a value indicating whether the active buffer is the alternate buffer
+		/// </summary>
+		public bool IsAlternateBuffer => Active == Alt;
+
+		/// <summary>
 		/// Raised when a buffer is activated, the parameters is the buffer that was activated and the second parameter is the Inactive buffer.
 		/// </summary>
 		public event Action<Buffer, Buffer> Activated;

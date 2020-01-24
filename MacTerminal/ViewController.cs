@@ -28,6 +28,7 @@ namespace MacTerminal {
 		{
 			base.ViewDidLayout ();
 			terminalControl.Frame = View.Frame;
+			terminalControl.NeedsLayout = true;
 		}
 
 		public override NSObject RepresentedObject {

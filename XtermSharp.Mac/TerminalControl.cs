@@ -10,6 +10,8 @@ namespace XtermSharp.Mac {
 	/// </summary>
 	public class TerminalControl : NSView {
 		TerminalView terminalView;
+		NSScroller scroller;
+
 		int shellPid;
 		int shellFileDescriptor;
 		readonly byte [] readBuffer = new byte [4 * 1024];
@@ -29,11 +31,6 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		public event Action<string> TitleChanged;
 
-		public override void Layout ()
-		{
-			base.Layout ();
-		}
-
 		/// <summary>
 		/// Launches the shell
 		/// </summary>
@@ -47,6 +44,18 @@ namespace XtermSharp.Mac {
 
 			shellPid = Pty.ForkAndExec (shellPath, new string [] { shellPath }, Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
+		}
+
+		public override void Layout ()
+		{
+			var viewFrame = Frame;
+
+			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
+			var scrollFrame = new CGRect (viewFrame.Right - scrollWidth, viewFrame.Y, scrollWidth, viewFrame.Height);
+			viewFrame = new CGRect (viewFrame.X, viewFrame.Y, viewFrame.Width - scrollWidth, viewFrame.Height);
+
+			scroller.Frame = scrollFrame;
+			terminalView.Frame = viewFrame;
 		}
 
 		static void GetUnixWindowSize (CGRect frame, int rows, int cols, ref UnixWindowSize size)
@@ -64,17 +73,40 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		void Build (CGRect rect)
 		{
-			terminalView = new TerminalView (rect);
+			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
+			var scrollFrame = new CGRect (rect.Right - scrollWidth, rect.Y, scrollWidth, rect.Height);
+			scroller = new NSScroller (scrollFrame);
+			scroller.ScrollerStyle = NSScrollerStyle.Legacy;
+			scroller.DoubleValue = 0.0;
+			scroller.KnobProportion = 0.1f;
+			scroller.Enabled = true;
+			AddSubview (scroller);
+
+			scroller.Activated += ScrollerActivated;
+
+			var terminalFrame = new CGRect (rect.X, rect.Y, rect.Width - scrollWidth, rect.Height);
+
+			terminalView = new TerminalView (terminalFrame);
 			var t = terminalView.Terminal;
 
 			terminalView.UserInput = HandleUserInput;
 			terminalView.SizeChanged += HandleSizeChanged;
+			terminalView.TerminalScrolled += HandleTerminalScrolled;
 			terminalView.TitleChanged += (TerminalView sender, string title) => {
 				TitleChanged?.Invoke (title);
 			};
 
 			AddSubview (terminalView);
+		}
 
+		void HandleTerminalScrolled (double scrollPosition)
+		{
+			scroller.DoubleValue = scrollPosition;
+		}
+
+		void ScrollerActivated (object sender, EventArgs e)
+		{
+			terminalView.ScrollToPosition (scroller.DoubleValue);
 		}
 
 		void HandleUserInput (byte [] data)
