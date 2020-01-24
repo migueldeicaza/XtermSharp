@@ -196,6 +196,10 @@ namespace XtermSharp.Mac {
 
 		NSAttributedString BuildAttributedString (BufferLine line, int cols)
 		{
+			if (line == null) {
+				return new NSAttributedString (string.Empty, GetAttributes (CharData.Null.Attribute));
+			}
+
 			var res = new NSMutableAttributedString ();
 			int attr = 0;
 
