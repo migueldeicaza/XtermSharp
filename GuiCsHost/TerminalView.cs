@@ -356,7 +356,7 @@ namespace GuiCsHost {
 	public class SubprocessTerminalView : TerminalView {
 		int ptyFd;
 		int childPid;
-
+		
 		void SendDataToChild (byte [] data)
 		{
 			unsafe {

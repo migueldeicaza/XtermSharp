@@ -1,0 +1,123 @@
+﻿using System;
+using System.Runtime.InteropServices;
+using AppKit;
+using CoreFoundation;
+using CoreGraphics;
+
+namespace XtermSharp.Mac {
+	/// <summary>
+	/// A view that contains a TerminalView and Scroller that handles user input
+	/// </summary>
+	public class TerminalControl : NSView {
+		TerminalView terminalView;
+		int shellPid;
+		int shellFileDescriptor;
+		readonly byte [] readBuffer = new byte [4 * 1024];
+
+		// TODO: we need to clean up files left around from this
+		static int x;
+
+		public TerminalControl (CGRect rect) : base (rect)
+		{
+			Build (rect);
+		}
+
+		public string WelcomeText { get; set; } = "Welcome to XtermSharp!";
+
+		/// <summary>
+		/// Raised when the title of the terminal has changed
+		/// </summary>
+		public event Action<string> TitleChanged;
+
+		public override void Layout ()
+		{
+			base.Layout ();
+		}
+
+		/// <summary>
+		/// Launches the shell
+		/// </summary>
+		public void StartShell(string shellPath = "/bin/bash")
+		{
+			// TODO: throw error if already started
+			terminalView.Feed (WelcomeText + "\n");
+
+			var size = new UnixWindowSize ();
+			GetUnixWindowSize (terminalView.Frame, terminalView.Terminal.Rows, terminalView.Terminal.Cols, ref size);
+
+			shellPid = Pty.ForkAndExec (shellPath, new string [] { shellPath }, Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
+			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
+		}
+
+		static void GetUnixWindowSize (CGRect frame, int rows, int cols, ref UnixWindowSize size)
+		{
+			size = new UnixWindowSize () {
+				col = (short)cols,
+				row = (short)rows,
+				xpixel = (short)frame.Width,
+				ypixel = (short)frame.Height
+			};
+		}
+
+		/// <summary>
+		/// Sets up the view and sets event handlers
+		/// </summary>
+		void Build (CGRect rect)
+		{
+			terminalView = new TerminalView (rect);
+			var t = terminalView.Terminal;
+
+			terminalView.UserInput = HandleUserInput;
+			terminalView.SizeChanged += HandleSizeChanged;
+			terminalView.TitleChanged += (TerminalView sender, string title) => {
+				TitleChanged?.Invoke (title);
+			};
+
+			AddSubview (terminalView);
+
+		}
+
+		void HandleUserInput (byte [] data)
+		{
+			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
+		}
+
+		void HandleSizeChanged (int newCols, int newRows)
+		{
+			UnixWindowSize newSize = new UnixWindowSize ();
+			GetUnixWindowSize (terminalView.Frame, terminalView.Terminal.Rows, terminalView.Terminal.Cols, ref newSize);
+			var res = Pty.SetWinSize (shellFileDescriptor, ref newSize);
+			// TODO: log result of SetWinSize if != 0
+		}
+
+		/// <summary>
+		/// Reads data from the child process
+		/// </summary>
+		void ChildProcessRead (DispatchData data, int error)
+		{
+			using (var map = data.CreateMap (out var buffer, out var size)) {
+				// Faster, but harder to debug:
+				// terminalView.Feed (buffer, (int) size);
+				if (size == 0) {
+					//View.Window.Close ();
+					return;
+				}
+				byte [] copy = new byte [(int)size];
+				Marshal.Copy (buffer, copy, 0, (int)size);
+
+				System.IO.File.WriteAllBytes ("/tmp/log-" + (x++), copy);
+				terminalView.Feed (copy);
+			}
+
+			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
+		}
+
+		void ChildProcessWrite (DispatchData left, int error)
+		{
+			if (error != 0) {
+				// TODO: log
+				throw new Exception ("Error writing data to child");
+			}
+		}
+	}
+}
