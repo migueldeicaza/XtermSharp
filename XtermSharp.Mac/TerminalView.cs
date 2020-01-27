@@ -1,12 +1,11 @@
 ﻿using System;
+using System.Text;
+using System.Collections.Generic;
 using Foundation;
 using CoreGraphics;
 using AppKit;
 using CoreText;
 using ObjCRuntime;
-using System.Text;
-using System.Collections.Generic;
-using XtermSharp;
 using CoreFoundation;
 
 namespace XtermSharp.Mac {
@@ -16,12 +15,13 @@ namespace XtermSharp.Mac {
 	public class TerminalView : NSView, INSTextInputClient, INSUserInterfaceValidations, ITerminalDelegate {
 		static CGAffineTransform textMatrix;
 
-		Terminal terminal;
-		CircularList<NSAttributedString> buffer;
-		NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
-		NSView caret, debug;
-		
+		readonly Terminal terminal;
+		readonly NSView caret, debug;
+		readonly SelectionView selectionView;
+		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
+
 		nfloat cellHeight, cellWidth, cellDelta;
+		CircularList<NSAttributedString> buffer;
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
@@ -29,14 +29,19 @@ namespace XtermSharp.Mac {
 			fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", 14) ?? NSFont.FromFontName ("Courier Bold", 14);
 			fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", 14) ?? NSFont.FromFontName ("Courier Oblique", 14);
 			fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", 14) ?? NSFont.FromFontName ("Courier Bold Oblique", 14);
-			ComputeCellDimensions ();
+			var textBounds = ComputeCellDimensions ();
 
 			var cols = (int)(rect.Width / cellWidth);
 			var rows = (int)(rect.Height / cellHeight);
 
 			terminal = new Terminal (this, new TerminalOptions () { Cols = cols, Rows = rows });
 			FullBufferUpdate ();
-			
+
+			var selectColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.8f);
+			selectionView = new SelectionView (terminal, new CGRect (0, cellDelta, cellHeight, cellWidth), textBounds) {
+				SelectionColor = selectColor,
+			};
+
 			caret = new NSView (new CGRect (0, cellDelta, cellHeight, cellWidth)) {
 				WantsLayer = true
 			};
@@ -95,16 +100,26 @@ namespace XtermSharp.Mac {
 		{
 			userScrolling = true;
 			try {
+				var oldPosition = Terminal.Buffer.YDisp;
+
 				var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
 				int newScrollPosition = (int)(maxScrollback * position);
 				if (newScrollPosition < 0)
 					newScrollPosition = 0;
 				if (newScrollPosition > maxScrollback)
 					newScrollPosition = maxScrollback;
-				Terminal.Buffer.YDisp = newScrollPosition;
 
-				Terminal.Refresh (0, Terminal.Rows);
-				UpdateDisplay ();
+				if (newScrollPosition != oldPosition) {
+					Terminal.Buffer.YDisp = newScrollPosition;
+
+					// tell the terminal we want to refresh all the rows
+					Terminal.Refresh (0, Terminal.Rows);
+
+					// do the display update
+					UpdateDisplay ();
+
+					selectionView.NotifyScrolled ();
+				}
 			} finally {
 				userScrolling = false;
 			}
@@ -112,16 +127,19 @@ namespace XtermSharp.Mac {
 
 		void Terminal_Scrolled (Terminal terminal, int yDisp)
 		{
+			selectionView.NotifyScrolled ();
 			TerminalScrolled?.Invoke (ScrollPosition);
 		}
 
-		void ComputeCellDimensions ()
+		CGRect ComputeCellDimensions ()
 		{
 			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = fontNormal }));
 			var bounds = line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
 			cellWidth = bounds.Width;
 			cellHeight = (int)bounds.Height;
 			cellDelta = bounds.Y;
+
+			return bounds;
 		}
 
 		StringBuilder basBuilder = new StringBuilder ();
@@ -233,7 +251,15 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
-			caret.Frame = new CGRect (terminal.Buffer.X * cellWidth - 1, Frame.Height - cellHeight - (terminal.Buffer.Y * cellHeight - cellDelta - 1), cellWidth + 2, cellHeight + 2);
+			caret.Frame = new CGRect (
+				// -1 to pad outside the character a little bit
+				terminal.Buffer.X * cellWidth - 1,
+				// -2 to get the top of the selection to fit over the top of the text properly
+				// and to align with the cursor
+				Frame.Height - cellHeight - (terminal.Buffer.Y * cellHeight - cellDelta - 2),
+				// +2 to pad outside the character a little bit on the other side
+				cellWidth + 2,
+				cellHeight + 0);
 		}
 
 		void UpdateDisplay ()
@@ -322,6 +348,10 @@ namespace XtermSharp.Mac {
 					terminal.Resize (newCols, newRows);
 					FullBufferUpdate ();
 				}
+
+				// make the selection view the entire visible portion of the view
+				// we will mask the selected text that is visible to the user
+				selectionView.Frame = Bounds;
 
 				UpdateCursorPosition ();
 				// It might seem like this wrong place to call Loaded, and that
@@ -738,13 +768,8 @@ namespace XtermSharp.Mac {
 			throw new NotImplementedException ();
 		}
 
-		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags, out int col, out int row)
+		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{
-			var point = theEvent.LocationInWindow;
-			col = (int)(point.X / cellWidth);
-			row = (int)((Frame.Height - point.Y) / cellHeight);
-
-			Console.WriteLine ($"Mouse at {col},{row}");
 			var flags = theEvent.ModifierFlags;
 
 			buttonFlags = terminal.EncodeButton (
@@ -756,39 +781,136 @@ namespace XtermSharp.Mac {
 
 		void SharedMouseEvent (NSEvent theEvent, bool down)
 		{
-			ComputeMouseEvent (theEvent, down, out var buttonFlags, out var col, out var row);
+			CalculateMouseHit (theEvent, down, out var col, out var row);
+			ComputeMouseEvent (theEvent, down, out var buttonFlags);
 			terminal.SendEvent (buttonFlags, col, row);
+		}
+
+		void CalculateMouseHit (NSEvent theEvent, bool down, out int col, out int row)
+		{
+			var point = theEvent.LocationInWindow;
+			col = (int)(point.X / cellWidth);
+			row = (int)((Frame.Height - point.Y) / cellHeight);
+		}
+
+		/* Mouse selection:
+		 * 
+		 * selectionStart. this is updated when we receive a mouse down event and the user is not pressing
+		 * shift or is currently dragging.
+		 * 
+		 * selectionEnd. this is set when the user drags and is currently selecting, or when we receive a mouse down
+		 * while the user holds (just) the shift key.
+		 * 
+		 * selecting. this is set true when the user drags the mouse after a mouse down event and is set false when
+		 * a mouse up event is received
+		 *
+		 * Notes: we need to handle when the selection range exceeds the visible buffer, or when we need to scrollback
+		 *
+		 * When we start typing, selection is turned off
+		 */
+		bool selecting;
+		bool didSelectionDrag;
+
+		void StartSelection ()
+		{
+			selecting = true;
+			AddSubview (selectionView);
+
+			selectionView.SetStart (selectionView.Start.Y, selectionView.Start.X);
+		}
+
+		void StartSelection (int row, int col)
+		{
+			selecting = true;
+			AddSubview (selectionView);
+
+			selectionView.SetStart (row, col);
+		}
+
+		void StopSelecting ()
+		{
+			selecting = false;
+			selectionView.RemoveFromSuperview ();
 		}
 
 		public override void MouseDown (NSEvent theEvent)
 		{
-			if (!terminal.MouseEvents)
+			CalculateMouseHit (theEvent, down: true, out var col, out var row);
+
+			if (terminal.MouseEvents) {
+				SharedMouseEvent (theEvent, down: true);
 				return;
+			}
 
-			SharedMouseEvent (theEvent, down: true);
-
+			if (theEvent.ModifierFlags == NSEventModifierMask.ShiftKeyMask) {
+				if (!selecting) {
+					StartSelection ();
+					selectionView.ShiftExtend (row, col);
+				}
+			} else if (theEvent.ModifierFlags == 0) {
+			}
 		}
 
 		public override void MouseUp (NSEvent theEvent)
 		{
-			if (!terminal.MouseEvents)
-				return;
+			if (terminal.MouseEvents) {
+				if (terminal.MouseSendsRelease)
+					SharedMouseEvent (theEvent, down: false);
 
-			if (terminal.MouseSendsRelease)
-				SharedMouseEvent (theEvent, down: false);
+				return;
+			}
+
+			CalculateMouseHit (theEvent, true, out var col, out var row);
+			if (!selecting) {
+				if (theEvent.ModifierFlags.HasFlag(NSEventModifierMask.ShiftKeyMask)) {
+					// using the current selection point, or the current cursor position (or top of view)
+					// calculate the selection end and set the selection on
+					StartSelection ();
+					selectionView.ShiftExtend (row, col);
+					return;
+				}
+
+				selectionView.SetStart (row, col);
+			} else {
+				if (!didSelectionDrag) {
+					if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ShiftKeyMask)) {
+						// using the current selection point, or the current cursor position (or top of view)
+						// calculate the selection end and set the selection on
+						selectionView.ShiftExtend (row, col);
+					} else {
+						StopSelecting ();
+						selectionView.SetStart (row, col);
+					}
+				}
+			}
+
+			didSelectionDrag = false;
 		}
 
 		public override void MouseDragged (NSEvent theEvent)
 		{
-			if (!terminal.MouseEvents)
-				return;
+			CalculateMouseHit (theEvent, true, out var col, out var row);
 
-			if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
-				ComputeMouseEvent (theEvent, true, out var buttonFlags, out var col, out var row);
-				terminal.SendMotion (buttonFlags, col, row);
+			if (terminal.MouseEvents) {
+				if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
+					ComputeMouseEvent (theEvent, true, out var buttonFlags);
+					terminal.SendMotion (buttonFlags, col, row);
+				}
+
+				return;
+			}
+
+			if (theEvent.ModifierFlags == NSEventModifierMask.ShiftKeyMask) {
+				// extend the current range, otherwise set the initial selection start
+			} else if (theEvent.ModifierFlags == 0) {
+				if (!selecting) {
+					// set initial selection values
+					StartSelection (row, col);
+				} else {
+					selectionView.DragExtend (row, col);
+				}
+				didSelectionDrag = true;
 			}
 		}
-
-
 	}
 }
