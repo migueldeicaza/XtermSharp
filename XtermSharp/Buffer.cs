@@ -139,7 +139,9 @@ namespace XtermSharp
 		/// <param name="endCol">The column to end at.</param>
 		public ustring TranslateBufferLineToString (int lineIndex, bool trimRight, int startCol = 0, int endCol = -1)
 		{
-			throw new NotImplementedException ();
+			var line = lines [lineIndex];
+
+			return line.TranslateToString (trimRight, startCol, endCol);
 		}
 
 		/// <summary>

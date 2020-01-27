@@ -4,6 +4,7 @@ using CoreGraphics;
 using CoreAnimation;
 using System.Drawing;
 using System.Collections.Generic;
+using System.Text;
 
 namespace XtermSharp.Mac {
 	/// <summary>
@@ -108,6 +109,63 @@ namespace XtermSharp.Mac {
 		public void NotifyScrolled()
 		{
 			UpdateMask ();
+		}
+
+		public string GetSelectedText()
+		{
+			// TODO: possibly this needs to be moved to a selection service
+			var start = Start;
+			var end = End;
+
+			switch (comparer.Compare (start, End)) {
+			case 0:
+				return string.Empty;
+			case 1:
+				start = End;
+				end = Start;
+				break;
+			}
+
+			var nullStr = NStack.ustring.Make (CharData.Null.Rune);
+			var spaceStr = NStack.ustring.Make (" ");
+
+			var builder = new StringBuilder ();
+
+			// get the first line
+			BufferLine bufferLine = null;
+			var str = terminal.Buffer.TranslateBufferLineToString (start.Y, true, start.X, start.Y < end.Y ? -1 : end.X).Replace (nullStr, spaceStr);
+			builder.Append (str.ToString ());
+
+			// get the middle rows
+			var line = start.Y + 1;
+			var isWrapped = false;
+			while (line < end.Y) {
+				bufferLine = terminal.Buffer.Lines [line];
+				isWrapped = bufferLine?.IsWrapped ?? false;
+
+				str = terminal.Buffer.TranslateBufferLineToString (line, true, 0, -1).Replace (nullStr, spaceStr);
+
+				if (!isWrapped)
+					builder.AppendLine ();
+
+				builder.Append (str.ToString());
+
+				line++;
+			}
+
+			if (end.Y != start.Y) {
+				// get the last row
+				bufferLine = terminal.Buffer.Lines [end.Y];
+				isWrapped = bufferLine?.IsWrapped ?? false;
+				str = terminal.Buffer.TranslateBufferLineToString (end.Y, true, 0, end.X).Replace (nullStr, spaceStr);
+				if (!isWrapped) {
+					builder.AppendLine ();
+				}
+
+				builder.Append (str.ToString ());
+			}
+
+			return builder.ToString ();
 		}
 
 		void UpdateMask ()

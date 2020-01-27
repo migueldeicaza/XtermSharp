@@ -386,6 +386,11 @@ namespace XtermSharp.Mac {
 					return true;
 				}
 				return false;
+			case "paste:":
+				return true;
+			case "copy:":
+				// TODO: tell if we are actually selecting something
+				return true;
 			}
 
 			Console.WriteLine ("Validating " + selector);
@@ -394,15 +399,26 @@ namespace XtermSharp.Mac {
 
 		[Export ("cut:")]
 		void Cut (NSObject sender)
-		{ }
+		{
+		}
 
 		[Export ("copy:")]
 		void Copy (NSObject sender)
-		{ }
+		{
+			// find the selected range of text in the buffer and put in the clipboard
+			var str = selectionView.GetSelectedText();
+
+			var clipboard = NSPasteboard.GeneralPasteboard;
+			clipboard.ClearContents ();
+			clipboard.SetStringForType (str, NSPasteboard.NSPasteboardTypeString);
+		}
 
 		[Export ("paste:")]
 		void Paste (NSObject sender)
 		{
+			var clipboard = NSPasteboard.GeneralPasteboard;
+			var text = clipboard.GetStringForType (NSPasteboard.NSPasteboardTypeString);
+			InsertText (text, new NSRange(0, 0));
 		}
 
 		[Export ("selectAll:")]
@@ -549,6 +565,15 @@ namespace XtermSharp.Mac {
 			if (text is NSString str) {
 				var data = str.Encode (NSStringEncoding.UTF8);
 				Send (data.ToArray ());
+			}
+			NeedsDisplay = true;
+		}
+
+		void InsertText (string text, NSRange replacementRange)
+		{
+			if (!string.IsNullOrEmpty(text)) {
+				var data = Encoding.UTF8.GetBytes (text);
+				Send (data);
 			}
 			NeedsDisplay = true;
 		}
