@@ -402,10 +402,12 @@ namespace XtermSharp {
 				rows = MINIMUM_ROWS;
 			if (cols == Cols && rows == Rows)
 				return;
+
+			var oldCols = Cols;
 			Cols = cols;
 			Rows = rows;
 			Buffers.Resize (cols, rows);
-			buffers.SetupTabStops (cols);
+			buffers.SetupTabStops (oldCols);
 			Refresh (0, Rows - 1);
 		}
 

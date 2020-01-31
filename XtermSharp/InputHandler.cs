@@ -2055,7 +2055,7 @@ namespace XtermSharp {
 						} else {
 							// The line already exists (eg. the initial viewport), mark it as a
 							// wrapped line
-							buffer.Lines [buffer.Y++].IsWrapped = true;
+							buffer.Lines [++buffer.Y].IsWrapped = true;
 						}
 						// row changed, get it again
 						bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
