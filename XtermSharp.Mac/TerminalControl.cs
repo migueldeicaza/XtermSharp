@@ -79,7 +79,7 @@ namespace XtermSharp.Mac {
 			scroller.ScrollerStyle = NSScrollerStyle.Legacy;
 			scroller.DoubleValue = 0.0;
 			scroller.KnobProportion = 0.1f;
-			scroller.Enabled = true;
+			scroller.Enabled = false;
 			AddSubview (scroller);
 
 			scroller.Activated += ScrollerActivated;
@@ -92,6 +92,7 @@ namespace XtermSharp.Mac {
 			terminalView.UserInput = HandleUserInput;
 			terminalView.SizeChanged += HandleSizeChanged;
 			terminalView.TerminalScrolled += HandleTerminalScrolled;
+			terminalView.CanScrollChanged += HandleTerminalCanScrollChanged;
 			terminalView.TitleChanged += (TerminalView sender, string title) => {
 				TitleChanged?.Invoke (title);
 			};
@@ -101,7 +102,12 @@ namespace XtermSharp.Mac {
 
 		void HandleTerminalScrolled (double scrollPosition)
 		{
-			scroller.DoubleValue = scrollPosition;
+			UpdateScroller ();
+		}
+
+		private void HandleTerminalCanScrollChanged (bool obj)
+		{
+			UpdateScroller ();
 		}
 
 		void ScrollerActivated (object sender, EventArgs e)
@@ -120,6 +126,19 @@ namespace XtermSharp.Mac {
 			GetUnixWindowSize (terminalView.Frame, terminalView.Terminal.Rows, terminalView.Terminal.Cols, ref newSize);
 			var res = Pty.SetWinSize (shellFileDescriptor, ref newSize);
 			// TODO: log result of SetWinSize if != 0
+
+			UpdateScroller ();
+		}
+
+		void UpdateScroller()
+		{
+			var shouldBeEnabled = !terminalView.Terminal.Buffers.IsAlternateBuffer;
+			shouldBeEnabled = shouldBeEnabled && terminalView.Terminal.Buffer.HasScrollback;
+			shouldBeEnabled = shouldBeEnabled && terminalView.Terminal.Buffer.Lines.Length > terminalView.Terminal.Rows;
+			scroller.Enabled = shouldBeEnabled;
+
+			scroller.DoubleValue = terminalView.ScrollPosition;
+			scroller.KnobProportion = terminalView.ScrollThumbsize;
 		}
 
 		/// <summary>

@@ -58,6 +58,7 @@ namespace XtermSharp.Mac {
 			debug.Layer.BackgroundColor = caretColor.CGColor;
 
 			terminal.Scrolled += Terminal_Scrolled;
+			terminal.Buffers.Activated += Buffers_Activated;
 		}
 
 		/// <summary>
@@ -93,7 +94,35 @@ namespace XtermSharp.Mac {
 			}
 		}
 
+		/// <summary>
+		/// Gets a value indicating the scroll thumbsize
+		/// </summary>
+		public float ScrollThumbsize {
+			get {
+				if (Terminal.Buffers.IsAlternateBuffer)
+					return 0;
+
+				// the thumb size is the proportion of the visible content of the
+				// entire content but don't make it too small
+				return Math.Max((float)Terminal.Rows / (float)Terminal.Buffer.Lines.Length, 0.01f);
+			}
+		}
+
+		/// <summary>
+		/// Gets a value indicating whether or not the user can scroll the terminal contents
+		/// </summary>
+		public bool CanScroll {
+			get {
+				var shouldBeEnabled = !terminal.Buffers.IsAlternateBuffer;
+				shouldBeEnabled = shouldBeEnabled && terminal.Buffer.HasScrollback;
+				shouldBeEnabled = shouldBeEnabled && terminal.Buffer.Lines.Length > terminal.Rows;
+				return shouldBeEnabled;
+			}
+		}
+
 		public event Action<double> TerminalScrolled;
+
+		public event Action<bool> CanScrollChanged;
 
 		bool userScrolling;
 		public void ScrollToPosition (double position)
@@ -129,6 +158,11 @@ namespace XtermSharp.Mac {
 		{
 			selectionView.NotifyScrolled ();
 			TerminalScrolled?.Invoke (ScrollPosition);
+		}
+
+		void Buffers_Activated (Buffer active, Buffer inactive)
+		{
+			CanScrollChanged?.Invoke (CanScroll);
 		}
 
 		CGRect ComputeCellDimensions ()
