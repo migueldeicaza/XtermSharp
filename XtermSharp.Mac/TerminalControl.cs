@@ -16,9 +16,9 @@ namespace XtermSharp.Mac {
 		int shellFileDescriptor;
 		readonly byte [] readBuffer = new byte [4 * 1024];
 
-		// TODO: we need to clean up files left around from this
+#if DEBUG
 		static int x;
-
+#endif
 		public TerminalControl (CGRect rect) : base (rect)
 		{
 			Build (rect);
@@ -137,7 +137,9 @@ namespace XtermSharp.Mac {
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 
+#if DEBUG
 				System.IO.File.WriteAllBytes ("/tmp/log-" + (x++), copy);
+#endif
 				terminalView.Feed (copy);
 			}
 
