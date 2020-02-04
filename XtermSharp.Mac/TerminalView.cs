@@ -153,7 +153,7 @@ namespace XtermSharp.Mac {
 				if (isFg)
 					return NSColor.Black;
 				else
-					return NSColor.White;
+					return NSColor.Clear;
 			} else if (color == Renderer.InvertedDefaultColor) {
 				if (isFg)
 					return NSColor.White;
@@ -233,7 +233,7 @@ namespace XtermSharp.Mac {
 						attr = ch.Attribute;
 					}
 				}
-				basBuilder.Append (ch.Code == 0 ? ' ' : (char)ch.Rune);
+				basBuilder.Append (ch.Code == 0 ? " " : ch.Rune.ToString());
 			}
 			res.Append (new NSAttributedString (basBuilder.ToString (), GetAttributes (attr)));
 			return res;
@@ -727,6 +727,8 @@ namespace XtermSharp.Mac {
 			NSGraphics.RectFill (dirtyRect);
 
 			CGContext context = NSGraphicsContext.CurrentContext.GraphicsPort;
+			context.SaveState ();
+
 			//context.TextMatrix = textMatrix;
 
 #if false
@@ -773,6 +775,8 @@ namespace XtermSharp.Mac {
 #endif
 
 			}
+
+			context.RestoreState ();
 #endif
 		}
 
