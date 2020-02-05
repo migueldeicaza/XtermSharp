@@ -154,6 +154,40 @@ namespace XtermSharp.Mac {
 			}
 		}
 
+		public void PageUp()
+		{
+			int newPosition = Math.Max(Terminal.Buffer.YDisp - Terminal.Rows, 0);
+			if (newPosition != Terminal.Buffer.YDisp) {
+				Terminal.Buffer.YDisp = newPosition;
+
+				// tell the terminal we want to refresh all the rows
+				Terminal.Refresh (0, Terminal.Rows);
+
+				// do the display update
+				UpdateDisplay ();
+
+				selectionView.NotifyScrolled ();
+				TerminalScrolled?.Invoke (ScrollPosition);
+			}
+		}
+
+		public void PageDown ()
+		{
+			int newPosition = Math.Min (Terminal.Buffer.YDisp + Terminal.Rows, Terminal.Buffer.Lines.Length - Terminal.Rows);
+			if (newPosition != Terminal.Buffer.YDisp) {
+				Terminal.Buffer.YDisp = newPosition;
+
+				// tell the terminal we want to refresh all the rows
+				Terminal.Refresh (0, Terminal.Rows);
+
+				// do the display update
+				UpdateDisplay ();
+
+				selectionView.NotifyScrolled ();
+				TerminalScrolled?.Invoke (ScrollPosition);
+			}
+		}
+
 		void Terminal_Scrolled (Terminal terminal, int yDisp)
 		{
 			selectionView.NotifyScrolled ();
@@ -580,6 +614,12 @@ namespace XtermSharp.Mac {
 						break;
 					case NSFunctionKey.RightArrow:
 						Send (EscapeSequences.MoveRightNormal);
+						break;
+					case NSFunctionKey.PageUp:
+						PageUp ();
+						break;
+					case NSFunctionKey.PageDown:
+						PageDown ();
 						break;
 					}
 				}

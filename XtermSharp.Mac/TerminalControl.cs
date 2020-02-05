@@ -112,7 +112,19 @@ namespace XtermSharp.Mac {
 
 		void ScrollerActivated (object sender, EventArgs e)
 		{
-			terminalView.ScrollToPosition (scroller.DoubleValue);
+			switch (scroller.HitPart) {
+			case NSScrollerPart.DecrementPage:
+				terminalView.PageUp ();
+				scroller.DoubleValue = terminalView.ScrollPosition;
+				break;
+			case NSScrollerPart.IncrementPage:
+				terminalView.PageDown ();
+				scroller.DoubleValue = terminalView.ScrollPosition;
+				break;
+			case NSScrollerPart.Knob:
+				terminalView.ScrollToPosition (scroller.DoubleValue);
+				break;
+			}
 		}
 
 		void HandleUserInput (byte [] data)
