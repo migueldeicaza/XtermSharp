@@ -139,15 +139,7 @@ namespace XtermSharp.Mac {
 					newScrollPosition = maxScrollback;
 
 				if (newScrollPosition != oldPosition) {
-					Terminal.Buffer.YDisp = newScrollPosition;
-
-					// tell the terminal we want to refresh all the rows
-					Terminal.Refresh (0, Terminal.Rows);
-
-					// do the display update
-					UpdateDisplay ();
-
-					selectionView.NotifyScrolled ();
+					ScrollToRow (newScrollPosition);
 				}
 			} finally {
 				userScrolling = false;
@@ -156,26 +148,30 @@ namespace XtermSharp.Mac {
 
 		public void PageUp()
 		{
-			int newPosition = Math.Max(Terminal.Buffer.YDisp - Terminal.Rows, 0);
-			if (newPosition != Terminal.Buffer.YDisp) {
-				Terminal.Buffer.YDisp = newPosition;
-
-				// tell the terminal we want to refresh all the rows
-				Terminal.Refresh (0, Terminal.Rows);
-
-				// do the display update
-				UpdateDisplay ();
-
-				selectionView.NotifyScrolled ();
-				TerminalScrolled?.Invoke (ScrollPosition);
-			}
+			ScrollUp (Terminal.Rows);
 		}
 
 		public void PageDown ()
 		{
-			int newPosition = Math.Min (Terminal.Buffer.YDisp + Terminal.Rows, Terminal.Buffer.Lines.Length - Terminal.Rows);
-			if (newPosition != Terminal.Buffer.YDisp) {
-				Terminal.Buffer.YDisp = newPosition;
+			ScrollDown (Terminal.Rows);
+		}
+
+		public void ScrollUp (int lines)
+		{
+			int newPosition = Math.Max (Terminal.Buffer.YDisp - lines, 0);
+			ScrollToRow (newPosition);
+		}
+
+		public void ScrollDown (int lines)
+		{
+			int newPosition = Math.Min (Terminal.Buffer.YDisp + lines, Terminal.Buffer.Lines.Length - Terminal.Rows);
+			ScrollToRow (newPosition);
+		}
+
+		void ScrollToRow(int row)
+		{
+			if (row != Terminal.Buffer.YDisp) {
+				Terminal.Buffer.YDisp = row;
 
 				// tell the terminal we want to refresh all the rows
 				Terminal.Refresh (0, Terminal.Rows);
@@ -1014,6 +1010,33 @@ namespace XtermSharp.Mac {
 				}
 				didSelectionDrag = true;
 			}
+		}
+
+		public override void ScrollWheel (NSEvent theEvent)
+		{
+			if (theEvent.Type == NSEventType.ScrollWheel) {
+
+				if (theEvent.DeltaY == 0)
+					return;
+
+				var x = Math.Abs(theEvent.DeltaY);
+
+				// simple velocity calculation, could be better
+				int velocity = 1;
+				if (x > 1)
+					velocity = 3;
+				if (x > 5)
+					velocity = 10;
+				if (x > 9)
+					velocity = Terminal.Rows;
+				
+				if (theEvent.DeltaY > 0) {
+					ScrollUp (velocity);
+				} else {
+					ScrollDown (velocity);
+				}
+			}
+
 		}
 	}
 }
