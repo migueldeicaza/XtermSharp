@@ -1036,7 +1036,11 @@ namespace XtermSharp.Mac {
 					ScrollDown (velocity);
 				}
 			}
+		}
 
+		public override void ResetCursorRects ()
+		{
+			AddCursorRect (Bounds, NSCursor.IBeamCursor);
 		}
 	}
 }
