@@ -290,7 +290,7 @@ namespace XtermSharp.Mac {
 				terminal.Buffer.X * cellWidth - 1,
 				// -2 to get the top of the selection to fit over the top of the text properly
 				// and to align with the cursor
-				Frame.Height - cellHeight - (terminal.Buffer.Y * cellHeight - cellDelta - 2),
+				Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
 				// +2 to pad outside the character a little bit on the other side
 				cellWidth + 2,
 				cellHeight + 0);
