@@ -3,27 +3,28 @@ using AppKit;
 using CoreGraphics;
 using CoreAnimation;
 using System.Drawing;
-using System.Collections.Generic;
-using System.Text;
 
 namespace XtermSharp.Mac {
 	/// <summary>
 	/// Implements a view that is used to show the current selection in the terminal
 	/// </summary>
 	class SelectionView : NSView {
-		readonly PointComparer comparer;
 		readonly Terminal terminal;
+		readonly SelectionService selection;
 		readonly nfloat rowHeight;
 		readonly nfloat colWidth;
 		readonly nfloat rowDelta;
 		readonly CAShapeLayer maskLayer;
+
 		NSColor selectionColor;
 
-		public SelectionView (Terminal terminal, CGRect rect, CGRect typgographicalBounds) : base (rect)
+		public SelectionView (Terminal terminal, SelectionService selection, CGRect rect, CGRect typgographicalBounds) : base (rect)
 		{
 			this.terminal = terminal;
+			this.selection = selection;
 
-			comparer = new PointComparer ();
+			selection.SelectionChanged += HandleSelectionChanged;
+
 			rowHeight = (int)typgographicalBounds.Height;
 			colWidth = typgographicalBounds.Width;
 			rowDelta = typgographicalBounds.Y;
@@ -45,64 +46,6 @@ namespace XtermSharp.Mac {
 		}
 
 		/// <summary>
-		/// Gets or sets the selection start point in buffer coordinates
-		/// </summary>
-		public Point Start { get; private set; }
-
-		/// <summary>
-		/// Gets or sets the selection end point in buffer coordinates
-		/// </summary>
-		public Point End { get; private set; }
-
-		public void SetStart(int row, int col)
-		{
-			Start = End = new Point (col, row + terminal.Buffer.YDisp);
-			UpdateMask ();
-		}
-
-		/// <summary>
-		/// Extends the selection based on the user "shift" clicking. This has
-		/// slightly different semantics than a "drag" extension because we can
-		/// shift the start to be the last prior end point if the new extension
-		/// is before the current start point. 
-		/// </summary>
-		public void ShiftExtend (int row, int col)
-		{
-			var newEnd = new Point (col, row + terminal.Buffer.YDisp);
-
-			var shouldSwapStart = false;
-			if (comparer.Compare(Start, End) < 0) {
-				// start is before end, is the new end before Start
-				if (comparer.Compare(newEnd, Start) < 0) {
-					// yes, swap Start and End
-					shouldSwapStart = true;
-				}
-			} else if (comparer.Compare (Start, End) > 0) {
-				if (comparer.Compare (newEnd, Start) > 0) {
-					// yes, swap Start and End
-					shouldSwapStart = true;
-				}
-			}
-
-			if (shouldSwapStart) {
-				Start = End;
-			}
-
-			End = newEnd;
-			UpdateMask ();
-		}
-
-		/// <summary>
-		/// Extends the selection by moving the end point to the new point.
-		/// This may set the end point
-		/// </summary>
-		public void DragExtend (int row, int col)
-		{
-			End = new Point (col, row + terminal.Buffer.YDisp);
-			UpdateMask ();
-		}
-
-		/// <summary>
 		/// Notify that the terminal contents were scrolled and that we need
 		/// to update the selection coordinates
 		/// </summary>
@@ -111,61 +54,9 @@ namespace XtermSharp.Mac {
 			UpdateMask ();
 		}
 
-		public string GetSelectedText()
+		void HandleSelectionChanged ()
 		{
-			// TODO: possibly this needs to be moved to a selection service
-			var start = Start;
-			var end = End;
-
-			switch (comparer.Compare (start, End)) {
-			case 0:
-				return string.Empty;
-			case 1:
-				start = End;
-				end = Start;
-				break;
-			}
-
-			var nullStr = NStack.ustring.Make (CharData.Null.Rune);
-			var spaceStr = NStack.ustring.Make (" ");
-
-			var builder = new StringBuilder ();
-
-			// get the first line
-			BufferLine bufferLine = null;
-			var str = terminal.Buffer.TranslateBufferLineToString (start.Y, true, start.X, start.Y < end.Y ? -1 : end.X).Replace (nullStr, spaceStr);
-			builder.Append (str.ToString ());
-
-			// get the middle rows
-			var line = start.Y + 1;
-			var isWrapped = false;
-			while (line < end.Y) {
-				bufferLine = terminal.Buffer.Lines [line];
-				isWrapped = bufferLine?.IsWrapped ?? false;
-
-				str = terminal.Buffer.TranslateBufferLineToString (line, true, 0, -1).Replace (nullStr, spaceStr);
-
-				if (!isWrapped)
-					builder.AppendLine ();
-
-				builder.Append (str.ToString());
-
-				line++;
-			}
-
-			if (end.Y != start.Y) {
-				// get the last row
-				bufferLine = terminal.Buffer.Lines [end.Y];
-				isWrapped = bufferLine?.IsWrapped ?? false;
-				str = terminal.Buffer.TranslateBufferLineToString (end.Y, true, 0, end.X).Replace (nullStr, spaceStr);
-				if (!isWrapped) {
-					builder.AppendLine ();
-				}
-
-				builder.Append (str.ToString ());
-			}
-
-			return builder.ToString ();
+			UpdateMask ();
 		}
 
 		void UpdateMask ()
@@ -176,19 +67,19 @@ namespace XtermSharp.Mac {
 			maskLayer.Frame = Bounds;
 			var path = new CGPath ();
 
-			var screenRowStart = Start.Y - terminal.Buffer.YDisp;
-			var screenRowEnd = End.Y - terminal.Buffer.YDisp;
+			var screenRowStart = selection.Start.Y - terminal.Buffer.YDisp;
+			var screenRowEnd = selection.End.Y - terminal.Buffer.YDisp;
 
 			// mask the row that contains the start position
 			// snap to either the first or last column depending on
 			// where the end position is in relation to the start
-			int col = End.X;
+			int col = selection.End.X;
 			if (screenRowEnd > screenRowStart)
 				col = terminal.Cols;
 			if (screenRowEnd < screenRowStart)
 				col = 0;
 
-			MaskPartialRow (path, screenRowStart, Start.X,  col);
+			MaskPartialRow (path, screenRowStart, selection.Start.X,  col);
 
 			if (screenRowStart == screenRowEnd) {
 				// we're done, only one row to mask
@@ -197,12 +88,12 @@ namespace XtermSharp.Mac {
 			}
 
 			// now mask the row with the end position
-			col = Start.X;
+			col = selection.Start.X;
 			if (screenRowEnd > screenRowStart)
 				col = 0;
 			if (screenRowEnd < screenRowStart)
 				col = terminal.Cols;
-			MaskPartialRow (path, screenRowEnd, col, End.X);
+			MaskPartialRow (path, screenRowEnd, col, selection.End.X);
 
 			// now mask any full rows in between
 			var fullRowCount = screenRowEnd - screenRowStart;
@@ -276,23 +167,6 @@ namespace XtermSharp.Mac {
 				rowHeight);
 
 			path.AddRect (pathRect);
-		}
-
-		class PointComparer : IComparer<Point> {
-			public int Compare (Point x, Point y)
-			{
-				if (x.Y < y.Y)
-					return -1;
-				if (x.Y > y.Y)
-					return 1;
-				// x and y are on the same row, compare columns
-				if (x.X < y.X)
-					return -1;
-				if (x.X > y.X)
-					return 1;
-				// they are the same
-				return 0;
-			}
 		}
 	}
 }
