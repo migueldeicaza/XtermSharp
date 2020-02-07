@@ -538,6 +538,8 @@ namespace XtermSharp.Mac {
 
 		public override void KeyDown (NSEvent theEvent)
 		{
+			StopSelecting ();
+
 			var eventFlags = theEvent.ModifierFlags;
 
 			// Handle Option-letter to send the ESC sequence plus the letter as expected by terminals
