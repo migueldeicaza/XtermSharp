@@ -26,10 +26,17 @@ namespace XtermSharp.Mac {
 
 		public string WelcomeText { get; set; } = "Welcome to XtermSharp!";
 
+		public string ExitText { get; set; } = string.Empty;
+
 		/// <summary>
 		/// Raised when the title of the terminal has changed
 		/// </summary>
 		public event Action<string> TitleChanged;
+
+		/// <summary>
+		/// Raised when the title of the shell process exits
+		/// </summary>
+		public event Action ShellExited;
 
 		/// <summary>
 		/// Launches the shell
@@ -162,7 +169,10 @@ namespace XtermSharp.Mac {
 				// Faster, but harder to debug:
 				// terminalView.Feed (buffer, (int) size);
 				if (size == 0) {
-					//View.Window.Close ();
+					if (!string.IsNullOrEmpty(ExitText))
+						terminalView.Terminal.Feed (ExitText);
+
+					ShellExited?.Invoke ();
 					return;
 				}
 				byte [] copy = new byte [(int)size];

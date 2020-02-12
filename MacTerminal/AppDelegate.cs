@@ -18,6 +18,11 @@ namespace MacTerminal {
 			// Insert code here to tear down your application
 		}
 
+		public override bool ApplicationShouldTerminateAfterLastWindowClosed (NSApplication sender)
+		{
+			return true;
+		}
+
 		static void Main (string [] args)
 		{
 			NSApplication.Init ();

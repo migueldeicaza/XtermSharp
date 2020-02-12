@@ -19,6 +19,9 @@ namespace MacTerminal {
 		{
 			base.ViewDidLoad ();
 			terminalControl = new TerminalControl (View.Frame);
+			terminalControl.ShellExited += () => {
+				View.Window.Close ();
+			};
 			View.AddSubview (terminalControl);
 
 			terminalControl.StartShell ();
