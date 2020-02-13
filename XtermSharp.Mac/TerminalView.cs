@@ -1,13 +1,13 @@
 ﻿using System;
+using System.Text;
+using System.Collections.Generic;
 using Foundation;
 using CoreGraphics;
 using AppKit;
 using CoreText;
 using ObjCRuntime;
-using System.Text;
-using System.Collections.Generic;
-using XtermSharp;
 using CoreFoundation;
+using System.Timers;
 
 namespace XtermSharp.Mac {
 	/// <summary>
@@ -16,12 +16,15 @@ namespace XtermSharp.Mac {
 	public class TerminalView : NSView, INSTextInputClient, INSUserInterfaceValidations, ITerminalDelegate {
 		static CGAffineTransform textMatrix;
 
-		Terminal terminal;
-		CircularList<NSAttributedString> buffer;
-		NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
-		NSView caret, debug;
-		
+		readonly Terminal terminal;
+		readonly SelectionService selection;
+		readonly NSView caret, debug;
+		readonly SelectionView selectionView;
+		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
+		readonly Timer autoScrollTimer = new Timer (80);
+
 		nfloat cellHeight, cellWidth, cellDelta;
+		CircularList<NSAttributedString> buffer;
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
@@ -29,14 +32,21 @@ namespace XtermSharp.Mac {
 			fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", 14) ?? NSFont.FromFontName ("Courier Bold", 14);
 			fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", 14) ?? NSFont.FromFontName ("Courier Oblique", 14);
 			fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", 14) ?? NSFont.FromFontName ("Courier Bold Oblique", 14);
-			ComputeCellDimensions ();
+			var textBounds = ComputeCellDimensions ();
 
 			var cols = (int)(rect.Width / cellWidth);
 			var rows = (int)(rect.Height / cellHeight);
 
 			terminal = new Terminal (this, new TerminalOptions () { Cols = cols, Rows = rows });
+			selection = new SelectionService (terminal);
+			selection.SelectionChanged += HandleSelectionChanged;
 			FullBufferUpdate ();
-			
+
+			var selectColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.8f);
+			selectionView = new SelectionView (terminal, selection, new CGRect (0, cellDelta, cellHeight, cellWidth), textBounds) {
+				SelectionColor = selectColor,
+			};
+
 			caret = new NSView (new CGRect (0, cellDelta, cellHeight, cellWidth)) {
 				WantsLayer = true
 			};
@@ -51,6 +61,11 @@ namespace XtermSharp.Mac {
 			caret.Layer.BackgroundColor = caretColor.CGColor;
 
 			debug.Layer.BackgroundColor = caretColor.CGColor;
+
+			terminal.Scrolled += Terminal_Scrolled;
+			terminal.Buffers.Activated += Buffers_Activated;
+
+			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
 		}
 
 		/// <summary>
@@ -66,13 +81,136 @@ namespace XtermSharp.Mac {
 		/// <value><c>true</c> if option acts as a meta key; otherwise, <c>false</c>.</value>
 		public bool OptionAsMetaKey { get; set; } = true;
 
-		void ComputeCellDimensions ()
+		/// <summary>
+		/// Gets a value indicating the relative position of the terminal viewport
+		/// </summary>
+		public double ScrollPosition {
+			get {
+				if (Terminal.Buffers.IsAlternateBuffer)
+					return 0;
+
+				// strictly speaking these ought not to be outside these bounds
+				if (Terminal.Buffer.YDisp <= 0)
+					return 0;
+
+				var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
+				if (Terminal.Buffer.YDisp >= maxScrollback)
+					return 1;
+
+				return (double)Terminal.Buffer.YDisp / (double)maxScrollback;
+			}
+		}
+
+		/// <summary>
+		/// Gets a value indicating the scroll thumbsize
+		/// </summary>
+		public float ScrollThumbsize {
+			get {
+				if (Terminal.Buffers.IsAlternateBuffer)
+					return 0;
+
+				// the thumb size is the proportion of the visible content of the
+				// entire content but don't make it too small
+				return Math.Max((float)Terminal.Rows / (float)Terminal.Buffer.Lines.Length, 0.01f);
+			}
+		}
+
+		/// <summary>
+		/// Gets a value indicating whether or not the user can scroll the terminal contents
+		/// </summary>
+		public bool CanScroll {
+			get {
+				var shouldBeEnabled = !terminal.Buffers.IsAlternateBuffer;
+				shouldBeEnabled = shouldBeEnabled && terminal.Buffer.HasScrollback;
+				shouldBeEnabled = shouldBeEnabled && terminal.Buffer.Lines.Length > terminal.Rows;
+				return shouldBeEnabled;
+			}
+		}
+
+		public event Action<double> TerminalScrolled;
+
+		public event Action<bool> CanScrollChanged;
+
+		bool userScrolling;
+		public void ScrollToPosition (double position)
+		{
+			userScrolling = true;
+			try {
+				var oldPosition = Terminal.Buffer.YDisp;
+
+				var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
+				int newScrollPosition = (int)(maxScrollback * position);
+				if (newScrollPosition < 0)
+					newScrollPosition = 0;
+				if (newScrollPosition > maxScrollback)
+					newScrollPosition = maxScrollback;
+
+				if (newScrollPosition != oldPosition) {
+					ScrollToRow (newScrollPosition);
+				}
+			} finally {
+				userScrolling = false;
+			}
+		}
+
+		public void PageUp()
+		{
+			ScrollUp (Terminal.Rows);
+		}
+
+		public void PageDown ()
+		{
+			ScrollDown (Terminal.Rows);
+		}
+
+		public void ScrollUp (int lines)
+		{
+			int newPosition = Math.Max (Terminal.Buffer.YDisp - lines, 0);
+			ScrollToRow (newPosition);
+		}
+
+		public void ScrollDown (int lines)
+		{
+			int newPosition = Math.Min (Terminal.Buffer.YDisp + lines, Terminal.Buffer.Lines.Length - Terminal.Rows);
+			ScrollToRow (newPosition);
+		}
+
+		void ScrollToRow(int row)
+		{
+			if (row != Terminal.Buffer.YDisp) {
+				Terminal.Buffer.YDisp = row;
+
+				// tell the terminal we want to refresh all the rows
+				Terminal.Refresh (0, Terminal.Rows);
+
+				// do the display update
+				UpdateDisplay ();
+
+				selectionView.NotifyScrolled ();
+				TerminalScrolled?.Invoke (ScrollPosition);
+			}
+		}
+
+		void Terminal_Scrolled (Terminal terminal, int yDisp)
+		{
+			selectionView.NotifyScrolled ();
+			TerminalScrolled?.Invoke (ScrollPosition);
+		}
+
+		void Buffers_Activated (Buffer active, Buffer inactive)
+		{
+			CanScrollChanged?.Invoke (CanScroll);
+		}
+
+		CGRect ComputeCellDimensions ()
 		{
 			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = fontNormal }));
 			var bounds = line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
 			cellWidth = bounds.Width;
 			cellHeight = (int)bounds.Height;
 			cellDelta = bounds.Y;
+
+			return bounds;
 		}
 
 		StringBuilder basBuilder = new StringBuilder ();
@@ -86,7 +224,7 @@ namespace XtermSharp.Mac {
 				if (isFg)
 					return NSColor.Black;
 				else
-					return NSColor.White;
+					return NSColor.Clear;
 			} else if (color == Renderer.InvertedDefaultColor) {
 				if (isFg)
 					return NSColor.White;
@@ -147,6 +285,10 @@ namespace XtermSharp.Mac {
 
 		NSAttributedString BuildAttributedString (BufferLine line, int cols)
 		{
+			if (line == null) {
+				return new NSAttributedString (string.Empty, GetAttributes (CharData.Null.Attribute));
+			}
+
 			var res = new NSMutableAttributedString ();
 			int attr = 0;
 
@@ -162,7 +304,7 @@ namespace XtermSharp.Mac {
 						attr = ch.Attribute;
 					}
 				}
-				basBuilder.Append (ch.Code == 0 ? ' ' : (char)ch.Rune);
+				basBuilder.Append (ch.Code == 0 ? " " : ch.Rune.ToString());
 			}
 			res.Append (new NSAttributedString (basBuilder.ToString (), GetAttributes (attr)));
 			return res;
@@ -180,7 +322,15 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
-			caret.Frame = new CGRect (terminal.Buffer.X * cellWidth - 1, Frame.Height - cellHeight - (terminal.Buffer.Y * cellHeight - cellDelta - 1), cellWidth + 2, cellHeight + 2);
+			caret.Frame = new CGRect (
+				// -1 to pad outside the character a little bit
+				terminal.Buffer.X * cellWidth - 1,
+				// -2 to get the top of the selection to fit over the top of the text properly
+				// and to align with the cursor
+				Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
+				// +2 to pad outside the character a little bit on the other side
+				cellWidth + 2,
+				cellHeight + 0);
 		}
 
 		void UpdateDisplay ()
@@ -270,6 +420,10 @@ namespace XtermSharp.Mac {
 					FullBufferUpdate ();
 				}
 
+				// make the selection view the entire visible portion of the view
+				// we will mask the selected text that is visible to the user
+				selectionView.Frame = Bounds;
+
 				UpdateCursorPosition ();
 				// It might seem like this wrong place to call Loaded, and that
 				// ViewDidMoveToSuperview might make more sense
@@ -303,23 +457,39 @@ namespace XtermSharp.Mac {
 					return true;
 				}
 				return false;
+			case "paste:":
+				return true;
+			case "copy:":
+				// TODO: tell if we are actually selecting something
+				return true;
 			}
 
-			Console.WriteLine ("Validating " + selector);
+			//Console.WriteLine ("Validating " + selector);
 			return false;
 		}
 
 		[Export ("cut:")]
 		void Cut (NSObject sender)
-		{ }
+		{
+		}
 
 		[Export ("copy:")]
 		void Copy (NSObject sender)
-		{ }
+		{
+			// find the selected range of text in the buffer and put in the clipboard
+			var str = selection.GetSelectedText();
+
+			var clipboard = NSPasteboard.GeneralPasteboard;
+			clipboard.ClearContents ();
+			clipboard.SetStringForType (str, NSPasteboard.NSPasteboardTypeString);
+		}
 
 		[Export ("paste:")]
 		void Paste (NSObject sender)
 		{
+			var clipboard = NSPasteboard.GeneralPasteboard;
+			var text = clipboard.GetStringForType (NSPasteboard.NSPasteboardTypeString);
+			InsertText (text, new NSRange(0, 0));
 		}
 
 		[Export ("selectAll:")]
@@ -375,6 +545,8 @@ namespace XtermSharp.Mac {
 
 		public override void KeyDown (NSEvent theEvent)
 		{
+			selection.Active = false;
+
 			var eventFlags = theEvent.ModifierFlags;
 
 			// Handle Option-letter to send the ESC sequence plus the letter as expected by terminals
@@ -448,6 +620,12 @@ namespace XtermSharp.Mac {
 					case NSFunctionKey.RightArrow:
 						Send (EscapeSequences.MoveRightNormal);
 						break;
+					case NSFunctionKey.PageUp:
+						PageUp ();
+						break;
+					case NSFunctionKey.PageDown:
+						PageDown ();
+						break;
 					}
 				}
 				return;
@@ -466,6 +644,15 @@ namespace XtermSharp.Mac {
 			if (text is NSString str) {
 				var data = str.Encode (NSStringEncoding.UTF8);
 				Send (data.ToArray ());
+			}
+			NeedsDisplay = true;
+		}
+
+		void InsertText (string text, NSRange replacementRange)
+		{
+			if (!string.IsNullOrEmpty(text)) {
+				var data = Encoding.UTF8.GetBytes (text);
+				Send (data);
 			}
 			NeedsDisplay = true;
 		}
@@ -579,7 +766,7 @@ namespace XtermSharp.Mac {
 					Send (EscapeSequences.CmdPageDown);
 				break;
 			default:
-				Console.WriteLine ("Unhandled key event: " + selector.Name);
+				//Console.WriteLine ("Unhandled key event: " + selector.Name);
 				break;
 			}
 			
@@ -619,6 +806,8 @@ namespace XtermSharp.Mac {
 			NSGraphics.RectFill (dirtyRect);
 
 			CGContext context = NSGraphicsContext.CurrentContext.GraphicsPort;
+			context.SaveState ();
+
 			//context.TextMatrix = textMatrix;
 
 #if false
@@ -648,7 +837,25 @@ namespace XtermSharp.Mac {
 				var ctline = new CTLine (attrLine);
 
 				ctline.Draw (context);
+
+#if DEBUG_DRAWING
+				// debug code
+				context.TextPosition = new CGPoint (Frame.Width - 40, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((row).ToString ()));
+				ctline.Draw (context);
+
+				context.TextPosition = new CGPoint (Frame.Width - 60, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((Terminal.Buffer.YBase).ToString ()));
+				ctline.Draw (context);
+
+				context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
+				ctline.Draw (context);
+#endif
+
 			}
+
+			context.RestoreState ();
 #endif
 		}
 
@@ -669,13 +876,8 @@ namespace XtermSharp.Mac {
 			throw new NotImplementedException ();
 		}
 
-		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags, out int col, out int row)
+		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{
-			var point = theEvent.LocationInWindow;
-			col = (int)(point.X / cellWidth);
-			row = (int)((Frame.Height - point.Y) / cellHeight);
-
-			Console.WriteLine ($"Mouse at {col},{row}");
 			var flags = theEvent.ModifierFlags;
 
 			buttonFlags = terminal.EncodeButton (
@@ -687,39 +889,160 @@ namespace XtermSharp.Mac {
 
 		void SharedMouseEvent (NSEvent theEvent, bool down)
 		{
-			ComputeMouseEvent (theEvent, down, out var buttonFlags, out var col, out var row);
+			CalculateMouseHit (theEvent, down, out var col, out var row);
+			ComputeMouseEvent (theEvent, down, out var buttonFlags);
 			terminal.SendEvent (buttonFlags, col, row);
+		}
+
+		void CalculateMouseHit (NSEvent theEvent, bool down, out int col, out int row)
+		{
+			var point = theEvent.LocationInWindow;
+			col = (int)(point.X / cellWidth);
+			row = (int)((Frame.Height - point.Y) / cellHeight);
 		}
 
 		public override void MouseDown (NSEvent theEvent)
 		{
-			if (!terminal.MouseEvents)
+			if (terminal.MouseEvents) {
+				SharedMouseEvent (theEvent, down: true);
 				return;
+			}
 
-			SharedMouseEvent (theEvent, down: true);
+			autoScrollTimer.AutoReset = true;
 
+			autoScrollTimer.Enabled = true;
 		}
+
+		bool didSelectionDrag;
 
 		public override void MouseUp (NSEvent theEvent)
 		{
-			if (!terminal.MouseEvents)
-				return;
+			autoScrollTimer.Enabled = false;
 
-			if (terminal.MouseSendsRelease)
-				SharedMouseEvent (theEvent, down: false);
+			if (terminal.MouseEvents) {
+				if (terminal.MouseSendsRelease)
+					SharedMouseEvent (theEvent, down: false);
+
+				return;
+			}
+
+			CalculateMouseHit (theEvent, true, out var col, out var row);
+			if (!selection.Active) {
+				if (theEvent.ModifierFlags.HasFlag(NSEventModifierMask.ShiftKeyMask)) {
+					selection.ShiftExtend (row, col);
+				} else {
+					selection.SetSoftStart (row, col);
+				}
+			} else {
+				if (!didSelectionDrag) {
+					if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ShiftKeyMask)) {
+						selection.ShiftExtend (row, col);
+					} else {
+						selection.Active = false;
+						selection.SetSoftStart (row, col);
+					}
+				}
+			}
+
+			didSelectionDrag = false;
 		}
 
 		public override void MouseDragged (NSEvent theEvent)
 		{
-			if (!terminal.MouseEvents)
-				return;
+			CalculateMouseHit (theEvent, true, out var col, out var row);
 
-			if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
-				ComputeMouseEvent (theEvent, true, out var buttonFlags, out var col, out var row);
-				terminal.SendMotion (buttonFlags, col, row);
+			if (terminal.MouseEvents) {
+				if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
+					ComputeMouseEvent (theEvent, true, out var buttonFlags);
+					terminal.SendMotion (buttonFlags, col, row);
+				}
+
+				return;
+			}
+
+			if (!selection.Active) {
+				selection.StartSelection (row, col);
+			} else {
+				selection.DragExtend (row, col);
+			}
+
+			didSelectionDrag = true;
+
+			autoScrollDelta = 0;
+			if (selection.Active) {
+				if (row <= 0) {
+					autoScrollDelta = CalcVelocity (row * -1) * -1;
+				} else if (row >= terminal.Rows) {
+					autoScrollDelta = CalcVelocity (row - terminal.Rows);
+				}
 			}
 		}
 
+		public override void ScrollWheel (NSEvent theEvent)
+		{
+			if (theEvent.Type == NSEventType.ScrollWheel) {
+				if (theEvent.DeltaY == 0)
+					return;
 
+				// simple velocity calculation, could be better
+				int velocity = CalcVelocity((int)Math.Abs (theEvent.DeltaY));
+				
+				if (theEvent.DeltaY > 0) {
+					ScrollUp (velocity);
+				} else {
+					ScrollDown (velocity);
+				}
+			}
+		}
+
+		int autoScrollDelta = 0;
+
+		private void AutoScrollTimer_Elapsed (object sender, ElapsedEventArgs e)
+		{
+			if (autoScrollDelta == 0)
+				return;
+
+			if (autoScrollDelta < 0) {
+				this.BeginInvokeOnMainThread (() => {
+					ScrollUp (autoScrollDelta * -1);
+				});
+			} else {
+				this.BeginInvokeOnMainThread (() => {
+					ScrollDown (autoScrollDelta);
+				});
+			}
+		}
+
+		/// <summary>
+		/// Calculates a velocity for scrolling
+		/// </summary>
+		int CalcVelocity (int delta)
+		{
+			// this could be improved I'm sure
+			if (delta > 9)
+				return Math.Max (Terminal.Rows, 20);
+
+			if (delta > 5)
+				return 10;
+
+			if (delta > 1)
+				return 3;
+
+			return 1;
+		}
+
+		public override void ResetCursorRects ()
+		{
+			AddCursorRect (Bounds, NSCursor.IBeamCursor);
+		}
+
+		void HandleSelectionChanged ()
+		{
+			if (selection.Active) {
+				AddSubview (selectionView);
+			} else {
+				selectionView.RemoveFromSuperview ();
+			}
+		}
 	}
 }

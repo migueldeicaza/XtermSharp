@@ -3,9 +3,11 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using NStack;
 
 namespace XtermSharp {
+	[DebuggerDisplay ("Line: {DebuggerDisplay}")]
 	public class BufferLine {
 		CharData [] data = Array.Empty<CharData> ();
 		public int Length => data.Length;
@@ -36,6 +38,20 @@ namespace XtermSharp {
 		}
 
 		public int GetWidth (int index) => data [index].Width;
+
+		/**
+		   * Test whether contains any chars.
+		   * Basically an empty has no content, but other cells might differ in FG/BG
+		   * from real empty cells.
+		   * */
+		   // TODO: not sue this is completely right
+		public bool HasContent (int index) => data [index].Code != 0 && data [index].Attribute != CharData.DefaultAttr;
+
+		string DebuggerDisplay {
+			get {
+				return TranslateToString (true, 0, -1).ToString ();
+			}
+		}
 
 		public void InsertCells (int pos, int n, CharData fillCharData)
 		{
@@ -85,12 +101,14 @@ namespace XtermSharp {
 				var newData = new CharData [cols];
 				if (len > 0)
 					data.CopyTo (newData, 0);
+				data = newData;
 				for (int i = len; i < cols; i++)
 					data [i] = fillCharData;
 			} else {
 				if (cols > 0) {
 					var newData = new CharData [cols];
 					Array.Copy (data, newData, cols);
+					data = newData;
 				} else {
 					data = Array.Empty<CharData> ();
 				}

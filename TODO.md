@@ -3,7 +3,7 @@
 
 General bits:
 * Resize
-* Buffer managerment and scrollback support
+* Buffer management and scrollback support
 * Rendering glitches in Mac port (the in-between line thing)
 * Mouse support
 * Caret shape support
@@ -14,7 +14,7 @@ Porting:
 - [ ] AccessibilityManager.ts
 - [x] Buffer.ts
 - [x] BufferLine.ts
-- [ ] BufferReflow.ts
+- [x] BufferReflow.ts
 - [x] BufferSet.ts
 - [x] CharWidth.ts
 - [ ] CompositionHelper.ts
@@ -24,7 +24,7 @@ Porting:
 - [ ] SelectionManager.ts
 - [ ] SelectionModel.ts
 - [ ] SoundManager.ts
-- [   ] Strings.ts
+- [ ] Strings.ts
 - [ ] Terminal.integration.ts
 - [ ] Terminal.ts
 - [ ] Types.ts

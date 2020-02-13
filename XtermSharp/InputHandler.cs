@@ -2027,12 +2027,12 @@ namespace XtermSharp {
 								var chMinusTwo = bufferRow [buffer.X - 2];
 
 								chMinusTwo.Code += ch;
-								chMinusTwo.Rune = (Rune)code;
+								chMinusTwo.Rune = (uint)code;
 								bufferRow [buffer.X - 2] = chMinusTwo; // must be set explicitly now
 							}
 						} else {
 							chMinusOne.Code += ch;
-							chMinusOne.Rune = (Rune)code;
+							chMinusOne.Rune = (uint)code;
 							bufferRow [buffer.X - 1] = chMinusOne; // must be set explicitly now
 						}
 					}
@@ -2055,7 +2055,7 @@ namespace XtermSharp {
 						} else {
 							// The line already exists (eg. the initial viewport), mark it as a
 							// wrapped line
-							buffer.Lines [buffer.Y++].IsWrapped = true;
+							buffer.Lines [++buffer.Y].IsWrapped = true;
 						}
 						// row changed, get it again
 						bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
@@ -2086,7 +2086,7 @@ namespace XtermSharp {
 				}
 
 				// write current char to buffer and advance cursor
-				var charData = new CharData (curAttr, (Rune)code, chWidth, ch);
+				var charData = new CharData (curAttr, (uint)code, chWidth, ch);
 				bufferRow [buffer.X++] = charData;
 
 				// fullwidth char - also set next cell to placeholder stub and advance cursor

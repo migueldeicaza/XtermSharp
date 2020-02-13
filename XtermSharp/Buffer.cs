@@ -3,12 +3,11 @@ using System.Collections;
 using System.Diagnostics;
 using NStack;
 
-namespace XtermSharp
-{
+namespace XtermSharp {
 	/// <summary>
 	/// This class represents a terminal buffer (an internal state of the terminal), where text contents, cursor and scroll position are stored.
 	/// </summary>
-    	[DebuggerDisplay ("({X},{Y} YD{YDisp}:YB{YBase} Scroll={ScrollBottom,ScrollTop}")]
+	[DebuggerDisplay ("({X},{Y}) YD={YDisp}:YB={YBase} Scroll={ScrollBottom,ScrollTop}")]
 	public class Buffer {
 		CircularList<BufferLine> lines;
 		public int YDisp, YBase;
@@ -17,7 +16,7 @@ namespace XtermSharp
 		public int Y {
 			get => y;
 			set {
-				if (value < 0 || value > Terminal.Rows-1)
+				if (value < 0 || value > Terminal.Rows - 1)
 					throw new Exception ();
 				else
 					y = value;
@@ -39,6 +38,7 @@ namespace XtermSharp
 		public int SavedX, SavedY, SavedAttr = CharData.DefaultAttr;
 		public Terminal Terminal { get; private set; }
 		bool hasScrollback;
+		int cols, rows;
 
 		/// <summary>
 		/// Gets a value indicating whether this <see cref="T:XtermSharp.Buffer"/> has scrollback.
@@ -53,6 +53,8 @@ namespace XtermSharp
 		/// <param name="hasScrollback">Whether the buffer should respect the scrollback of the terminal.</param>
 		public Buffer (Terminal terminal, bool hasScrollback = true)
 		{
+			rows = terminal.Rows;
+			cols = terminal.Cols;
 			Terminal = terminal;
 			this.hasScrollback = hasScrollback;
 			Clear ();
@@ -61,7 +63,7 @@ namespace XtermSharp
 		public CircularList<BufferLine> Lines => lines;
 
 		// Gets the correct buffer length based on the rows provided, the terminal's
-   		// scrollback and whether this buffer is flagged to have scrollback or not.
+		// scrollback and whether this buffer is flagged to have scrollback or not.
 		int getCorrectBufferLength (int rows)
 		{
 			if (!hasScrollback)
@@ -72,7 +74,7 @@ namespace XtermSharp
 
 		public BufferLine GetBlankLine (int attribute, bool isWrapped = false)
 		{
-			var cd = new CharData (attribute); 
+			var cd = new CharData (attribute);
 
 			return new BufferLine (Terminal.Cols, cd, isWrapped);
 		}
@@ -113,6 +115,8 @@ namespace XtermSharp
 				lines.Push (GetBlankLine (attr));
 		}
 
+		bool IsReflowEnabled => hasScrollback;// && Terminal.Options.WindowsMode;
+
 		/// <summary>
 		/// Resize the buffer, adjusting its data accordingly
 		/// </summary>
@@ -121,11 +125,104 @@ namespace XtermSharp
 		/// <param name="newRows">New rows.</param>
 		public void Resize (int newCols, int newRows)
 		{
-			Clear ();
-			FillViewportRows ();
+			var newMaxLength = getCorrectBufferLength (newRows);
+			if (newMaxLength > lines.MaxLength) {
+				lines.MaxLength = newMaxLength;
+			}
 
-			// FIXME: should this not fill int he additional tab stops?   Bug in original
-			tabStops.Length = newCols;
+			if (this.lines.Length > 0) {
+				// Deal with columns increasing (reducing needs to happen after reflow)
+				if (cols < newCols) {
+					for (int i = 0; i < lines.Length; i++) {
+						lines [i]?.Resize (newCols, CharData.Null);
+					}
+				}
+
+				// Resize rows in both directions as needed
+				int addToY = 0;
+				if (rows < newRows) {
+					for (int y = rows; y < newRows; y++) {
+						if (lines.Length < newRows + YBase) {
+							//if (Terminal.Options.windowsMode) {
+							//	// Just add the new missing rows on Windows as conpty reprints the screen with it's
+							//	// view of the world. Once a line enters scrollback for conpty it remains there
+							//	lines.Push (new BufferLine (newCols, CharData.Null));
+							//} else {
+							{
+								if (YBase > 0 && lines.Length <= YBase + Y + addToY + 1) {
+									// There is room above the buffer and there are no empty elements below the line,
+									// scroll up
+									YBase--;
+									addToY++;
+									if (YDisp > 0) {
+										// Viewport is at the top of the buffer, must increase downwards
+										YDisp--;
+									}
+								} else {
+									// Add a blank line if there is no buffer left at the top to scroll to, or if there
+									// are blank lines after the cursor
+									lines.Push (new BufferLine (newCols, CharData.Null));
+								}
+							}
+						}
+					}
+				} else { // (this._rows >= newRows)
+					for (int y = rows; y > newRows; y--) {
+						if (lines.Length > newRows + YBase) {
+							if (lines.Length > YBase + this.y + 1) {
+								// The line is a blank line below the cursor, remove it
+								lines.Pop ();
+							} else {
+								// The line is the cursor, scroll down
+								YBase++;
+								YDisp++;
+							}
+						}
+					}
+				}
+
+				// Reduce max length if needed after adjustments, this is done after as it
+				// would otherwise cut data from the bottom of the buffer.
+				if (newMaxLength < lines.MaxLength) {
+					// Trim from the top of the buffer and adjust ybase and ydisp.
+					int amountToTrim = lines.Length - newMaxLength;
+					if (amountToTrim > 0) {
+						lines.TrimStart (amountToTrim);
+						YBase = Math.Max (YBase - amountToTrim, 0);
+						YDisp = Math.Max (YDisp - amountToTrim, 0);
+						SavedY = Math.Max (SavedY - amountToTrim, 0);
+					}
+
+					lines.MaxLength = newMaxLength;
+				}
+
+				// Make sure that the cursor stays on screen
+				X = Math.Min (X, newCols - 1);
+				Y = Math.Min (Y, newRows - 1);
+				if (addToY != 0) {
+					Y += addToY;
+				}
+
+				SavedX = Math.Min (SavedX, newCols - 1);
+
+				ScrollTop = 0;
+			}
+
+			ScrollBottom = newRows - 1;
+
+			if (IsReflowEnabled) {
+				this.Reflow (newCols, newRows);
+
+				// Trim the end of the line off if cols shrunk
+				if (cols > newCols) {
+					for (int i = 0; i < lines.Length; i++) {
+						lines [i]?.Resize (newCols, CharData.Null);
+					}
+				}
+			}
+
+			rows = newRows;
+			cols = newCols;
 		}
 
 		/// <summary>
@@ -139,7 +236,9 @@ namespace XtermSharp
 		/// <param name="endCol">The column to end at.</param>
 		public ustring TranslateBufferLineToString (int lineIndex, bool trimRight, int startCol = 0, int endCol = -1)
 		{
-			throw new NotImplementedException ();
+			var line = lines [lineIndex];
+
+			return line.TranslateToString (trimRight, startCol, endCol);
 		}
 
 		/// <summary>
@@ -148,17 +247,19 @@ namespace XtermSharp
 		/// <param name="index">Index to start setting tabs stops from.</param>
 		public void SetupTabStops (int index = -1)
 		{
-			int cols = Terminal.Cols;
-
 			if (index != -1 && tabStops != null) {
+				tabStops.Length = cols;
+
 				var from = Math.Min (index, cols - 1);
 				if (!tabStops [from])
 					index = PreviousTabStop (from);
-			} else 
+			} else {
 				tabStops = new BitArray (cols);
+				index = 0;
+			}
 
 			int tabStopWidth = Terminal.Options.TabStopWidth ?? 8;
-			for (int i = 0; i < cols; i += tabStopWidth)
+			for (int i = index; i < cols; i += tabStopWidth)
 				tabStops [i] = true;
 		}
 
@@ -200,7 +301,7 @@ namespace XtermSharp
 		/// <param name="index">The position to move the cursor one tab stop forward.</param>
 		public int NextTabStop (int index = -1)
 		{
-			if (index == -1) 
+			if (index == -1)
 				index = X;
 			do {
 				index++;
@@ -211,6 +312,22 @@ namespace XtermSharp
 			} while (index < Terminal.Cols);
 			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
 		}
-	}
 
+		void Reflow (int newCols, int newRows)
+		{
+			if (cols == newCols) {
+				return;
+			}
+
+			// Iterate through rows, ignore the last one as it cannot be wrapped
+			ReflowStrategy strategy;
+			if (newCols > cols) {
+				strategy = new ReflowWider (this);
+			} else {
+				strategy = new ReflowNarrower (this);
+			}
+
+			strategy.Reflow (newCols, newRows, cols, rows);
+		}
+	}
 }

@@ -211,5 +211,15 @@ namespace XtermSharp {
 		}
 
 		public bool IsFull => Length == MaxLength;
+
+		public T[] ToArray()
+		{
+			var result = new T [Length];
+			for (int i = 0; i < Length; i++) {
+				result [i] = array [GetCyclicIndex (i)];
+			}
+
+			return result;
+		}
 	}
 }

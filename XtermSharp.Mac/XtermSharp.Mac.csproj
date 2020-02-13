@@ -59,6 +59,8 @@
   <ItemGroup>
     <Compile Include="TerminalView.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TerminalControl.cs" />
+    <Compile Include="SelectionView.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
