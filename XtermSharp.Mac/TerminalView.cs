@@ -7,6 +7,7 @@ using AppKit;
 using CoreText;
 using ObjCRuntime;
 using CoreFoundation;
+using System.Timers;
 
 namespace XtermSharp.Mac {
 	/// <summary>
@@ -20,6 +21,7 @@ namespace XtermSharp.Mac {
 		readonly NSView caret, debug;
 		readonly SelectionView selectionView;
 		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
+		readonly Timer autoScrollTimer = new Timer (80);
 
 		nfloat cellHeight, cellWidth, cellDelta;
 		CircularList<NSAttributedString> buffer;
@@ -62,6 +64,8 @@ namespace XtermSharp.Mac {
 
 			terminal.Scrolled += Terminal_Scrolled;
 			terminal.Buffers.Activated += Buffers_Activated;
+
+			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
 		}
 
 		/// <summary>
@@ -460,7 +464,7 @@ namespace XtermSharp.Mac {
 				return true;
 			}
 
-			Console.WriteLine ("Validating " + selector);
+			//Console.WriteLine ("Validating " + selector);
 			return false;
 		}
 
@@ -762,7 +766,7 @@ namespace XtermSharp.Mac {
 					Send (EscapeSequences.CmdPageDown);
 				break;
 			default:
-				Console.WriteLine ("Unhandled key event: " + selector.Name);
+				//Console.WriteLine ("Unhandled key event: " + selector.Name);
 				break;
 			}
 			
@@ -903,12 +907,18 @@ namespace XtermSharp.Mac {
 				SharedMouseEvent (theEvent, down: true);
 				return;
 			}
+
+			autoScrollTimer.AutoReset = true;
+
+			autoScrollTimer.Enabled = true;
 		}
 
 		bool didSelectionDrag;
 
 		public override void MouseUp (NSEvent theEvent)
 		{
+			autoScrollTimer.Enabled = false;
+
 			if (terminal.MouseEvents) {
 				if (terminal.MouseSendsRelease)
 					SharedMouseEvent (theEvent, down: false);
@@ -957,25 +967,25 @@ namespace XtermSharp.Mac {
 			}
 
 			didSelectionDrag = true;
+
+			autoScrollDelta = 0;
+			if (selection.Active) {
+				if (row <= 0) {
+					autoScrollDelta = CalcVelocity (row * -1) * -1;
+				} else if (row >= terminal.Rows) {
+					autoScrollDelta = CalcVelocity (row - terminal.Rows);
+				}
+			}
 		}
 
 		public override void ScrollWheel (NSEvent theEvent)
 		{
 			if (theEvent.Type == NSEventType.ScrollWheel) {
-
 				if (theEvent.DeltaY == 0)
 					return;
 
-				var x = Math.Abs(theEvent.DeltaY);
-
 				// simple velocity calculation, could be better
-				int velocity = 1;
-				if (x > 1)
-					velocity = 3;
-				if (x > 5)
-					velocity = 10;
-				if (x > 9)
-					velocity = Terminal.Rows;
+				int velocity = CalcVelocity((int)Math.Abs (theEvent.DeltaY));
 				
 				if (theEvent.DeltaY > 0) {
 					ScrollUp (velocity);
@@ -983,6 +993,42 @@ namespace XtermSharp.Mac {
 					ScrollDown (velocity);
 				}
 			}
+		}
+
+		int autoScrollDelta = 0;
+
+		private void AutoScrollTimer_Elapsed (object sender, ElapsedEventArgs e)
+		{
+			if (autoScrollDelta == 0)
+				return;
+
+			if (autoScrollDelta < 0) {
+				this.BeginInvokeOnMainThread (() => {
+					ScrollUp (autoScrollDelta * -1);
+				});
+			} else {
+				this.BeginInvokeOnMainThread (() => {
+					ScrollDown (autoScrollDelta);
+				});
+			}
+		}
+
+		/// <summary>
+		/// Calculates a velocity for scrolling
+		/// </summary>
+		int CalcVelocity (int delta)
+		{
+			// this could be improved I'm sure
+			if (delta > 9)
+				return Math.Max (Terminal.Rows, 20);
+
+			if (delta > 5)
+				return 10;
+
+			if (delta > 1)
+				return 3;
+
+			return 1;
 		}
 
 		public override void ResetCursorRects ()
