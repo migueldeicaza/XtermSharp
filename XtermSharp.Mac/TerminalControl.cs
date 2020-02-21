@@ -62,8 +62,8 @@ namespace XtermSharp.Mac {
 			var viewFrame = Frame;
 
 			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
-			var scrollFrame = new CGRect (viewFrame.Right - scrollWidth, viewFrame.Y, scrollWidth, viewFrame.Height);
-			viewFrame = new CGRect (viewFrame.X, viewFrame.Y, viewFrame.Width - scrollWidth, viewFrame.Height);
+			var scrollFrame = new CGRect (viewFrame.Right - scrollWidth, 0, scrollWidth, viewFrame.Height);
+			viewFrame = new CGRect (0, 0, viewFrame.Width - scrollWidth, viewFrame.Height);
 
 			scroller.Frame = scrollFrame;
 			terminalView.Frame = viewFrame;
