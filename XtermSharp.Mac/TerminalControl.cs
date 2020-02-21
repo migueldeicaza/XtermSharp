@@ -14,6 +14,7 @@ namespace XtermSharp.Mac {
 
 		int shellPid;
 		int shellFileDescriptor;
+		bool running;
 		readonly byte [] readBuffer = new byte [4 * 1024];
 
 #if DEBUG
@@ -60,6 +61,7 @@ namespace XtermSharp.Mac {
 			args?.CopyTo (shellArgs, 1);
 
 			shellPid = Pty.ForkAndExec (shellPath, shellArgs, env ?? Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
+			running = true;
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}
 
@@ -146,6 +148,9 @@ namespace XtermSharp.Mac {
 
 		void HandleUserInput (byte [] data)
 		{
+			if (!running)
+				return;
+
 			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
 		}
 
@@ -179,6 +184,7 @@ namespace XtermSharp.Mac {
 				// Faster, but harder to debug:
 				// terminalView.Feed (buffer, (int) size);
 				if (size == 0) {
+					running = false;
 					if (!string.IsNullOrEmpty(ExitText))
 						terminalView.Terminal.Feed (ExitText);
 
