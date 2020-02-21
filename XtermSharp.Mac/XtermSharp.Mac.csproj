@@ -61,9 +61,6 @@
     <Compile Include="SelectionView.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\XtermSharp\XtermSharp.csproj">
       <Project>{218EB800-B5D6-46C3-8113-8DB312AE0C64}</Project>
       <Name>XtermSharp</Name>
