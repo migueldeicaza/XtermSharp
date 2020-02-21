@@ -28,6 +28,12 @@ namespace XtermSharp.Mac {
 
 		public string ExitText { get; set; } = string.Empty;
 
+		public int ShellProcessId {
+			get	{
+				return shellPid;
+			}
+		}
+
 		/// <summary>
 		/// Raised when the title of the terminal has changed
 		/// </summary>
