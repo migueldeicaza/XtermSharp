@@ -41,7 +41,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Launches the shell
 		/// </summary>
-		public void StartShell(string shellPath = "/bin/bash", string [] args = null)
+		public void StartShell(string shellPath = "/bin/bash", string [] args = null, string [] env = null)
 		{
 			// TODO: throw error if already started
 			terminalView.Feed (WelcomeText + "\n");
@@ -53,7 +53,7 @@ namespace XtermSharp.Mac {
 			shellArgs [0] = shellPath;
 			args?.CopyTo (shellArgs, 1);
 
-			shellPid = Pty.ForkAndExec (shellPath, shellArgs, Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
+			shellPid = Pty.ForkAndExec (shellPath, shellArgs, env ?? Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}
 
