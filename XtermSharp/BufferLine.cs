@@ -45,7 +45,16 @@ namespace XtermSharp {
 		   * from real empty cells.
 		   * */
 		   // TODO: not sue this is completely right
-		public bool HasContent (int index) => data [index].Code != 0 && data [index].Attribute != CharData.DefaultAttr;
+		public bool HasContent (int index) => data [index].Code != 0 || data [index].Attribute != CharData.DefaultAttr;
+
+		public bool HasAnyContent()
+		{
+			for (int i = 0; i < data.Length; i++) {
+				if (HasContent (i)) return true;
+			}
+
+			return false;
+		}
 
 		string DebuggerDisplay {
 			get {

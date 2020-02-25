@@ -13,11 +13,16 @@ namespace XtermSharp.Mac {
 	/// <summary>
 	/// An AppKit Terminal View.
 	/// </summary>
-	public class TerminalView : NSView, INSTextInputClient, INSUserInterfaceValidations, ITerminalDelegate {
+	public partial class TerminalView : NSView,
+		INSTextInputClient,
+		ITerminalDelegate,
+		INSUserInterfaceValidations,
+		INSAccessibilityStaticText {
 		static CGAffineTransform textMatrix;
 
 		readonly Terminal terminal;
 		readonly SelectionService selection;
+		readonly AccessibilityService accessibility;
 		readonly NSView caret, debug;
 		readonly SelectionView selectionView;
 		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
@@ -66,6 +71,9 @@ namespace XtermSharp.Mac {
 			terminal.Buffers.Activated += Buffers_Activated;
 
 			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
+
+			accessibility = new AccessibilityService (terminal);
+			SetupAccessibility ();
 		}
 
 		/// <summary>
@@ -191,6 +199,16 @@ namespace XtermSharp.Mac {
 			}
 		}
 
+		void EnsureCaretIsVisible()
+		{
+			int realCaret = Terminal.Buffer.Y + Terminal.Buffer.YBase;
+			int viewportEnd = Terminal.Buffer.YDisp + Terminal.Rows;
+
+			if (realCaret >= viewportEnd || realCaret < Terminal.Buffer.YDisp) {
+				ScrollToRow (Terminal.Buffer.YBase);
+			}
+		}
+
 		void Terminal_Scrolled (Terminal terminal, int yDisp)
 		{
 			selectionView.NotifyScrolled ();
@@ -288,7 +306,7 @@ namespace XtermSharp.Mac {
 			if (line == null) {
 				return new NSAttributedString (string.Empty, GetAttributes (CharData.Null.Attribute));
 			}
-
+			 
 			var res = new NSMutableAttributedString ();
 			int attr = 0;
 
@@ -304,20 +322,28 @@ namespace XtermSharp.Mac {
 						attr = ch.Attribute;
 					}
 				}
-				basBuilder.Append (ch.Code == 0 ? " " : ch.Rune.ToString());
+				basBuilder.Append (ch.Code == 0 ? " " : ch.Rune.ToString ().TrimEnd ('\0'));
 			}
-			res.Append (new NSAttributedString (basBuilder.ToString (), GetAttributes (attr)));
+			res.Append (new NSAttributedString (basBuilder.ToString ().TrimEnd(' '), GetAttributes (attr)));
+
 			return res;
 		}
 
 		void FullBufferUpdate ()
 		{
 			var rows = terminal.Rows;
-			if (buffer == null)
+			if (buffer == null) {
 				buffer = new CircularList<NSAttributedString> (terminal.Buffer.Lines.MaxLength);
+			} else {
+				if (terminal.Buffer.Lines.MaxLength > buffer.MaxLength) {
+					buffer.MaxLength = terminal.Buffer.Lines.MaxLength;
+				}
+			}
+
 			var cols = terminal.Cols;
-			for (int row = 0; row < rows; row++)
+			for (int row = 0; row < rows; row++) {
 				buffer [row] = BuildAttributedString (terminal.Buffer.Lines [row], cols);
+			}
 		}
 
 		void UpdateCursorPosition ()
@@ -337,6 +363,7 @@ namespace XtermSharp.Mac {
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
 			terminal.ClearUpdateRange ();
+
 			var cols = terminal.Cols;
 			var tb = terminal.Buffer;
 			for (int row = rowStart; row <= rowEnd; row++) {
@@ -354,6 +381,10 @@ namespace XtermSharp.Mac {
 			SetNeedsDisplayInRect (region);
 			//Console.WriteLine ("Dirty rectangle: " + region);
 			pendingDisplay = false;
+
+			accessibility.Invalidate ();
+			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
+			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
 		}
 
 		// Flip coordinate system.
@@ -387,6 +418,7 @@ namespace XtermSharp.Mac {
 
 			// The problem is calling UpdateDisplay here, because there is still data pending.
 			QueuePendingDisplay ();
+
 		}
 
 		public void Feed (IntPtr buffer, int length)
@@ -459,9 +491,10 @@ namespace XtermSharp.Mac {
 				return false;
 			case "paste:":
 				return true;
-			case "copy:":
-				// TODO: tell if we are actually selecting something
+			case "selectAll:":
 				return true;
+			case "copy:":
+				return selection.Active;
 			}
 
 			//Console.WriteLine ("Validating " + selector);
@@ -495,6 +528,7 @@ namespace XtermSharp.Mac {
 		[Export ("selectAll:")]
 		void SelectAll (NSObject sender)
 		{
+			selection.SelectAll ();
 		}
 
 		[Export ("undo:")]
@@ -690,10 +724,9 @@ namespace XtermSharp.Mac {
 
 		public void Send (byte [] data)
 		{
+			EnsureCaretIsVisible ();
 			UserInput?.Invoke (data);
 		}
-
-		
 
 		[Export ("doCommandBySelector:")]
 		public void DoCommandBySelector (Selector selector)
@@ -793,9 +826,109 @@ namespace XtermSharp.Mac {
 		[Export ("firstRectForCharacterRange:actualRange:")]
 		public CGRect FirstRectForCharacterRange (NSRange range, out NSRange actualRange)
 		{
-			throw new NotImplementedException ();
+			actualRange = range;
+			return CallSafely (() =>
+			{
+				var rect = caret.Frame;
+
+				return this.Window.ConvertRectToScreen (
+				    this.ConvertRectToView (
+					new CGRect (
+					    rect.Left,
+					    rect.Top,
+					    rect.Width,
+					    rect.Height),
+					null));
+			});
 		}
 
+		T CallSafely<T> (Func<T> call, T valueOnThrow = default)
+		{
+			try {
+				return call ();
+			} catch (Exception e) {
+				return valueOnThrow;
+			}
+		}
+
+		#endregion
+
+		#region Accessibility
+		public override bool AccessibilityEnabled { get; set; } = true;
+
+		// --> NSAccessibilityStaticText
+
+		string INSAccessibilityStaticText.AccessibilityValue => GetAccessibiliyText ();
+
+		[Export ("accessibilityAttributedStringForRange:")]
+		public override NSAttributedString GetAccessibilityAttributedString (NSRange range)
+		{
+			return new NSAttributedString (GetAccessibilityString (range));
+		}
+
+		public override nint AccessibilityNumberOfCharacters {
+			get {
+				var snapshot = accessibility.GetSnapshot ();
+				return snapshot.Text.Length;
+			}
+
+			set => base.AccessibilityNumberOfCharacters = value;
+		}
+
+		public override NSRange AccessibilityVisibleCharacterRange {
+			get {
+				var snapshot = accessibility.GetSnapshot ();
+				return new NSRange (snapshot.VisibleRange.Start, snapshot.VisibleRange.Length);
+			}
+			set {
+				base.AccessibilityVisibleCharacterRange = value;
+			}
+		}
+		// <-- NSAccessibilityStaticText
+
+		public override string AccessibilitySelectedText {
+			get {
+				return "";
+			}
+			set => base.AccessibilitySelectedText = value;
+		}
+
+		public override NSRange AccessibilitySelectedTextRange {
+			get {
+				// here we are just returning the caret position
+				var snapshot = accessibility.GetSnapshot ();
+				return new NSRange (snapshot.CaretPosition, 0);
+			}
+			set {
+				// not implemented
+			}
+		}
+
+		public override string GetAccessibilityString (NSRange range)
+		{
+			try {
+				var snapshot = accessibility.GetSnapshot ();
+				
+				var safeLength = Math.Min (snapshot.Text.Length, (int)range.Length);
+				var text = snapshot.Text.Substring ((int)range.Location, safeLength);
+				return text;
+			} catch (Exception e) {
+				// sometimes, Mac OS calls us with a weird range, and that range
+				// seems to then trigger an exception. 
+				return string.Empty;
+			}
+		}
+
+		string GetAccessibiliyText()
+		{
+			return accessibility.GetSnapshot ().Text;
+		}
+
+		void SetupAccessibility ()
+		{
+			AccessibilityRole = NSAccessibilityRoles.TextAreaRole;
+			AccessibilityLabel = "shell";
+		}
 		#endregion
 
 		int count;
@@ -844,13 +977,13 @@ namespace XtermSharp.Mac {
 				ctline = new CTLine (new NSAttributedString ((row).ToString ()));
 				ctline.Draw (context);
 
-				context.TextPosition = new CGPoint (Frame.Width - 60, baseLine - (cellHeight + row * cellHeight));
-				ctline = new CTLine (new NSAttributedString ((Terminal.Buffer.YBase).ToString ()));
+				context.TextPosition = new CGPoint (Frame.Width - 70, baseLine - (cellHeight + row * cellHeight));
+				ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
 				ctline.Draw (context);
 
-				context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
-				ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
-				ctline.Draw (context);
+				//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
+				///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
+				//ctline.Draw (context);
 #endif
 
 			}
