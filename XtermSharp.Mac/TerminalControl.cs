@@ -14,6 +14,7 @@ namespace XtermSharp.Mac {
 
 		int shellPid;
 		int shellFileDescriptor;
+		bool running;
 		readonly byte [] readBuffer = new byte [4 * 1024];
 
 #if DEBUG
@@ -28,6 +29,12 @@ namespace XtermSharp.Mac {
 
 		public string ExitText { get; set; } = string.Empty;
 
+		public int ShellProcessId {
+			get	{
+				return shellPid;
+			}
+		}
+
 		/// <summary>
 		/// Raised when the title of the terminal has changed
 		/// </summary>
@@ -41,7 +48,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Launches the shell
 		/// </summary>
-		public void StartShell(string shellPath = "/bin/bash", string [] args = null)
+		public void StartShell(string shellPath = "/bin/bash", string [] args = null, string [] env = null)
 		{
 			// TODO: throw error if already started
 			terminalView.Feed (WelcomeText + "\n");
@@ -53,7 +60,8 @@ namespace XtermSharp.Mac {
 			shellArgs [0] = shellPath;
 			args?.CopyTo (shellArgs, 1);
 
-			shellPid = Pty.ForkAndExec (shellPath, shellArgs, Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
+			shellPid = Pty.ForkAndExec (shellPath, shellArgs, env ?? Terminal.GetEnvironmentVariables (), out shellFileDescriptor, size);
+			running = true;
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}
 
@@ -62,8 +70,8 @@ namespace XtermSharp.Mac {
 			var viewFrame = Frame;
 
 			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
-			var scrollFrame = new CGRect (viewFrame.Right - scrollWidth, viewFrame.Y, scrollWidth, viewFrame.Height);
-			viewFrame = new CGRect (viewFrame.X, viewFrame.Y, viewFrame.Width - scrollWidth, viewFrame.Height);
+			var scrollFrame = new CGRect (viewFrame.Right - scrollWidth, 0, scrollWidth, viewFrame.Height);
+			viewFrame = new CGRect (0, 0, viewFrame.Width - scrollWidth, viewFrame.Height);
 
 			scroller.Frame = scrollFrame;
 			terminalView.Frame = viewFrame;
@@ -140,6 +148,9 @@ namespace XtermSharp.Mac {
 
 		void HandleUserInput (byte [] data)
 		{
+			if (!running)
+				return;
+
 			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
 		}
 
@@ -173,6 +184,7 @@ namespace XtermSharp.Mac {
 				// Faster, but harder to debug:
 				// terminalView.Feed (buffer, (int) size);
 				if (size == 0) {
+					running = false;
 					if (!string.IsNullOrEmpty(ExitText))
 						terminalView.Terminal.Feed (ExitText);
 

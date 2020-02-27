@@ -896,7 +896,7 @@ namespace XtermSharp.Mac {
 
 		void CalculateMouseHit (NSEvent theEvent, bool down, out int col, out int row)
 		{
-			var point = theEvent.LocationInWindow;
+			var point = ConvertPointFromView (theEvent.LocationInWindow, null);
 			col = (int)(point.X / cellWidth);
 			row = (int)((Frame.Height - point.Y) / cellHeight);
 		}
