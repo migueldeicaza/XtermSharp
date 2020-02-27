@@ -23,7 +23,7 @@ namespace XtermSharp.Mac {
 		readonly Terminal terminal;
 		readonly SelectionService selection;
 		readonly AccessibilityService accessibility;
-		readonly NSView caret, debug;
+		readonly CaretView caret;
 		readonly SelectionView selectionView;
 		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
 		readonly Timer autoScrollTimer = new Timer (80);
@@ -52,20 +52,12 @@ namespace XtermSharp.Mac {
 				SelectionColor = selectColor,
 			};
 
-			caret = new NSView (new CGRect (0, cellDelta, cellHeight, cellWidth)) {
-				WantsLayer = true
-			};
+			caret = new CaretView (new CGRect (0, cellDelta, cellHeight, cellWidth)) { Focused = false };
 			AddSubview (caret);
-			debug = new NSView (new CGRect (0, 0, 10, 10)) {
-				WantsLayer = true
-			};
-			//AddSubview (debug);
 
 			var caretColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.5f);
 
-			caret.Layer.BackgroundColor = caretColor.CGColor;
-
-			debug.Layer.BackgroundColor = caretColor.CGColor;
+			caret.CaretColor = caretColor;
 
 			terminal.Scrolled += Terminal_Scrolled;
 			terminal.Buffers.Activated += Buffers_Activated;
@@ -808,7 +800,14 @@ namespace XtermSharp.Mac {
 		[Export ("selectedRange")]
 		public NSRange SelectedRange => notFoundRange;
 
-		public bool HasFocus { get; private set; }
+		bool hasFocus;
+		public bool HasFocus {
+			get { return hasFocus; }
+			private set {
+				hasFocus = value;
+				caret.Focused = value;
+			}
+		}
 
 		[Export ("attributedSubstringForProposedRange:actualRange:")]
 		public NSAttributedString AttributedSubstringForProposedRange (NSRange range, out NSRange actualRange)

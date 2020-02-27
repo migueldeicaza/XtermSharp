@@ -60,6 +60,7 @@
     <Compile Include="TerminalControl.cs" />
     <Compile Include="SelectionView.cs" />
     <Compile Include="AccessibilityService.cs" />
+    <Compile Include="CaretView.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\XtermSharp\XtermSharp.csproj">
