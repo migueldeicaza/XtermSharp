@@ -33,12 +33,12 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
-		/// Gets or sets the selection start point in buffer coordinates
+		/// Gets the selection start point in buffer coordinates
 		/// </summary>
 		public Point Start { get; private set; }
 
 		/// <summary>
-		/// Gets or sets the selection end point in buffer coordinates
+		/// Gets the selection end point in buffer coordinates
 		/// </summary>
 		public Point End { get; private set; }
 
@@ -122,6 +122,16 @@ namespace XtermSharp {
 			SelectionChanged?.Invoke ();
 		}
 
+		public void SelectAll()
+		{
+			Start = new Point (0, 0);
+			End = new Point (terminal.Cols - 1, terminal.Buffer.Lines.MaxLength - 1);
+
+			// set the field to bypass sending this event twice
+			active = true;
+			SelectionChanged?.Invoke ();
+		}
+
 		public string GetSelectedText ()
 		{
 			var start = Start;
@@ -136,15 +146,37 @@ namespace XtermSharp {
 				break;
 			}
 
+			if (start.Y < 0 || start.Y > terminal.Buffer.Lines.Length) {
+				return string.Empty;
+			}
+
+			if (end.Y >= terminal.Buffer.Lines.Length) {
+				end.Y = terminal.Buffer.Lines.Length - 1;
+			}
+
 			var nullStr = NStack.ustring.Make (CharData.Null.Rune);
 			var spaceStr = NStack.ustring.Make (" ");
 
 			var builder = new StringBuilder ();
 
 			// get the first line
-			BufferLine bufferLine = null;
-			var str = terminal.Buffer.TranslateBufferLineToString (start.Y, true, start.X, start.Y < end.Y ? -1 : end.X).Replace (nullStr, spaceStr);
-			builder.Append (str.ToString ());
+			BufferLine bufferLine = terminal.Buffer.Lines [start.Y];
+			NStack.ustring str;
+			if (bufferLine.HasAnyContent ()) {
+				str = terminal.Buffer.TranslateBufferLineToString (start.Y, true, start.X, start.Y < end.Y ? -1 : end.X).Replace (nullStr, spaceStr);
+				builder.Append (str.ToString ());
+			}
+
+			// keep a list of blank lines that we see. if we see content after a group
+			// of blanks, add those blanks but skip all remaining / trailing blanks
+			List<string> blanks = new List<string> ();
+
+			Action addBlanks = () => {
+				foreach (var bl in blanks) {
+					builder.Append (bl);
+				}
+				blanks.Clear ();
+			};
 
 			// get the middle rows
 			var line = start.Y + 1;
@@ -155,10 +187,20 @@ namespace XtermSharp {
 
 				str = terminal.Buffer.TranslateBufferLineToString (line, true, 0, -1).Replace (nullStr, spaceStr);
 
-				if (!isWrapped)
-					builder.AppendLine ();
+				if (bufferLine.HasAnyContent()) {
+					addBlanks ();
 
-				builder.Append (str.ToString ());
+					if (!isWrapped)
+						builder.AppendLine ();
+
+					builder.Append (str.ToString ());
+
+				} else {
+					if (!isWrapped)
+						blanks.Add ("\n");
+
+					blanks.Add (str.ToString ());
+				}
 
 				line++;
 			}
@@ -166,13 +208,17 @@ namespace XtermSharp {
 			if (end.Y != start.Y) {
 				// get the last row
 				bufferLine = terminal.Buffer.Lines [end.Y];
-				isWrapped = bufferLine?.IsWrapped ?? false;
-				str = terminal.Buffer.TranslateBufferLineToString (end.Y, true, 0, end.X).Replace (nullStr, spaceStr);
-				if (!isWrapped) {
-					builder.AppendLine ();
-				}
+				if (bufferLine.HasAnyContent ()) {
+					addBlanks ();
 
-				builder.Append (str.ToString ());
+					isWrapped = bufferLine?.IsWrapped ?? false;
+					str = terminal.Buffer.TranslateBufferLineToString (end.Y, true, 0, end.X).Replace (nullStr, spaceStr);
+					if (!isWrapped) {
+						builder.AppendLine ();
+					}
+
+					builder.Append (str.ToString ());
+				}
 			}
 
 			return builder.ToString ();

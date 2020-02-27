@@ -236,9 +236,14 @@ namespace XtermSharp {
 		/// <param name="endCol">The column to end at.</param>
 		public ustring TranslateBufferLineToString (int lineIndex, bool trimRight, int startCol = 0, int endCol = -1)
 		{
-			var line = lines [lineIndex];
+			try {
+				var line = lines [lineIndex];
 
-			return line.TranslateToString (trimRight, startCol, endCol);
+				return line.TranslateToString (trimRight, startCol, endCol);
+			} catch ( Exception ex)
+			{
+				return ustring.Empty;
+			}
 		}
 
 		/// <summary>
