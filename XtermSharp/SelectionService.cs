@@ -10,12 +10,16 @@ namespace XtermSharp {
 	public class SelectionService {
 		readonly PointComparer comparer;
 		readonly Terminal terminal;
+		readonly NStack.ustring nullString;
+		readonly NStack.ustring spaceString;
 		private bool active;
 
 		public SelectionService (Terminal terminal)
 		{
 			this.terminal = terminal;
 			comparer = new PointComparer ();
+			nullString = NStack.ustring.Make (CharData.Null.Rune);
+			spaceString = NStack.ustring.Make (" ");
 		}
 
 		/// <summary>
@@ -122,6 +126,9 @@ namespace XtermSharp {
 			SelectionChanged?.Invoke ();
 		}
 
+		/// <summary>
+		/// Selects the entire buffer
+		/// </summary>
 		public void SelectAll()
 		{
 			Start = new Point (0, 0);
@@ -132,14 +139,43 @@ namespace XtermSharp {
 			SelectionChanged?.Invoke ();
 		}
 
+		/// <summary>
+		/// Clears the selection
+		/// </summary>
+		public void SelectNone ()
+		{
+			active = false;
+			SelectionChanged?.Invoke ();
+		}
+
+		/// <summary>
+		/// Gets the selected range as text
+		/// </summary>
 		public string GetSelectedText ()
+		{
+			var lines = GetSelectedLines ();
+			if (lines.Length == 0)
+				return string.Empty;
+
+			var builder = new StringBuilder ();
+			foreach (var line in lines) {
+				line.GetFragmentStrings (builder);
+			}
+
+			return builder.ToString ();
+		}
+
+		/// <summary>
+		/// Gets the selected range as an array of Line
+		/// </summary>
+		public Line [] GetSelectedLines()
 		{
 			var start = Start;
 			var end = End;
 
 			switch (comparer.Compare (start, End)) {
 			case 0:
-				return string.Empty;
+				return Array.Empty<Line>();
 			case 1:
 				start = End;
 				end = Start;
@@ -147,81 +183,117 @@ namespace XtermSharp {
 			}
 
 			if (start.Y < 0 || start.Y > terminal.Buffer.Lines.Length) {
-				return string.Empty;
+				return Array.Empty<Line> ();
 			}
 
 			if (end.Y >= terminal.Buffer.Lines.Length) {
 				end.Y = terminal.Buffer.Lines.Length - 1;
 			}
 
-			var nullStr = NStack.ustring.Make (CharData.Null.Rune);
-			var spaceStr = NStack.ustring.Make (" ");
+			return GetSelectedLines (start, end);
+		}
 
-			var builder = new StringBuilder ();
-
-			// get the first line
-			BufferLine bufferLine = terminal.Buffer.Lines [start.Y];
-			NStack.ustring str;
-			if (bufferLine.HasAnyContent ()) {
-				str = terminal.Buffer.TranslateBufferLineToString (start.Y, true, start.X, start.Y < end.Y ? -1 : end.X).Replace (nullStr, spaceStr);
-				builder.Append (str.ToString ());
-			}
+		Line [] GetSelectedLines (Point start, Point end)
+		{
+			var lines = new List<Line> ();
+			var buffer = terminal.Buffer;
+			string str;
+			Line currentLine = new Line ();
+			lines.Add (currentLine);
 
 			// keep a list of blank lines that we see. if we see content after a group
 			// of blanks, add those blanks but skip all remaining / trailing blanks
-			List<string> blanks = new List<string> ();
+			// these will be blank lines in the selected text output
+			var blanks = new List<LineFragment> ();
 
 			Action addBlanks = () => {
-				foreach (var bl in blanks) {
-					builder.Append (bl);
+				int lastLine = -1;
+				foreach (var b in blanks) {
+					if (lastLine != -1 && b.Line != lastLine) {
+						currentLine = new Line ();
+						lines.Add (currentLine);
+					}
+
+					lastLine = b.Line;
+					currentLine.Add (b);
 				}
 				blanks.Clear ();
 			};
+
+			// get the first line
+			BufferLine bufferLine = buffer.Lines [start.Y];
+			if (bufferLine.HasAnyContent ()) {
+				str = TranslateBufferLineToString (buffer, start.Y, start.X, start.Y < end.Y ? -1 : end.X);
+
+				var fragment = new LineFragment (str, start.Y, start.X);
+				currentLine.Add (fragment);
+			}
 
 			// get the middle rows
 			var line = start.Y + 1;
 			var isWrapped = false;
 			while (line < end.Y) {
-				bufferLine = terminal.Buffer.Lines [line];
+				bufferLine = buffer.Lines [line];
 				isWrapped = bufferLine?.IsWrapped ?? false;
 
-				str = terminal.Buffer.TranslateBufferLineToString (line, true, 0, -1).Replace (nullStr, spaceStr);
+				str = TranslateBufferLineToString (buffer, line, 0, -1);
 
-				if (bufferLine.HasAnyContent()) {
+				if (bufferLine.HasAnyContent ()) {
+					// add previously gathered blank fragments
 					addBlanks ();
 
-					if (!isWrapped)
-						builder.AppendLine ();
+					if (!isWrapped) {
+						// this line is not a wrapped line, so the
+						// prior line has a hard linefeed
+						// add a fragment to that line
+						currentLine.Add (LineFragment.NewLine (line - 1));
 
-					builder.Append (str.ToString ());
+						// start a new line
+						currentLine = new Line ();
+						lines.Add (currentLine);
+					}
 
+					// add the text we found to the current line
+					currentLine.Add (new LineFragment (str, line, 0));
 				} else {
-					if (!isWrapped)
-						blanks.Add ("\n");
+					// this line has no content, which means that it's a blank line inserted
+					// somehow, or one of the trailing blank lines after the last actual content
+					// make a note of the line
+					// check that this line is a wrapped line, if so, add a line feed fragment
+					if (!isWrapped) {
+						blanks.Add (LineFragment.NewLine (line - 1));
+					}
 
-					blanks.Add (str.ToString ());
+					blanks.Add (new LineFragment (str, line, 0));
 				}
 
 				line++;
 			}
 
+			// get the last row
 			if (end.Y != start.Y) {
-				// get the last row
-				bufferLine = terminal.Buffer.Lines [end.Y];
+				bufferLine = buffer.Lines [end.Y];
 				if (bufferLine.HasAnyContent ()) {
 					addBlanks ();
 
 					isWrapped = bufferLine?.IsWrapped ?? false;
-					str = terminal.Buffer.TranslateBufferLineToString (end.Y, true, 0, end.X).Replace (nullStr, spaceStr);
+					str = TranslateBufferLineToString (buffer, end.Y, 0, end.X);
 					if (!isWrapped) {
-						builder.AppendLine ();
+						currentLine.Add (LineFragment.NewLine (line - 1));
+						currentLine = new Line ();
+						lines.Add (currentLine);
 					}
 
-					builder.Append (str.ToString ());
+					currentLine.Add (new LineFragment (str, line, 0));
 				}
 			}
 
-			return builder.ToString ();
+			return lines.ToArray ();
+		}
+
+		string TranslateBufferLineToString(Buffer buffer, int line, int start, int end)
+		{
+			return buffer.TranslateBufferLineToString (line, true, start, end).Replace (nullString, spaceString).ToString();
 		}
 
 		class PointComparer : IComparer<Point> {
