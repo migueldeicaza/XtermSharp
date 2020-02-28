@@ -29,6 +29,19 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Gets the location of the first fragment. 
+		/// </summary>
+		public int StartLocation {
+			get {
+				if (fragments.Count > 0) {
+					return fragments [0].Location;
+				}
+
+				return 0;
+			}
+		}
+
+		/// <summary>
 		/// Gets the length of the line
 		/// </summary>
 		public int Length { get; private set; }

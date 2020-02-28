@@ -64,7 +64,7 @@ namespace XtermSharp.Mac {
 
 			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
 
-			accessibility = new AccessibilityService (terminal);
+			accessibility = new AccessibilityService (terminal, selection);
 			SetupAccessibility ();
 		}
 
@@ -934,15 +934,20 @@ namespace XtermSharp.Mac {
 
 		public override string AccessibilitySelectedText {
 			get {
-				return "";
+				return string.Empty;
 			}
 			set => base.AccessibilitySelectedText = value;
 		}
 
 		public override NSRange AccessibilitySelectedTextRange {
 			get {
-				// here we are just returning the caret position
 				var snapshot = accessibility.GetSnapshot ();
+
+				if (selection.Active) {
+					return new NSRange (snapshot.SelectedRange.Start, snapshot.SelectedRange.Length);
+				}
+
+				// here we are just returning the caret position
 				return new NSRange (snapshot.CaretPosition, 0);
 			}
 			set {
@@ -1222,6 +1227,9 @@ namespace XtermSharp.Mac {
 			} else {
 				selectionView.RemoveFromSuperview ();
 			}
+
+			accessibility.Invalidate ();
+			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
 		}
 	}
 }

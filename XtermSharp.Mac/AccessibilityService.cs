@@ -10,11 +10,13 @@ namespace XtermSharp.Mac {
 	class AccessibilityService {
 		readonly Terminal terminal;
 		readonly SelectionService selection;
+		readonly SelectionService activeSelection;
 		AccessibilitySnapshot cache;
 
-		public AccessibilityService (Terminal terminal)
+		public AccessibilityService (Terminal terminal, SelectionService selectionService)
 		{
 			this.terminal = terminal;
+			this.activeSelection = selectionService;
 			this.selection = new SelectionService (terminal);
 
 			// TODO: handle terminal.Buffer.scrolled and handle lines being scrolled off the top of the buffer
@@ -24,7 +26,12 @@ namespace XtermSharp.Mac {
 		public AccessibilitySnapshot GetSnapshot ()
 		{
 			if (cache == null) {
-				var result = CalculateSnapshot ();
+				Line [] selectedLines = null;
+				if (activeSelection.Active) {
+					selectedLines = activeSelection.GetSelectedLines ();
+				}
+
+				var result = CalculateSnapshot (selectedLines);
 				cache = result;
 			}
 
@@ -36,7 +43,7 @@ namespace XtermSharp.Mac {
 			cache = null;
 		}
 
-		private AccessibilitySnapshot CalculateSnapshot ()
+		private AccessibilitySnapshot CalculateSnapshot (Line [] selectedLines = null)
 		{
 			selection.SelectAll ();
 
@@ -44,6 +51,11 @@ namespace XtermSharp.Mac {
 
 			var lines = selection.GetSelectedLines ();
 
+			return CalculateSnapshot (lines, selectedLines);
+		}
+
+		AccessibilitySnapshot CalculateSnapshot (Line[] lines, Line[] selectedLines)
+		{
 			// add a space at the end for the space between the prompt and the caret
 			if (terminal.Buffers.IsAlternateBuffer) {
 				if (lines.Length > 0) {
@@ -53,16 +65,57 @@ namespace XtermSharp.Mac {
 			}
 
 			var count = CountLines (lines);
-			int caret = CalculateCaretPosition(count.Item1);
+			int caret = CalculateCaretPosition (count.Item1);
+
+			AccessibilitySnapshot.Range selectedRange = new AccessibilitySnapshot.Range();
+			if (selectedLines != null) {
+				selectedRange = CalculateSelectedTextRange (lines, selectedLines);
+			}
 
 			AccessibilitySnapshot.Range visble = new AccessibilitySnapshot.Range { Start = 0, Length = count.Item2 };
 
-			var result = new AccessibilitySnapshot (lines, visble, caret);
+			var result = new AccessibilitySnapshot (lines, visble, caret, selectedRange);
 
 			return result;
 		}
 
-		int CalculateCaretPosition(int lengthToLastRow)
+		AccessibilitySnapshot.Range CalculateSelectedTextRange (Line [] lines, Line [] selectedLines)
+		{
+			// selectedLines contains the collection of lines that are selected
+			// the first line will have a line and offset into the buffer
+			// find this offset in the array of all lines
+			if (selectedLines.Length == 0) {
+				return new AccessibilitySnapshot.Range ();
+			}
+
+			var start = selectedLines [0].StartLine;
+			var location = selectedLines [0].StartLocation;
+			if (location == -1) {
+				// for some reason we have the new line character selected as the first char, we
+				// can skip it and just use 0
+				location = 0;
+			}
+
+			int count = 0;
+			for (int i = 0; i < lines.Length; i++) {
+				if (i < start) {
+					count += lines [i].Length;
+					continue;
+				}
+
+				count += location;
+				break;
+			}
+
+			int totalCount = 0;
+			for (int i = 0; i < selectedLines.Length; i++) {
+					totalCount += selectedLines [i].Length;
+			}
+
+			return new AccessibilitySnapshot.Range { Start = count, Length = totalCount };
+		}
+
+		int CalculateCaretPosition (int lengthToLastRow)
 		{
 			if (terminal.Buffers.IsAlternateBuffer) {
 				// TODO: alternate buffer support
@@ -94,17 +147,20 @@ namespace XtermSharp.Mac {
 	public class AccessibilitySnapshot {
 		readonly Line [] lines;
 
-		public AccessibilitySnapshot (Line[] lines, Range visible, int caret)
+		public AccessibilitySnapshot (Line[] lines, Range visible, int caret, Range selected)
 		{
 			this.lines = lines;
 			Text = GetTextFromLines(lines);
 			VisibleRange = visible;
+			SelectedRange = selected;
 			CaretPosition = caret;
 		}
 
 		public string Text { get; }
 
 		public Range VisibleRange { get; }
+
+		public Range SelectedRange { get; }
 
 		public int CaretPosition { get; }
 
