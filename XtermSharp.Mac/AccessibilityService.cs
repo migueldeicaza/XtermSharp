@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.Text;
 
 namespace XtermSharp.Mac {
@@ -111,6 +112,44 @@ namespace XtermSharp.Mac {
 		public struct Range {
 			public int Start;
 			public int Length;
+		}
+
+		/// <summary>
+		/// Given a range of text in the snapshot, find the start and end points in the buffer
+		/// </summary>
+		public (Point, Point) FindRange(Range textRange)
+		{
+			Point start = Point.Empty;
+			Point end = Point.Empty;
+
+			int count = 0;
+			int endLocation = textRange.Start + textRange.Length;
+
+			for (int i = 0; i < lines.Length; i++) {
+				// is the start on this line
+				if (count <= textRange.Start && textRange.Start < count + lines[i].Length) {
+					var y = lines [i].StartLine;
+					// how far along 
+					var x = textRange.Start - count;
+
+					start = new Point (x, y);
+				}
+
+				// is the end on this line
+				if (count <= endLocation && endLocation < count + lines [i].Length) {
+					var y = lines [i].StartLine;
+					// how far along 
+					var x = endLocation - count;
+
+					end = new Point (x, y);
+					break;
+				}
+
+				// go to next line
+				count += lines [i].Length;
+			}
+
+			return (start, end);
 		}
 
 		string GetTextFromLines(Line [] lines)

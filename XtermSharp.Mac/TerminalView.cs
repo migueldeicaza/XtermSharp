@@ -340,15 +340,31 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
+			var pos = GetCaretPos (terminal.Buffer.X, terminal.Buffer.Y);
+
 			caret.Frame = new CGRect (
 				// -1 to pad outside the character a little bit
-				terminal.Buffer.X * cellWidth - 1,
+				pos.Item1 - 1,
 				// -2 to get the top of the selection to fit over the top of the text properly
 				// and to align with the cursor
-				Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
+				pos.Item2 - cellDelta - 2,
+				//Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
 				// +2 to pad outside the character a little bit on the other side
 				cellWidth + 2,
 				cellHeight + 0);
+		}
+
+		(float, float) GetCaretPos(int x, int y)
+		{
+			var x_ = x * (float)cellWidth;
+			var y_ = (float)Frame.Height - (float)cellHeight - ((y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * (float)cellHeight);
+			return (x_, y_);
+
+			//terminal.Buffer.X* cellWidth -1,
+			//	// -2 to get the top of the selection to fit over the top of the text properly
+			//	// and to align with the cursor
+			//	Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
+
 		}
 
 		void UpdateDisplay ()
@@ -884,6 +900,37 @@ namespace XtermSharp.Mac {
 			}
 		}
 		// <-- NSAccessibilityStaticText
+
+		public override CGRect GetAccessibilityFrame (NSRange range)
+		{
+			// this is called when VO navigates between words and lines in the text
+			// that was returned.
+			// we need to know what buffer line this range maps to
+
+			var snapshot = accessibility.GetSnapshot ();
+			var locations = snapshot.FindRange (new AccessibilitySnapshot.Range { Start = (int)range.Location, Length = (int)range.Length });
+
+			// calculate the frame for the start.
+			var startPos = GetCaretPos (locations.Item1.X, locations.Item1.Y);
+
+			nfloat height = Math.Max(locations.Item2.Y - locations.Item1.Y, 1) * cellHeight;
+			nfloat width = range.Length * cellWidth;
+
+			// TODO: scroll to ensure range is visible
+
+			return CallSafely (() => {
+				var rect = new CGRect(startPos.Item1, startPos.Item2, width, height);
+
+				return this.Window.ConvertRectToScreen (
+				    this.ConvertRectToView (
+					new CGRect (
+					    rect.Left,
+					    rect.Top,
+					    rect.Width,
+					    rect.Height),
+					null));
+			});
+		}
 
 		public override string AccessibilitySelectedText {
 			get {
