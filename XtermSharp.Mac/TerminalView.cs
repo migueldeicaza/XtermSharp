@@ -175,7 +175,7 @@ namespace XtermSharp.Mac {
 			ScrollToRow (newPosition);
 		}
 
-		void ScrollToRow(int row)
+		void ScrollToRow(int row, bool notifyAccessibility = true)
 		{
 			if (row != Terminal.Buffer.YDisp) {
 				Terminal.Buffer.YDisp = row;
@@ -184,7 +184,7 @@ namespace XtermSharp.Mac {
 				Terminal.Refresh (0, Terminal.Rows);
 
 				// do the display update
-				UpdateDisplay ();
+				UpdateDisplay (notifyAccessibility);
 
 				selectionView.NotifyScrolled ();
 				TerminalScrolled?.Invoke (ScrollPosition);
@@ -340,14 +340,14 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
-			var pos = GetCaretPos (terminal.Buffer.X, terminal.Buffer.Y);
+			var pos = GetCaretPos (terminal.Buffer.X, terminal.Buffer.Y + terminal.Buffer.YBase );
 
 			caret.Frame = new CGRect (
 				// -1 to pad outside the character a little bit
 				pos.Item1 - 1,
 				// -2 to get the top of the selection to fit over the top of the text properly
 				// and to align with the cursor
-				pos.Item2 - cellDelta - 2,
+				pos.Item2 - 1,// - cellDelta + 2,
 				//Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
 				// +2 to pad outside the character a little bit on the other side
 				cellWidth + 2,
@@ -357,7 +357,7 @@ namespace XtermSharp.Mac {
 		(float, float) GetCaretPos(int x, int y)
 		{
 			var x_ = x * (float)cellWidth;
-			var y_ = (float)Frame.Height - (float)cellHeight - ((y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * (float)cellHeight);
+			var y_ = (float)Frame.Height - (float)cellHeight - ((y - terminal.Buffer.YDisp) * (float)cellHeight);
 			return (x_, y_);
 
 			//terminal.Buffer.X* cellWidth -1,
@@ -368,6 +368,11 @@ namespace XtermSharp.Mac {
 		}
 
 		void UpdateDisplay ()
+		{
+			UpdateDisplay (true);
+		}
+
+		void UpdateDisplay (bool notifyAccessibility)
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
 			terminal.ClearUpdateRange ();
@@ -390,9 +395,11 @@ namespace XtermSharp.Mac {
 			//Console.WriteLine ("Dirty rectangle: " + region);
 			pendingDisplay = false;
 
-			accessibility.Invalidate ();
-			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
-			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+			if (notifyAccessibility) {
+				accessibility.Invalidate ();
+				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
+				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+			}
 		}
 
 		// Flip coordinate system.
@@ -910,13 +917,17 @@ namespace XtermSharp.Mac {
 			var snapshot = accessibility.GetSnapshot ();
 			var locations = snapshot.FindRange (new AccessibilitySnapshot.Range { Start = (int)range.Location, Length = (int)range.Length });
 
+			// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
+			if ((locations.Item1.Y < terminal.Buffer.YDisp) || (locations.Item1.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
+				var newYDisp = Math.Max(locations.Item1.Y - (terminal.Rows / 2), 0);
+				ScrollToRow (newYDisp, false);
+			}
+
 			// calculate the frame for the start.
 			var startPos = GetCaretPos (locations.Item1.X, locations.Item1.Y);
 
 			nfloat height = Math.Max(locations.Item2.Y - locations.Item1.Y, 1) * cellHeight;
 			nfloat width = range.Length * cellWidth;
-
-			// TODO: scroll to ensure range is visible
 
 			return CallSafely (() => {
 				var rect = new CGRect(startPos.Item1, startPos.Item2, width, height);
