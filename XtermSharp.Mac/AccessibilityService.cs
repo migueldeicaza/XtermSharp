@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Text;
 
 namespace XtermSharp.Mac {
 	/// <summary>
 	/// Handles macOS accessibilty for the terminal view
 	/// </summary>
-	public class AccessibilityService {
+	class AccessibilityService {
 		readonly Terminal terminal;
 		readonly SelectionService selection;
 		AccessibilitySnapshot cache;
@@ -40,48 +41,62 @@ namespace XtermSharp.Mac {
 
 			// TODO: calc visible char range
 
-			var text = selection.GetSelectedText ();
+			var lines = selection.GetSelectedLines ();
 
 			// add a space at the end for the space between the prompt and the caret
 			if (terminal.Buffers.IsAlternateBuffer) {
-				text += " ";
+				if (lines.Length > 0) {
+					var lastLine = lines [lines.Length - 1];
+					lastLine.Add (new LineFragment (" ", lastLine.StartLine, lastLine.Length));
+				}
 			}
 
-			int caret = CalculateCaretPosition(text);
+			var count = CountLines (lines);
+			int caret = CalculateCaretPosition(count.Item1);
 
-			AccessibilitySnapshot.Range visble = new AccessibilitySnapshot.Range { Start = 0, Length = text.Length };
+			AccessibilitySnapshot.Range visble = new AccessibilitySnapshot.Range { Start = 0, Length = count.Item2 };
 
-			var result = new AccessibilitySnapshot (text, visble, caret);
+			var result = new AccessibilitySnapshot (lines, visble, caret);
 
 			return result;
 		}
 
-		int CalculateCaretPosition(string text)
+		int CalculateCaretPosition(int lengthToLastRow)
 		{
 			if (terminal.Buffers.IsAlternateBuffer) {
 				// TODO: alternate buffer support
-				return text.Length;
+				// for now, assuming beginning of last line
+				return lengthToLastRow;
 			}
 
 			// when the normal buffer is active we always have the caret on the last row of text, somewhere along
 			// the line. Buffer.X is that position on the last row. We need to find the beginning of the last line
 			// of text
-			int lineStart = 0;
-			for (int i = text.Length - 1; i > 0; i--) {
-				if (text[i] == '\n') {
-					lineStart = i + 1;
-					break;
-				}
+
+			return lengthToLastRow + terminal.Buffer.X;
+		}
+
+		(int, int) CountLines(Line [] lines)
+		{
+			if (lines.Length == 0)
+				return (0, 0);
+
+			int count = 0;
+			for (int i = 0; i < lines.Length - 1; i++) {
+				count += lines [i].Length;
 			}
 
-			return lineStart + terminal.Buffer.X;
+			return (count, count + lines [lines.Length - 1].Length);
 		}
 	}
 
 	public class AccessibilitySnapshot {
-		public AccessibilitySnapshot (string text, Range visible, int caret)
+		readonly Line [] lines;
+
+		public AccessibilitySnapshot (Line[] lines, Range visible, int caret)
 		{
-			Text = text;
+			this.lines = lines;
+			Text = GetTextFromLines(lines);
 			VisibleRange = visible;
 			CaretPosition = caret;
 		}
@@ -96,6 +111,19 @@ namespace XtermSharp.Mac {
 		public struct Range {
 			public int Start;
 			public int Length;
+		}
+
+		string GetTextFromLines(Line [] lines)
+		{
+			if (lines.Length == 0)
+				return string.Empty;
+
+			var builder = new StringBuilder ();
+			foreach (var line in lines) {
+				line.GetFragmentStrings (builder);
+			}
+
+			return builder.ToString ();
 		}
 	}
 }

@@ -16,6 +16,19 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Gets the line number of the first fragment. 
+		/// </summary>
+		public int StartLine {
+			get {
+				if (fragments.Count > 0) {
+					return fragments [0].Line;
+				}
+
+				return 0;
+			}
+		}
+
+		/// <summary>
 		/// Gets the length of the line
 		/// </summary>
 		public int Length { get; private set; }
