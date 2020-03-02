@@ -162,8 +162,11 @@ namespace XtermSharp {
 		{
 			if (endCol == -1)
 				endCol = data.Length;
-			if (trimRight)
-				endCol = Math.Min (endCol, GetTrimmedLength ());
+			if (trimRight) {
+				// make sure endCol is not before startCol if we set it to the trimmed length
+				endCol = Math.Max (Math.Min (endCol, GetTrimmedLength ()), startCol);
+			}
+
 			Rune [] runes = new Rune [endCol - startCol];
 			for (int i = startCol; i < endCol; i++)
 				runes [i - startCol] = data [i].Rune;

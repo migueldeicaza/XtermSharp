@@ -17,7 +17,8 @@ namespace XtermSharp.Mac {
 		INSTextInputClient,
 		ITerminalDelegate,
 		INSUserInterfaceValidations,
-		INSAccessibilityStaticText {
+		INSAccessibilityStaticText,
+		INSAccessibilityNavigableStaticText {
 		static CGAffineTransform textMatrix;
 
 		readonly Terminal terminal;
@@ -64,7 +65,7 @@ namespace XtermSharp.Mac {
 
 			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
 
-			accessibility = new AccessibilityService (terminal);
+			accessibility = new AccessibilityService (terminal, selection);
 			SetupAccessibility ();
 		}
 
@@ -175,7 +176,7 @@ namespace XtermSharp.Mac {
 			ScrollToRow (newPosition);
 		}
 
-		void ScrollToRow(int row)
+		void ScrollToRow(int row, bool notifyAccessibility = true)
 		{
 			if (row != Terminal.Buffer.YDisp) {
 				Terminal.Buffer.YDisp = row;
@@ -184,7 +185,7 @@ namespace XtermSharp.Mac {
 				Terminal.Refresh (0, Terminal.Rows);
 
 				// do the display update
-				UpdateDisplay ();
+				UpdateDisplay (notifyAccessibility);
 
 				selectionView.NotifyScrolled ();
 				TerminalScrolled?.Invoke (ScrollPosition);
@@ -340,18 +341,39 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
+			var pos = GetCaretPos (terminal.Buffer.X, terminal.Buffer.Y + terminal.Buffer.YBase );
+
 			caret.Frame = new CGRect (
 				// -1 to pad outside the character a little bit
-				terminal.Buffer.X * cellWidth - 1,
+				pos.Item1 - 1,
 				// -2 to get the top of the selection to fit over the top of the text properly
 				// and to align with the cursor
-				Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
+				pos.Item2 - 1,// - cellDelta + 2,
+				//Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
 				// +2 to pad outside the character a little bit on the other side
 				cellWidth + 2,
 				cellHeight + 0);
 		}
 
+		(float, float) GetCaretPos(int x, int y)
+		{
+			var x_ = x * (float)cellWidth;
+			var y_ = (float)Frame.Height - (float)cellHeight - ((y - terminal.Buffer.YDisp) * (float)cellHeight);
+			return (x_, y_);
+
+			//terminal.Buffer.X* cellWidth -1,
+			//	// -2 to get the top of the selection to fit over the top of the text properly
+			//	// and to align with the cursor
+			//	Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
+
+		}
+
 		void UpdateDisplay ()
+		{
+			UpdateDisplay (true);
+		}
+
+		void UpdateDisplay (bool notifyAccessibility)
 		{
 			terminal.GetUpdateRange (out var rowStart, out var rowEnd);
 			terminal.ClearUpdateRange ();
@@ -374,9 +396,11 @@ namespace XtermSharp.Mac {
 			//Console.WriteLine ("Dirty rectangle: " + region);
 			pendingDisplay = false;
 
-			accessibility.Invalidate ();
-			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
-			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+			if (notifyAccessibility) {
+				accessibility.Invalidate ();
+				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
+				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+			}
 		}
 
 		// Flip coordinate system.
@@ -885,17 +909,88 @@ namespace XtermSharp.Mac {
 		}
 		// <-- NSAccessibilityStaticText
 
+		// --> INSAccessibilityNavigableStaticText
+
+		public override nint GetAccessibilityLine (nint index)
+		{
+			try {
+				var snapshot = accessibility.GetSnapshot ();
+				var lineNumber = snapshot.FindLine ((int)index);
+				return lineNumber;
+			} catch (Exception e) {
+				// in cases where the text was deleted while voice over was
+				// reading it, the OS would request an index that is out of range.
+				// While we've since added additional checks, we'll also catch
+				// exceptions, and log them.
+				return 0;
+			}
+		}
+
+		public override NSRange GetAccessibilityRangeForLine (nint line)
+		{
+			try {
+				var snapshot = accessibility.GetSnapshot ();
+				var locations = snapshot.FindRangeForLine ((int)line);
+
+				return new NSRange (locations.Item1, locations.Item2);
+			} catch (Exception e) {
+				return new NSRange (0, 0);
+			}
+		}
+
+		// <-- INSAccessibilityNavigableStaticText
+
+		public override CGRect GetAccessibilityFrame (NSRange range)
+		{
+			// this is called when VO navigates between words and lines in the text
+			// that was returned.
+			// we need to know what buffer line this range maps to
+
+			var snapshot = accessibility.GetSnapshot ();
+			var locations = snapshot.FindRange (new AccessibilitySnapshot.Range { Start = (int)range.Location, Length = (int)range.Length });
+
+			// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
+			if ((locations.Item1.Y < terminal.Buffer.YDisp) || (locations.Item1.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
+				var newYDisp = Math.Max(locations.Item1.Y - (terminal.Rows / 2), 0);
+				ScrollToRow (newYDisp, false);
+			}
+
+			// calculate the frame for the start.
+			var startPos = GetCaretPos (locations.Item1.X, locations.Item1.Y);
+
+			nfloat height = Math.Max(locations.Item2.Y - locations.Item1.Y, 1) * cellHeight;
+			nfloat width = range.Length * cellWidth;
+
+			return CallSafely (() => {
+				var rect = new CGRect(startPos.Item1, startPos.Item2, width, height);
+
+				return this.Window.ConvertRectToScreen (
+				    this.ConvertRectToView (
+					new CGRect (
+					    rect.Left,
+					    rect.Top,
+					    rect.Width,
+					    rect.Height),
+					null));
+			});
+		}
+
 		public override string AccessibilitySelectedText {
 			get {
-				return "";
+				return string.Empty;
 			}
 			set => base.AccessibilitySelectedText = value;
 		}
 
 		public override NSRange AccessibilitySelectedTextRange {
 			get {
-				// here we are just returning the caret position
 				var snapshot = accessibility.GetSnapshot ();
+
+				if (selection.Active) {
+					return new NSRange (snapshot.SelectedRange.Start, snapshot.SelectedRange.Length);
+				}
+
+				// here we are just returning the caret position
 				return new NSRange (snapshot.CaretPosition, 0);
 			}
 			set {
@@ -1175,6 +1270,9 @@ namespace XtermSharp.Mac {
 			} else {
 				selectionView.RemoveFromSuperview ();
 			}
+
+			accessibility.Invalidate ();
+			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
 		}
 	}
 }
