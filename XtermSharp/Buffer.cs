@@ -294,7 +294,7 @@ namespace XtermSharp {
 		{
 			if (index == -1)
 				index = X;
-			while (index > 0 && tabStops [--index])
+			while (index > 0 && !tabStops [--index])
 				;
 			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
 		}
