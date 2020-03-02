@@ -18,9 +18,6 @@ namespace XtermSharp.Mac {
 			this.terminal = terminal;
 			this.activeSelection = selectionService;
 			this.selection = new SelectionService (terminal);
-
-			// TODO: handle terminal.Buffer.scrolled and handle lines being scrolled off the top of the buffer
-			// TODO: hook up events in terminal that lets us know when the buffer content has changed
 		}
 
 		public AccessibilitySnapshot GetSnapshot ()
@@ -208,7 +205,48 @@ namespace XtermSharp.Mac {
 			return (start, end);
 		}
 
-		string GetTextFromLines(Line [] lines)
+		/// <summary>
+		/// Given a location, find the line number that contains that location
+		/// </summary>
+		public int FindLine(int location)
+		{
+			if (location <= 0 || lines.Length == 0)
+				return 0;
+
+			int count = 0;
+
+			for (int i = 0; i < lines.Length; i++) {
+				count += lines [i].Length;
+
+				// did we advance past where we care about?
+				if (count > location)
+					return i;
+			}
+
+			return lines.Length - 1;
+		}
+
+		/// <summary>
+		/// Given a line in the snapshot, find the start and end locations in the buffer
+		/// </summary>
+		public (int, int) FindRangeForLine (int line)
+		{
+			// the start is the sum of all the lines before this line
+			if (line < 0)
+				return (0, 0);
+
+			if (line > lines.Length - 1)
+				line = lines.Length - 1;
+
+			int count = 0;
+			for (int i = 0; i < line; i++) {
+				count += lines [i].Length;
+			}
+
+			return (count, lines [line].Length);
+		}
+
+		string GetTextFromLines (Line [] lines)
 		{
 			if (lines.Length == 0)
 				return string.Empty;

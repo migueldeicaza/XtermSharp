@@ -17,7 +17,8 @@ namespace XtermSharp.Mac {
 		INSTextInputClient,
 		ITerminalDelegate,
 		INSUserInterfaceValidations,
-		INSAccessibilityStaticText {
+		INSAccessibilityStaticText,
+		INSAccessibilityNavigableStaticText {
 		static CGAffineTransform textMatrix;
 
 		readonly Terminal terminal;
@@ -907,6 +908,37 @@ namespace XtermSharp.Mac {
 			}
 		}
 		// <-- NSAccessibilityStaticText
+
+		// --> INSAccessibilityNavigableStaticText
+
+		public override nint GetAccessibilityLine (nint index)
+		{
+			try {
+				var snapshot = accessibility.GetSnapshot ();
+				var lineNumber = snapshot.FindLine ((int)index);
+				return lineNumber;
+			} catch (Exception e) {
+				// in cases where the text was deleted while voice over was
+				// reading it, the OS would request an index that is out of range.
+				// While we've since added additional checks, we'll also catch
+				// exceptions, and log them.
+				return 0;
+			}
+		}
+
+		public override NSRange GetAccessibilityRangeForLine (nint line)
+		{
+			try {
+				var snapshot = accessibility.GetSnapshot ();
+				var locations = snapshot.FindRangeForLine ((int)line);
+
+				return new NSRange (locations.Item1, locations.Item2);
+			} catch (Exception e) {
+				return new NSRange (0, 0);
+			}
+		}
+
+		// <-- INSAccessibilityNavigableStaticText
 
 		public override CGRect GetAccessibilityFrame (NSRange range)
 		{
