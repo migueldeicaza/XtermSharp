@@ -98,13 +98,14 @@ namespace XtermSharp {
 		public void Push (T value)
 		{
 			array [GetCyclicIndex (length)] = value;
-			length++;
 			if (length == array.Length) {
 				startIndex++;
 				if (startIndex == array.Length)
 					startIndex = 0;
 
 				Trimmed?.Invoke (1);
+			} else {
+				length++;
 			}
 		}
 
