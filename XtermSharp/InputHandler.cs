@@ -720,7 +720,7 @@ namespace XtermSharp {
 		// 
 		void DeviceStatus (int [] pars, string collect)
 		{
-			if (collect != "") {
+			if (collect == "") {
 				switch (pars [0]) {
 				case 5:
 					// status report
@@ -730,7 +730,7 @@ namespace XtermSharp {
 					// cursor position
 					var y = terminal.Buffer.Y + 1;
 					var x = terminal.Buffer.X + 1;
-					terminal.EmitData ($"$\x1b[${y};${x}R");
+					terminal.EmitData ($"\x1b[{y};{x}R");
 					break;
 				}
 			} else if (collect == "?") {
@@ -741,7 +741,7 @@ namespace XtermSharp {
 					// cursor position
 					var y = terminal.Buffer.Y + 1;
 					var x = terminal.Buffer.X + 1;
-					terminal.EmitData ($"$\x1b[?${y};${x}R");
+					terminal.EmitData ($"\x1b[?{y};{x}R");
 					break;
 				case 15:
 					// no printer
