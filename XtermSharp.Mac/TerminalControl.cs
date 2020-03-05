@@ -117,6 +117,8 @@ namespace XtermSharp.Mac {
 			};
 
 			AddSubview (terminalView);
+
+			t.DataEmitted += HandleTerminalDataEmitted;
 		}
 
 		void HandleTerminalScrolled (double scrollPosition)
@@ -162,6 +164,12 @@ namespace XtermSharp.Mac {
 			// TODO: log result of SetWinSize if != 0
 
 			UpdateScroller ();
+		}
+
+		void HandleTerminalDataEmitted (Terminal terminal, string txt)
+		{
+			var data = System.Text.Encoding.UTF8.GetBytes (txt);
+			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
 		}
 
 		void UpdateScroller()

@@ -349,6 +349,8 @@ namespace XtermSharp {
 
 		public event Action<Terminal, int> Scrolled;
 
+		public event Action<Terminal, string> DataEmitted;
+
 		internal void Bell ()
 		{
 			//Console.WriteLine ("beep");
@@ -584,7 +586,7 @@ namespace XtermSharp {
 
 		internal void EmitData (string txt)
 		{
-			throw new NotImplementedException ();
+			DataEmitted?.Invoke (this, txt);
 		}
 
 		/// <summary>
