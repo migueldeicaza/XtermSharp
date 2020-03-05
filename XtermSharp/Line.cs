@@ -84,6 +84,29 @@ namespace XtermSharp {
 			}
 		}
 
+
+		/// <summary>
+		/// For a given line, find the fragment with the  position
+		/// </summary>
+		public int GetFragmentIndexForPosition (int pos)
+		{
+			int count = 0;
+			for (int i = 0; i < fragments.Count; i++) {
+				count += fragments [i].Length;
+				if (count > pos) {
+					return i;
+				}
+			}
+
+			return fragments.Count - 1;
+		}
+
+		public LineFragment GetFragment (int index)
+		{
+			return fragments [index];
+		}
+
+
 		public override string ToString ()
 		{
 			var sb = new StringBuilder ();

@@ -24,6 +24,7 @@ namespace XtermSharp.Mac {
 		readonly Terminal terminal;
 		readonly SelectionService selection;
 		readonly AccessibilityService accessibility;
+		readonly SearchService search;
 		readonly CaretView caret;
 		readonly SelectionView selectionView;
 		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
@@ -67,6 +68,8 @@ namespace XtermSharp.Mac {
 
 			accessibility = new AccessibilityService (terminal, selection);
 			SetupAccessibility ();
+
+			search = new SearchService (terminal);
 		}
 
 		/// <summary>
@@ -74,6 +77,16 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		/// <value>The terminal.</value>
 		public Terminal Terminal => terminal;
+
+		/// <summary>
+		/// Gets the SearchService for this terminal view
+		/// </summary>
+		public SearchService SearchService => search;
+
+		/// <summary>
+		/// Gets the SelectionService for this terminal view
+		/// </summary>
+		public SelectionService SelectionService => selection;
 
 		/// <summary>
 		/// Gets or sets a value indicating whether this <see cref="T:XtermSharp.Mac.TerminalView"/> treats the "Alt/Option" key on the mac keyboard as a meta key,
@@ -174,6 +187,48 @@ namespace XtermSharp.Mac {
 		{
 			int newPosition = Math.Min (Terminal.Buffer.YDisp + lines, Terminal.Buffer.Lines.Length - Terminal.Rows);
 			ScrollToRow (newPosition);
+		}
+
+		/// <summary>
+		/// Searches the given text and returns the number of instances found and selects the first result
+		/// </summary>
+		public int Search(string txt)
+		{
+			var snapshot = search.GetSnapshot ();
+			int result = snapshot.FindText (txt);
+
+			if (result > 0)
+				SelectSearchResult (snapshot.FindNext ());
+
+			return result;
+		}
+
+		/// <summary>
+		/// Selects the next result, cycling back to the first and returns the index of the currently selected search instance
+		/// </summary>
+		public int SelectNextSearchResult()
+		{
+			var snapshot = search.GetSnapshot ();
+			if (snapshot.LastSearchResults.Length > 0) {
+				SelectSearchResult (snapshot.FindNext ());
+				return snapshot.CurrentSearchResult;
+			}
+
+			return -1;
+		}
+
+		/// <summary>
+		/// Selects the previous result, cycling back to the last and returns the index of the currently selected search instance
+		/// </summary>
+		public int SelectPreviousSearchResult ()
+		{
+			var snapshot = search.GetSnapshot ();
+			if (snapshot.LastSearchResults.Length > 0) {
+				SelectSearchResult (snapshot.FindPrevious ());
+				return snapshot.CurrentSearchResult;
+			}
+
+			return -1;
 		}
 
 		void ScrollToRow(int row, bool notifyAccessibility = true)
@@ -409,6 +464,7 @@ namespace XtermSharp.Mac {
 		// Simple tester API.
 		public void Feed (string text)
 		{
+			search.Invalidate ();
 			terminal.Feed (Encoding.UTF8.GetBytes (text));
 			QueuePendingDisplay ();
 		}
@@ -430,6 +486,7 @@ namespace XtermSharp.Mac {
 
 		public void Feed (byte [] text, int length = -1)
 		{
+			search.Invalidate ();
 			terminal.Feed (text, length);
 
 			// The problem is calling UpdateDisplay here, because there is still data pending.
@@ -439,6 +496,7 @@ namespace XtermSharp.Mac {
 
 		public void Feed (IntPtr buffer, int length)
 		{
+			search.Invalidate ();
 			terminal.Feed (buffer, length);
 			QueuePendingDisplay ();
 		}
@@ -480,6 +538,9 @@ namespace XtermSharp.Mac {
 					loadedCalled = true;
 					Loaded?.Invoke ();
 				}
+
+				accessibility.Invalidate ();
+				search.Invalidate ();
 
 				SizeChanged?.Invoke (newCols, newRows);
 			}
@@ -1273,6 +1334,21 @@ namespace XtermSharp.Mac {
 
 			accessibility.Invalidate ();
 			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+		}
+
+		void SelectSearchResult(SearchSnapshot.SearchResult searchResult)
+		{
+			selection.SelectNone ();
+			if (searchResult != null) {
+				selection.SetSoftStart (searchResult.Start.Y - terminal.Buffer.YDisp, searchResult.Start.X);
+				selection.ShiftExtend (searchResult.End.Y - terminal.Buffer.YDisp, searchResult.End.X);
+
+				// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
+				if ((searchResult.Start.Y < terminal.Buffer.YDisp) || (searchResult.Start.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
+					var newYDisp = Math.Max (searchResult.Start.Y - (terminal.Rows / 2), 0);
+					ScrollToRow (newYDisp, false);
+				}
+			}
 		}
 	}
 }
