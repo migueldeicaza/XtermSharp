@@ -61,6 +61,8 @@
     <Compile Include="SelectionView.cs" />
     <Compile Include="AccessibilityService.cs" />
     <Compile Include="CaretView.cs" />
+    <Compile Include="TerminalFonts.cs" />
+    <Compile Include="CellDimension.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\XtermSharp\XtermSharp.csproj">

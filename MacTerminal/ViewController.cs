@@ -30,7 +30,7 @@ namespace MacTerminal {
 		public override void ViewDidLayout ()
 		{
 			base.ViewDidLayout ();
-			terminalControl.Frame = View.Frame;
+			terminalControl.Frame = View.Bounds;
 			terminalControl.NeedsLayout = true;
 		}
 

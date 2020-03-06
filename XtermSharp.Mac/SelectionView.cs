@@ -11,27 +11,33 @@ namespace XtermSharp.Mac {
 	class SelectionView : NSView {
 		readonly Terminal terminal;
 		readonly SelectionService selection;
-		readonly nfloat rowHeight;
-		readonly nfloat colWidth;
-		readonly nfloat rowDelta;
 		readonly CAShapeLayer maskLayer;
 
 		NSColor selectionColor;
+		CellDimension cellDimensions;
 
-		public SelectionView (Terminal terminal, SelectionService selection, CGRect rect, CGRect typgographicalBounds) : base (rect)
+		public SelectionView (Terminal terminal, SelectionService selection, CGRect rect, CellDimension cellDimensions) : base (rect)
 		{
+			if (terminal == null)
+				throw new ArgumentNullException (nameof (terminal));
+			if (selection == null)
+				throw new ArgumentNullException (nameof (selection));
+			if (rect == null)
+				throw new ArgumentNullException (nameof (rect));
+			if (cellDimensions == null)
+				throw new ArgumentNullException (nameof (cellDimensions));
+
 			this.terminal = terminal;
 			this.selection = selection;
+			this.cellDimensions = cellDimensions;
 
 			selection.SelectionChanged += HandleSelectionChanged;
-
-			rowHeight = (int)typgographicalBounds.Height;
-			colWidth = typgographicalBounds.Width;
-			rowDelta = typgographicalBounds.Y;
 
 			WantsLayer = true;
 			maskLayer = new CAShapeLayer ();
 			Layer.Mask = maskLayer;
+
+			SelectionColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.8f);
 		}
 
 		/// <summary>
@@ -42,6 +48,20 @@ namespace XtermSharp.Mac {
 			set {
 				selectionColor = value;
 				Layer.BackgroundColor = selectionColor.CGColor;
+			}
+		}
+
+		public CellDimension CellDimensions {
+			get {
+				return cellDimensions;
+			}
+
+			set {
+				if (value == null)
+					throw new ArgumentNullException (nameof (CellDimensions));
+
+				cellDimensions = value;
+				UpdateMask ();
 			}
 		}
 
@@ -110,14 +130,14 @@ namespace XtermSharp.Mac {
 
 		void MaskFullRows (CGPath path, int rowStart, int rowCount)
 		{
-			int cursorYOffset = 2;
+			const int cursorXPadding = 1;
+			nfloat startY = Frame.Height  - cellDimensions.GetRowPos (rowStart + rowCount - 1);
 
-			nfloat startY = Frame.Height  - ((rowStart + rowCount) * rowHeight - rowDelta - cursorYOffset);
 			var pathRect = new CGRect (
 				0,
 				startY,
-				Frame.Width,
-				rowHeight * rowCount);
+				(terminal.Cols * cellDimensions.Width) + cursorXPadding,
+				cellDimensions.Height * rowCount);
 
 			path.AddRect (pathRect);
 		}
@@ -127,20 +147,19 @@ namespace XtermSharp.Mac {
 			// -2 to get the top of the selection to fit over the top of the text properly
 			// and to align with the cursor
 			const int cursorXPadding = 1;
-			int cursorYOffset = 2;
 
 			CGRect pathRect;
 
-			nfloat startY = Frame.Height - rowHeight - (row * rowHeight - rowDelta - cursorYOffset);
-			nfloat startX = colStart * colWidth;
+			nfloat startY = Frame.Height - cellDimensions.GetRowPos(row);
+			nfloat startX = cellDimensions.GetColPos (colStart); 
 
 			if (colStart == colEnd) {
 				// basically the same as the cursor
 				pathRect = new CGRect (
 					startX - cursorXPadding,
 					startY,
-					colWidth + (2 * cursorXPadding),
-					rowHeight);
+					cellDimensions.Width + (2 * cursorXPadding),
+					cellDimensions.Height);
 
 				path.AddRect (pathRect);
 				return;
@@ -151,8 +170,8 @@ namespace XtermSharp.Mac {
 				pathRect = new CGRect (
 					startX - cursorXPadding,
 					startY,
-					((colEnd - colStart) * colWidth) + (2 * cursorXPadding),
-					rowHeight);
+					((colEnd - colStart) * cellDimensions.Width) + (2 * cursorXPadding),
+					cellDimensions.Height);
 
 				path.AddRect (pathRect);
 				return;
@@ -163,8 +182,8 @@ namespace XtermSharp.Mac {
 			pathRect = new CGRect (
 				startX + cursorXPadding,
 				startY,
-				((colEnd - colStart) * colWidth) - (2 * cursorXPadding),
-				rowHeight);
+				((colEnd - colStart) * cellDimensions.Width) - (2 * cursorXPadding),
+				cellDimensions.Height);
 
 			path.AddRect (pathRect);
 		}

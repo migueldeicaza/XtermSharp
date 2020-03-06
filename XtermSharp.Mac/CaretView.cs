@@ -1,14 +1,32 @@
-﻿using AppKit;
+﻿using System;
+using System.Drawing;
+using AppKit;
+using CoreAnimation;
 using CoreGraphics;
 
 namespace XtermSharp.Mac {
+	/// <summary>
+	/// The vew that renders the caret in the view
+	/// </summary>
 	class CaretView : NSView {
+		readonly CAShapeLayer maskLayer;
+		CellDimension dimensions;
+		Point pos;
 		NSColor caretColor;
 		bool focused;
+		nfloat padding;
 
-		public CaretView (CGRect rect) : base (rect)
+		public CaretView (CellDimension dimensions) : base (new CGRect (0, 0, dimensions.Height, dimensions.Width + 2))
 		{
+			this.dimensions = dimensions;
+			pos = new Point (0, 0);
+			padding = 1;
 			WantsLayer = true;
+			CaretColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.5f);
+
+			maskLayer = new CAShapeLayer ();
+			Layer.Mask = maskLayer;
+			Focused = false;
 		}
 
 		/// <summary>
@@ -18,13 +36,36 @@ namespace XtermSharp.Mac {
 			get => caretColor;
 			set {
 				caretColor = value;
-				Layer.BorderColor = caretColor.CGColor;
-				if (Focused) {
-					Layer.BackgroundColor = caretColor.CGColor;
-					Layer.BorderWidth = 0;
-				} else {
-					Layer.BorderWidth = 1;
-				}
+				Layer.BackgroundColor = caretColor.CGColor;
+			}
+		}
+
+		/// <summary>
+		/// Gets or sets a value indicating the additional width to color the caret around the caret position
+		/// </summary>
+		public nfloat Padding {
+			get {
+				return padding;
+			}
+
+			set {
+				padding = value;
+				NeedsDisplay = true;
+			}
+		}
+
+		/// <summary>
+		/// Gets or sets the position of the caret and updates the caret mask
+		/// </summary>
+		public Point Pos {
+			get {
+				return pos;
+			}
+
+			set {
+				pos = value;
+				UpdateMask ();
+				NeedsDisplay = true;
 			}
 		}
 
@@ -37,16 +78,57 @@ namespace XtermSharp.Mac {
 			}
 			set {
 				focused = value;
-				if (value) {
-					Layer.BackgroundColor = caretColor.CGColor;
-					Layer.BorderWidth = 0;
-
-				} else {
-					Layer.BackgroundColor = NSColor.Clear.CGColor;
-					Layer.BorderWidth = 2;
-
-				}
+				UpdateMask ();
 			}
+		}
+
+		/// <summary>
+		/// Gets or sets the dimensions of the cells
+		/// </summary>
+		public CellDimension CellDimensions {
+			get {
+				return dimensions;
+			}
+
+			set {
+				if (value == null)
+					throw new ArgumentNullException (nameof (CellDimensions));
+
+				dimensions = value;
+				UpdateMask ();
+			}
+		}
+
+		void UpdateMask ()
+		{
+			// remove the prior mask
+			maskLayer.Path?.Dispose ();
+
+			maskLayer.Frame = Bounds;
+			var path = new CGPath ();
+			var pathRect = new CGRect (
+				dimensions.GetColPos (pos.X) - padding,
+				Frame.Height - dimensions.GetRowPos (pos.Y),
+				dimensions.Width + (2 * padding),
+				dimensions.Height);
+
+			if (Focused) {
+				path.AddRect (pathRect);
+			} else {
+				const int caretStroke = 1;
+
+				path.AddLines (new CGPoint [] {
+					new CGPoint(pathRect.Left+caretStroke, pathRect.Bottom-caretStroke),
+					new CGPoint(pathRect.Right-caretStroke, pathRect.Bottom-caretStroke),
+					new CGPoint(pathRect.Right-caretStroke, pathRect.Top+caretStroke),
+					new CGPoint(pathRect.Left+caretStroke, pathRect.Top+caretStroke),
+					new CGPoint(pathRect.Left+caretStroke, pathRect.Bottom-caretStroke)
+				});
+
+				path = path.CopyByStrokingPath (2 * caretStroke, CGLineCap.Square, CGLineJoin.Miter, 4);
+			}
+
+			maskLayer.Path = path;
 		}
 	}
 }

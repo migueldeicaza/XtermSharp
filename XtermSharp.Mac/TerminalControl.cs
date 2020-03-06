@@ -10,7 +10,6 @@ namespace XtermSharp.Mac {
 	/// </summary>
 	public class TerminalControl : NSView {
 		TerminalView terminalView;
-		NSScroller scroller;
 
 		int shellPid;
 		int shellFileDescriptor;
@@ -67,14 +66,7 @@ namespace XtermSharp.Mac {
 
 		public override void Layout ()
 		{
-			var viewFrame = Frame;
-
-			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
-			var scrollFrame = new CGRect (viewFrame.Right - scrollWidth, 0, scrollWidth, viewFrame.Height);
-			viewFrame = new CGRect (0, 0, viewFrame.Width - scrollWidth, viewFrame.Height);
-
-			scroller.Frame = scrollFrame;
-			terminalView.Frame = viewFrame;
+			terminalView.Frame = new CGRect (0, 0, Frame.Width, Frame.Height);
 		}
 
 		static void GetUnixWindowSize (CGRect frame, int rows, int cols, ref UnixWindowSize size)
@@ -92,26 +84,13 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		void Build (CGRect rect)
 		{
-			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
-			var scrollFrame = new CGRect (rect.Right - scrollWidth, rect.Y, scrollWidth, rect.Height);
-			scroller = new NSScroller (scrollFrame);
-			scroller.ScrollerStyle = NSScrollerStyle.Legacy;
-			scroller.DoubleValue = 0.0;
-			scroller.KnobProportion = 0.1f;
-			scroller.Enabled = false;
-			AddSubview (scroller);
-
-			scroller.Activated += ScrollerActivated;
-
-			var terminalFrame = new CGRect (rect.X, rect.Y, rect.Width - scrollWidth, rect.Height);
+			var terminalFrame = new CGRect (0, 0, rect.Width, rect.Height);
 
 			terminalView = new TerminalView (terminalFrame);
 			var t = terminalView.Terminal;
 
 			terminalView.UserInput = HandleUserInput;
 			terminalView.SizeChanged += HandleSizeChanged;
-			terminalView.TerminalScrolled += HandleTerminalScrolled;
-			terminalView.CanScrollChanged += HandleTerminalCanScrollChanged;
 			terminalView.TitleChanged += (TerminalView sender, string title) => {
 				TitleChanged?.Invoke (title);
 			};
@@ -119,33 +98,6 @@ namespace XtermSharp.Mac {
 			AddSubview (terminalView);
 
 			t.DataEmitted += HandleTerminalDataEmitted;
-		}
-
-		void HandleTerminalScrolled (double scrollPosition)
-		{
-			UpdateScroller ();
-		}
-
-		private void HandleTerminalCanScrollChanged (bool obj)
-		{
-			UpdateScroller ();
-		}
-
-		void ScrollerActivated (object sender, EventArgs e)
-		{
-			switch (scroller.HitPart) {
-			case NSScrollerPart.DecrementPage:
-				terminalView.PageUp ();
-				scroller.DoubleValue = terminalView.ScrollPosition;
-				break;
-			case NSScrollerPart.IncrementPage:
-				terminalView.PageDown ();
-				scroller.DoubleValue = terminalView.ScrollPosition;
-				break;
-			case NSScrollerPart.Knob:
-				terminalView.ScrollToPosition (scroller.DoubleValue);
-				break;
-			}
 		}
 
 		void HandleUserInput (byte [] data)
@@ -162,25 +114,12 @@ namespace XtermSharp.Mac {
 			GetUnixWindowSize (terminalView.Frame, terminalView.Terminal.Rows, terminalView.Terminal.Cols, ref newSize);
 			var res = Pty.SetWinSize (shellFileDescriptor, ref newSize);
 			// TODO: log result of SetWinSize if != 0
-
-			UpdateScroller ();
 		}
 
 		void HandleTerminalDataEmitted (Terminal terminal, string txt)
 		{
 			var data = System.Text.Encoding.UTF8.GetBytes (txt);
 			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
-		}
-
-		void UpdateScroller()
-		{
-			var shouldBeEnabled = !terminalView.Terminal.Buffers.IsAlternateBuffer;
-			shouldBeEnabled = shouldBeEnabled && terminalView.Terminal.Buffer.HasScrollback;
-			shouldBeEnabled = shouldBeEnabled && terminalView.Terminal.Buffer.Lines.Length > terminalView.Terminal.Rows;
-			scroller.Enabled = shouldBeEnabled;
-
-			scroller.DoubleValue = terminalView.ScrollPosition;
-			scroller.KnobProportion = terminalView.ScrollThumbsize;
 		}
 
 		/// <summary>
