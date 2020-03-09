@@ -358,6 +358,8 @@ namespace XtermSharp.Mac {
 			var res = new NSMutableAttributedString ();
 			int attr = 0;
 
+			cols = Math.Min (cols, line.Length);
+
 			basBuilder.Clear ();
 			for (int col = 0; col < cols; col++) {
 				var ch = line [col];
