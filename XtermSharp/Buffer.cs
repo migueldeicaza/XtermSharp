@@ -133,7 +133,7 @@ namespace XtermSharp {
 			if (this.lines.Length > 0) {
 				// Deal with columns increasing (reducing needs to happen after reflow)
 				if (cols < newCols) {
-					for (int i = 0; i < lines.Length; i++) {
+					for (int i = 0; i < lines.MaxLength; i++) {
 						lines [i]?.Resize (newCols, CharData.Null);
 					}
 				}
@@ -215,7 +215,7 @@ namespace XtermSharp {
 
 				// Trim the end of the line off if cols shrunk
 				if (cols > newCols) {
-					for (int i = 0; i < lines.Length; i++) {
+					for (int i = 0; i < lines.MaxLength; i++) {
 						lines [i]?.Resize (newCols, CharData.Null);
 					}
 				}
