@@ -57,7 +57,7 @@
   <ItemGroup>
     <Compile Include="TerminalView.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TerminalControl.cs" />
+    <Compile Include="LocalProcessTerminalView.cs" />
     <Compile Include="SelectionView.cs" />
     <Compile Include="AccessibilityService.cs" />
     <Compile Include="CaretView.cs" />
