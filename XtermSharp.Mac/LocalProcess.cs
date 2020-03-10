@@ -59,7 +59,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Notifies the subshell that the terminal emited some data, eg a response to device status
 		/// </summary>
-		public void NotifyDataEmitted (string txt)
+		public virtual void NotifyDataEmitted (string txt)
 		{
 			var data = System.Text.Encoding.UTF8.GetBytes (txt);
 			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
@@ -68,7 +68,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Notifies the subshell that the size has changed
 		/// </summary>
-		public void NotifySizeChanged (int newCols, int newRows, nfloat width, nfloat height)
+		public virtual void NotifySizeChanged (int newCols, int newRows, nfloat width, nfloat height)
 		{
 			UnixWindowSize newSize = new UnixWindowSize ();
 			GetUnixWindowSize (newCols, newRows, width, height, ref newSize);
@@ -84,7 +84,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Notfies the subshell that the user entered some data
 		/// </summary>
-		public void NotifyUserInput (byte [] data)
+		public virtual void NotifyUserInput (byte [] data)
 		{
 			if (!IsRunning)
 				return;
