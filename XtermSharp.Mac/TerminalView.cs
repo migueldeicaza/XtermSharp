@@ -217,9 +217,9 @@ namespace XtermSharp.Mac {
 		}
 
 		/// <summary>
-		///  This event is raised when the terminal size (cols and rows) has change, due to a NSView frame changed.
+		///  This event is raised when the terminal size (cols and rows, width, height) has change, due to a NSView frame changed.
 		/// </summary>
-		public event Action<int, int> SizeChanged;
+		public event Action<int, int, nfloat, nfloat> SizeChanged;
 
 		/// <summary>
 		/// Invoked to raise input on the control, which should probably be sent to the actual child process or remote connection 
@@ -792,12 +792,6 @@ namespace XtermSharp.Mac {
 			}
 		}
 
-		public void Send (byte [] data)
-		{
-			EnsureCaretIsVisible ();
-			UserInput?.Invoke (data);
-		}
-
 		[Export ("doCommandBySelector:")]
 		public void DoCommandBySelector (Selector selector)
 		{
@@ -1134,11 +1128,22 @@ namespace XtermSharp.Mac {
 			}
 		}
 
+		#region ITerminalDelegate
+
+		/// <summary>
+		/// Raised when the title of the teminal has changed.
+		/// </summary>
+		public event Action<TerminalView, string> TitleChanged;
+
+		public void Send (byte [] data)
+		{
+			EnsureCaretIsVisible ();
+			UserInput?.Invoke (data);
+		}
+
 		void ITerminalDelegate.ShowCursor (Terminal terminal)
 		{
 		}
-
-		public event Action<TerminalView, string> TitleChanged;
 
 		void ITerminalDelegate.SetTerminalTitle (Terminal source, string title)
 		{
@@ -1148,8 +1153,9 @@ namespace XtermSharp.Mac {
 
 		void ITerminalDelegate.SizeChanged (Terminal source)
 		{
-			throw new NotImplementedException ();
 		}
+
+		#endregion
 
 		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{
@@ -1533,7 +1539,7 @@ namespace XtermSharp.Mac {
 
 		void OnSizeChanged (int cols, int rows)
 		{
-			SizeChanged?.Invoke (cols, rows);
+			SizeChanged?.Invoke (cols, rows, Frame.Width, Frame.Height);
 			UpdateScroller ();
 		}
 

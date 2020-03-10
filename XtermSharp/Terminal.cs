@@ -3,47 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace XtermSharp {
-	public interface ITerminalDelegate {
-		void ShowCursor (Terminal source);
-		void SetTerminalTitle (Terminal source, string title);
-		/// <summary>
-		/// This event is triggered from the engine, when the request to resize the window is received from an escape sequence.
-		/// </summary>
-		/// <param name="source">Source.</param>
-		void SizeChanged (Terminal source);
-
-		/// <summary>
-		/// Used to respond to the client running on the other end.  This information should be sent to the remote end or subshell.
-		/// </summary>
-		/// <param name="data"></param>
-		void Send (byte [] data);
-	}
-
-	//
-    	// Simple implementation of ITerminalDelegate, when you do not want to 
-	// do a lot of work to use.
-    	//
-	public class SimpleTerminalDelegate : ITerminalDelegate {
-		public void Send (byte [] data)
-		{
-		}
-
-		public virtual void SetTerminalTitle (Terminal source, string title)
-		{
-	
-		}
-
-		public virtual void ShowCursor (Terminal source)
-		{
-		}
-
-		public virtual void SizeChanged (Terminal source)
-		{
-		}
-	}
 
 	public class Terminal {
-		ITerminalDelegate tdelegate;
+		ITerminalDelegate terminalDelegate;
 
 		const int MINIMUM_COLS = 2;
 		const int MINIMUM_ROWS = 1;
@@ -58,20 +20,11 @@ namespace XtermSharp {
 		Dictionary<byte, string> charset;
 		int gcharset;
 
-		public Terminal (ITerminalDelegate tdel = null, TerminalOptions options = null)
+		public Terminal (ITerminalDelegate terminalDelegate = null, TerminalOptions options = null)
 		{
-			if (options == null)
-				options = new TerminalOptions ();
-			if (tdel == null)
-				tdel = new SimpleTerminalDelegate ();
-
-			Options = options;
+			this.terminalDelegate = terminalDelegate ?? new SimpleTerminalDelegate ();
+			Options = options ?? new TerminalOptions ();
 			Setup ();
-			tdelegate = tdel;
-		}
-
-		public Terminal ()
-		{
 		}
 
 		void Setup ()
@@ -104,7 +57,7 @@ namespace XtermSharp {
 
 		public void SendResponse (string txt)
 		{
-			tdelegate.Send (Encoding.UTF8.GetBytes (txt));
+			terminalDelegate.Send (Encoding.UTF8.GetBytes (txt));
 		}
 
 		public void Error (string txt, params object [] args)
@@ -441,7 +394,7 @@ namespace XtermSharp {
 				return;
 			cursorHidden = false;
 			Refresh (Buffer.Y, Buffer.Y);
-			tdelegate.ShowCursor (this);
+			terminalDelegate.ShowCursor (this);
 		}
 
 		internal void SetX10MouseStyle ()
@@ -557,7 +510,7 @@ namespace XtermSharp {
 			if (SgrMouse) {
 				var bflags = ((buttonFlags & 3) == 3) ? (buttonFlags & ~3) : buttonFlags;
 				var sres = "\x1b[<" + bflags + ";" + (x+1) + ";" + (y+1) + (((buttonFlags & 3) == 3) ? 'm' : 'M');
-				tdelegate.Send (Encoding.UTF8.GetBytes (sres));
+				terminalDelegate.Send (Encoding.UTF8.GetBytes (sres));
 				return;
 			}
 			if (Vt200Mouse) {
@@ -567,7 +520,7 @@ namespace XtermSharp {
 			Encode (res, buttonFlags+32);
 			Encode (res, x+33);
 			Encode (res, y+33);
-			tdelegate.Send (res.ToArray ());
+			terminalDelegate.Send (res.ToArray ());
 
 		}
 
@@ -599,13 +552,12 @@ namespace XtermSharp {
 
 		string TerminalTitle { get; set; }
 		/// <summary>
-		/// Override to set the current terminal text
+		/// Override to set the current terminal title
 		/// </summary>
-		/// <param name="text"></param>
 		internal void SetTitle (string text)
 		{
 			TerminalTitle = text;
-			tdelegate.SetTerminalTitle (this, text);
+			terminalDelegate.SetTerminalTitle (this, text);
 		}
 
 		internal void ReverseIndex ()
