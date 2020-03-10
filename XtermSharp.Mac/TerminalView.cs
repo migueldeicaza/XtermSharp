@@ -1549,17 +1549,11 @@ namespace XtermSharp.Mac {
 		}
 
 		/// <summary>
-		/// Ensures that the caret is visible, and if not scrolls so that the caret is
-		/// the last row in the view
+		/// Ensures that the caret is visible
 		/// </summary>
 		void EnsureCaretIsVisible ()
 		{
-			int realCaret = Terminal.Buffer.Y + Terminal.Buffer.YBase;
-			int viewportEnd = Terminal.Buffer.YDisp + Terminal.Rows;
-
-			if (realCaret >= viewportEnd || realCaret < Terminal.Buffer.YDisp) {
-				ScrollToRow (Terminal.Buffer.YBase);
-			}
+			ScrollToRow (Terminal.Buffer.YBase);
 		}
 	}
 }
