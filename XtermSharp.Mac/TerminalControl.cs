@@ -6,9 +6,9 @@ using CoreGraphics;
 
 namespace XtermSharp.Mac {
 	/// <summary>
-	/// A view that contains a TerminalView and Scroller that handles user input
+	/// A view that contains a TerminalView and connects to a local process
 	/// </summary>
-	public class TerminalControl : NSView {
+	public class LocalProcessTerminalView : NSView {
 		TerminalView terminalView;
 
 		int shellPid;
@@ -19,7 +19,7 @@ namespace XtermSharp.Mac {
 #if DEBUG
 		static int x;
 #endif
-		public TerminalControl (CGRect rect) : base (rect)
+		public LocalProcessTerminalView (CGRect rect) : base (rect)
 		{
 			Build (rect);
 		}
@@ -47,7 +47,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Launches the shell
 		/// </summary>
-		public void StartShell(string shellPath = "/bin/bash", string [] args = null, string [] env = null)
+		public void StartProcess(string shellPath = "/bin/bash", string [] args = null, string [] env = null)
 		{
 			// TODO: throw error if already started
 			terminalView.Feed (WelcomeText + "\n");
