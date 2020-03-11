@@ -434,7 +434,7 @@ namespace XtermSharp.Mac {
 			if (rowStart == int.MaxValue || rowEnd < 0) {
 				SetNeedsDisplayInRect (Bounds);
 			} else {
-				var rowY = Frame.Height - cellDimensions.GetRowPos (rowEnd);
+				var rowY = Frame.Height - contentPadding - cellDimensions.GetRowPos (rowEnd);
 				var region = new CGRect (0, rowY, Frame.Width, cellDimensions.Height * (rowEnd - rowStart + 1));
 
 				SetNeedsDisplayInRect (region);
