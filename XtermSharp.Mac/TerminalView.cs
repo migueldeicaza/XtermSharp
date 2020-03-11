@@ -841,7 +841,16 @@ namespace XtermSharp.Mac {
 		}
 
 		[Export ("selectedRange")]
-		public NSRange SelectedRange => notFoundRange;
+		public NSRange SelectedRange {
+			get {
+				// can we just return this in all cases, or just when selection active?
+				if (selection.Active) {
+					return AccessibilitySelectedTextRange;
+				}
+
+				return notFoundRange;
+			}
+		}
 
 		bool hasFocus;
 		public bool HasFocus {
