@@ -227,22 +227,11 @@ namespace XtermSharp.Mac {
 		public Action<byte []> UserInput;
 
 		/// <summary>
-		/// Scrolls the terminal contents to the relative position in the buffer
+		/// Scrolls the terminal contents up by the given number of lines, up is negative, down is positive
 		/// </summary>
-		public void ScrollToPosition (double position)
+		public void ScrollLines (int lines)
 		{
-			var oldPosition = Terminal.Buffer.YDisp;
-
-			var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
-			int newScrollPosition = (int)(maxScrollback * position);
-			if (newScrollPosition < 0)
-				newScrollPosition = 0;
-			if (newScrollPosition > maxScrollback)
-				newScrollPosition = maxScrollback;
-
-			if (newScrollPosition != oldPosition) {
-				ScrollToRow (newScrollPosition);
-			}
+			Terminal.ScrollLines (lines);
 		}
 
 		/// <summary>
@@ -250,7 +239,7 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		public void PageUp()
 		{
-			ScrollUp (Terminal.Rows);
+			ScrollLines (Terminal.Rows * -1);
 		}
 
 		/// <summary>
@@ -258,25 +247,7 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		public void PageDown ()
 		{
-			ScrollDown (Terminal.Rows);
-		}
-
-		/// <summary>
-		/// Scrolls the terminal contents up by the given number of lines
-		/// </summary>
-		public void ScrollUp (int lines)
-		{
-			int newPosition = Math.Max (Terminal.Buffer.YDisp - lines, 0);
-			ScrollToRow (newPosition);
-		}
-
-		/// <summary>
-		/// Scrolls the terminal contents down by the given number of lines
-		/// </summary>
-		public void ScrollDown (int lines)
-		{
-			int newPosition = Math.Min (Terminal.Buffer.YDisp + lines, Terminal.Buffer.Lines.Length - Terminal.Rows);
-			ScrollToRow (newPosition);
+			ScrollLines (Terminal.Rows);
 		}
 
 		/// <summary>
@@ -1000,7 +971,7 @@ namespace XtermSharp.Mac {
 			// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
 			if ((locations.Item1.Y < terminal.Buffer.YDisp) || (locations.Item1.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
 				var newYDisp = Math.Max(locations.Item1.Y - (terminal.Rows / 2), 0);
-				ScrollToRow (newYDisp, false);
+				ScrollToYDisp (newYDisp, false);
 			}
 
 			// calculate the frame for the start.
@@ -1269,9 +1240,9 @@ namespace XtermSharp.Mac {
 				int velocity = CalcVelocity((int)Math.Abs (theEvent.DeltaY));
 				
 				if (theEvent.DeltaY > 0) {
-					ScrollUp (velocity);
+					ScrollLines (velocity * -1);
 				} else {
-					ScrollDown (velocity);
+					ScrollLines (velocity);
 				}
 			}
 		}
@@ -1283,15 +1254,9 @@ namespace XtermSharp.Mac {
 			if (autoScrollDelta == 0)
 				return;
 
-			if (autoScrollDelta < 0) {
-				this.BeginInvokeOnMainThread (() => {
-					ScrollUp (autoScrollDelta * -1);
-				});
-			} else {
-				this.BeginInvokeOnMainThread (() => {
-					ScrollDown (autoScrollDelta);
-				});
-			}
+			this.BeginInvokeOnMainThread (() => {
+				ScrollLines (autoScrollDelta);
+			});
 		}
 
 		/// <summary>
@@ -1342,7 +1307,7 @@ namespace XtermSharp.Mac {
 				// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
 				if ((searchResult.Start.Y < terminal.Buffer.YDisp) || (searchResult.Start.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
 					var newYDisp = Math.Max (searchResult.Start.Y - (terminal.Rows / 2), 0);
-					ScrollToRow (newYDisp, false);
+					ScrollToYDisp (newYDisp, false);
 				}
 			}
 		}
@@ -1513,15 +1478,11 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Scrolls the terminal contents so that the given row is at the top of the view
 		/// </summary>
-		void ScrollToRow (int row, bool notifyAccessibility = true)
+		void ScrollToYDisp (int ydisp, bool notifyAccessibility = true)
 		{
-			if (row != Terminal.Buffer.YDisp) {
-				Terminal.Buffer.YDisp = row;
-
-				// tell the terminal we want to refresh all the rows
-				Terminal.Refresh (0, Terminal.Rows);
-
-				// do the display update
+			int linesToScroll = ydisp - Terminal.Buffer.YDisp;
+			Terminal.ScrollLines (linesToScroll, !notifyAccessibility);
+			if (!notifyAccessibility) {
 				UpdateDisplay (notifyAccessibility);
 
 				selectionView.NotifyScrolled ();
@@ -1529,10 +1490,33 @@ namespace XtermSharp.Mac {
 			}
 		}
 
+		/// <summary>
+		/// Scrolls the terminal contents to the relative position in the buffer
+		/// </summary>
+		void ScrollToPosition (double position)
+		{
+			var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
+			int newScrollPosition = (int)(maxScrollback * position);
+			if (newScrollPosition < 0)
+				newScrollPosition = 0;
+			if (newScrollPosition > maxScrollback)
+				newScrollPosition = maxScrollback;
+
+			ScrollToYDisp (newScrollPosition);
+		}
+
+		/// <summary>
+		/// Handles notfications that the terminal adjusted its YDisp and scrolled contents
+		/// </summary>
+		/// <param name="terminal">The terminal that scrolled</param>
+		/// <param name="yDisp">The new yDisp of the terminal</param>
 		void HandleTerminalScrolled (Terminal terminal, int yDisp)
 		{
 			selectionView.NotifyScrolled ();
 			OnTerminalScrolled (ScrollPosition);
+
+			QueuePendingDisplay ();
+			//UpdateDisplay ();
 		}
 
 		#endregion
@@ -1553,7 +1537,7 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		void EnsureCaretIsVisible ()
 		{
-			ScrollToRow (Terminal.Buffer.YBase);
+			ScrollToYDisp (Terminal.Buffer.YBase);
 		}
 	}
 }

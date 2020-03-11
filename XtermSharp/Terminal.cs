@@ -300,6 +300,39 @@ namespace XtermSharp {
 			Scrolled?.Invoke (this, buffer.YDisp);
 		}
 
+		/// <summary>
+		/// Scroll the display of the terminal
+		/// </summary>
+		/// <param name="disp">The number of lines to scroll down (negative scroll up)</param>
+		/// <param name="suppressScrollEvent">Don't emit the scroll event as scrollLines. This is use to avoid unwanted
+		/// events being handled by the viewport when the event was triggered from the viewport originally.</param>
+		public void ScrollLines(int disp, bool suppressScrollEvent = false)
+		{
+			if (disp < 0) {
+				if (Buffer.YDisp == 0) {
+					return;
+				}
+
+				this.userScrolling = true;
+			} else if (disp + Buffer.YDisp >= Buffer.YBase) {
+				this.userScrolling = false;
+			}
+
+			int oldYdisp = Buffer.YDisp;
+			Buffer.YDisp = Math.Max (Math.Min (Buffer.YDisp + disp, Buffer.YBase), 0);
+
+			// No change occurred, don't trigger scroll/refresh
+			if (oldYdisp == Buffer.YDisp) {
+				return;
+			}
+
+			if (!suppressScrollEvent) {
+				Scrolled?.Invoke (this, Buffer.YDisp);
+			}
+
+			Refresh (0, this.Rows - 1);
+		}
+
 		public event Action<Terminal, int> Scrolled;
 
 		public event Action<Terminal, string> DataEmitted;
