@@ -3,7 +3,10 @@ using System.Runtime.InteropServices;
 using CoreFoundation;
 
 namespace XtermSharp.Mac {
-	public class LocalProcess {
+	/// <summary>
+	/// A Process class that communicates with a local process, typically a shell like `bash`
+	/// </summary>
+	public class LocalProcess : Process {
 		readonly byte [] readBuffer = new byte [4 * 1024];
 		UnixWindowSize initialSize;
 		int shellFileDescriptor;
@@ -18,25 +21,8 @@ namespace XtermSharp.Mac {
 		public int ProcessId { get; private set; }
 
 		/// <summary>
-		/// Gets a value indicating whether the process is running
+		/// This event is raised when there is an unexpected write failure to the process
 		/// </summary>
-		public bool IsRunning { get; private set; }
-
-		/// <summary>
-		/// This event is raised when the process starts
-		/// </summary>
-		public event Action OnStarted;
-
-		/// <summary>
-		/// This event is raised when the process exits
-		/// </summary>
-		public event Action OnExited;
-
-		/// <summary>
-		/// This event is raised when the process emits data and should be sent to the terminal
-		/// </summary>
-		public event Action<byte []> OnData;
-
 		public event Action<int> OnProcessWriteFailure;
 
 		/// <summary>
@@ -44,22 +30,20 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		public virtual void Start (string shellPath = "/bin/bash", string [] args = null, string [] env = null)
 		{
-			// TODO: throw error if already started
-			OnStarted?.Invoke ();
+			OnStart ();
 
 			var shellArgs = args == null ? new string [1] : new string [args.Length + 1];
 			shellArgs [0] = shellPath;
 			args?.CopyTo (shellArgs, 1);
 
 			ProcessId = Pty.ForkAndExec (shellPath, shellArgs, env ?? Terminal.GetEnvironmentVariables (), out shellFileDescriptor, initialSize);
-			IsRunning = true;
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}
 
 		/// <summary>
 		/// Notifies the subshell that the terminal emited some data, eg a response to device status
 		/// </summary>
-		public virtual void NotifyDataEmitted (string txt)
+		public override void NotifyDataEmitted (string txt)
 		{
 			var data = System.Text.Encoding.UTF8.GetBytes (txt);
 			DispatchIO.Write (shellFileDescriptor, DispatchData.FromByteBuffer (data), DispatchQueue.CurrentQueue, ChildProcessWrite);
@@ -68,23 +52,14 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Notifies the subshell that the size has changed
 		/// </summary>
-		public virtual void NotifySizeChanged (int newCols, int newRows, nfloat width, nfloat height)
+		public override void NotifySizeChanged (int newCols, int newRows, nfloat width, nfloat height)
 		{
-			UnixWindowSize newSize = new UnixWindowSize ();
-			GetUnixWindowSize (newCols, newRows, width, height, ref newSize);
-
-			if (IsRunning) {
-				var res = Pty.SetWinSize (shellFileDescriptor, ref newSize);
-				// TODO: log result of SetWinSize if != 0
-			} else {
-				initialSize = newSize;
-			}
 		}
 
 		/// <summary>
 		/// Notfies the subshell that the user entered some data
 		/// </summary>
-		public virtual void NotifyUserInput (byte [] data)
+		public override void NotifyUserInput (byte [] data)
 		{
 			if (!IsRunning)
 				return;
@@ -114,17 +89,17 @@ namespace XtermSharp.Mac {
 				// Faster, but harder to debug:
 				// terminalView.Feed (buffer, (int) size);
 				if (size == 0) {
-					IsRunning = false;
-					OnExited?.Invoke ();
+					OnStop ();
 					return;
 				}
+
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 
 #if DEBUG
 				System.IO.File.WriteAllBytes ("/tmp/log-" + (debugFileIndex++), copy);
 #endif
-				OnData?.Invoke (copy);
+				SendOnData (copy);
 			}
 
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);

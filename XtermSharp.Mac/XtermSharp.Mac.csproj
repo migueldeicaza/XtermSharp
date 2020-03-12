@@ -64,6 +64,7 @@
     <Compile Include="TerminalFonts.cs" />
     <Compile Include="CellDimension.cs" />
     <Compile Include="LocalProcess.cs" />
+    <Compile Include="Process.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\XtermSharp\XtermSharp.csproj">

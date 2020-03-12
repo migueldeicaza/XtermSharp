@@ -4,13 +4,13 @@ using CoreGraphics;
 
 namespace XtermSharp.Mac {
 	/// <summary>
-	/// A view that contains a TerminalView and connects to a local process
+	/// A view that contains a TerminalView and connects to a process
 	/// </summary>
-	public class LocalProcessTerminalView : NSView {
+	public class ProcessTerminalView : NSView {
 		TerminalView terminalView;
-		LocalProcess process;
+		Process process;
 
-		public LocalProcessTerminalView (CGRect rect) : base (rect)
+		public ProcessTerminalView (CGRect rect) : base (rect)
 		{
 			Build ();
 		}
@@ -22,7 +22,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Gets the process that is connected to this view
 		/// </summary>
-		public LocalProcess Process {
+		public Process Process {
 			get {
 				return process;
 			}
