@@ -53,8 +53,8 @@ namespace XtermSharp.Mac {
 			var viewFrames = CalculateLayouts (rect);
 
 			// get the dimensions of terminal (cols and rows)
-			var dimensions = CalculateVisibleRowsAndColumns (cellDimensions, viewFrames.Item2);
-			var options = new TerminalOptions () { Cols = dimensions.Item1, Rows = dimensions.Item2 };
+			var dimensions = CalculateVisibleRowsAndColumns (cellDimensions, viewFrames.contentFrame);
+			var options = new TerminalOptions () { Cols = dimensions.cols, Rows = dimensions.rows };
 
 			// the terminal itself and services
 			terminal = new Terminal (this, options);
@@ -63,7 +63,7 @@ namespace XtermSharp.Mac {
 			search = new SearchService (terminal);
 
 			// scroller
-			scroller = new NSScroller (viewFrames.Item1);
+			scroller = new NSScroller (viewFrames.scrollerFrame);
 			scroller.ScrollerStyle = NSScrollerStyle.Legacy;
 			scroller.DoubleValue = 0.0;
 			scroller.KnobProportion = 0.1f;
@@ -960,7 +960,7 @@ namespace XtermSharp.Mac {
 				var snapshot = accessibility.GetSnapshot ();
 				var locations = snapshot.FindRangeForLine ((int)line);
 
-				return new NSRange (locations.Item1, locations.Item2);
+				return new NSRange (locations.start, locations.end);
 			} catch (Exception e) {
 				return new NSRange (0, 0);
 			}
@@ -978,19 +978,19 @@ namespace XtermSharp.Mac {
 			var locations = snapshot.FindRange (new AccessibilitySnapshot.Range { Start = (int)range.Location, Length = (int)range.Length });
 
 			// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
-			if ((locations.Item1.Y < terminal.Buffer.YDisp) || (locations.Item1.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
-				var newYDisp = Math.Max(locations.Item1.Y - (terminal.Rows / 2), 0);
+			if ((locations.start.Y < terminal.Buffer.YDisp) || (locations.start.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
+				var newYDisp = Math.Max(locations.start.Y - (terminal.Rows / 2), 0);
 				ScrollToYDisp (newYDisp, false);
 			}
 
 			// calculate the frame for the start.
-			var startPos = GetCaretPos (locations.Item1.X, locations.Item1.Y - terminal.Buffer.YDisp);
+			var startPos = GetCaretPos (locations.start.X, locations.start.Y - terminal.Buffer.YDisp);
 
-			nfloat height = Math.Max(locations.Item2.Y - locations.Item1.Y, 1) * cellDimensions.Height;
+			nfloat height = Math.Max(locations.end.Y - locations.start.Y, 1) * cellDimensions.Height;
 			nfloat width = range.Length * cellDimensions.Width;
 
 			return CallSafely (() => {
-				var rect = new CGRect(startPos.Item1, startPos.Item2, width, height);
+				var rect = new CGRect(startPos.x, startPos.y, width, height);
 
 				return this.Window.ConvertRectToScreen (
 				    this.ConvertRectToView (
@@ -1003,7 +1003,7 @@ namespace XtermSharp.Mac {
 			});
 		}
 
-		(float, float) GetCaretPos (int x, int y)
+		(float x, float y) GetCaretPos (int x, int y)
 		{
 			var x_ = (x * (float)cellDimensions.Width) + (float)contentPadding;
 
@@ -1081,24 +1081,24 @@ namespace XtermSharp.Mac {
 					var attrLine = buffer [row + yDisp];
 					if (attrLine == null)
 						continue;
-					var ctline = new CTLine (attrLine);
-
-					ctline.Draw (context);
+					using (var ctline = new CTLine (attrLine)) {
+						ctline.Draw (context);
 
 #if DEBUG_DRAWING
-					// debug code
-					context.TextPosition = new CGPoint (Frame.Width - 40, rowY);
-					ctline = new CTLine (new NSAttributedString ((row).ToString ()));
-					ctline.Draw (context);
+						// debug code
+						context.TextPosition = new CGPoint (Frame.Width - 40, rowY);
+						ctline = new CTLine (new NSAttributedString ((row).ToString ()));
+						ctline.Draw (context);
 
-					context.TextPosition = new CGPoint (Frame.Width - 70, rowY);
-					ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
-					ctline.Draw (context);
+						context.TextPosition = new CGPoint (Frame.Width - 70, rowY);
+						ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
+						ctline.Draw (context);
 
-					//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
-					///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
-					//ctline.Draw (context);
+						//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
+						///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
+						//ctline.Draw (context);
 #endif
+					}
 
 				}
 
@@ -1374,7 +1374,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Calculates the visible number of rows and columns given the frame size and font
 		/// </summary>
-		static (int, int) CalculateVisibleRowsAndColumns (CellDimension dimensions, CGRect frame)
+		static (int cols, int rows) CalculateVisibleRowsAndColumns (CellDimension dimensions, CGRect frame)
 		{
 			var cols = (int)(frame.Width / dimensions.Width);
 			var rows = (int)(frame.Height / dimensions.Height);
@@ -1389,21 +1389,21 @@ namespace XtermSharp.Mac {
 		void ResizeTerminal(CGRect frame)
 		{
 			var frames = CalculateLayouts (frame);
-			var dimensions = CalculateVisibleRowsAndColumns (cellDimensions, frames.Item2);
+			var dimensions = CalculateVisibleRowsAndColumns (cellDimensions, frames.contentFrame);
 
-			ResizeTerminalColsAndRows (dimensions.Item1, dimensions.Item2);
+			ResizeTerminalColsAndRows (dimensions.cols, dimensions.rows);
 
 			// make the selection view the entire visible portion of the view
 			// we will mask the selected text that is visible to the user
-			selectionView.Frame = frames.Item2;
-			caret.Frame = frames.Item2;
+			selectionView.Frame = frames.contentFrame;
+			caret.Frame = frames.contentFrame;
 
 			UpdateCursorPosition ();
 
 			accessibility.Invalidate ();
 			search.Invalidate ();
 
-			OnSizeChanged (dimensions.Item1, dimensions.Item2);
+			OnSizeChanged (dimensions.cols, dimensions.rows);
 		}
 
 		void ResizeTerminalColsAndRows(int cols, int rows)
@@ -1422,10 +1422,10 @@ namespace XtermSharp.Mac {
 		{
 			var frames = CalculateLayouts (Frame);
 
-			scroller.Frame = frames.Item1;
+			scroller.Frame = frames.scrollerFrame;
 
-			caret.Frame = frames.Item2;
-			selectionView.Frame = frames.Item2;
+			caret.Frame = frames.contentFrame;
+			selectionView.Frame = frames.contentFrame;
 		}
 
 		/// <summary>
@@ -1433,7 +1433,7 @@ namespace XtermSharp.Mac {
 		/// Item1 is the frame for the scroller
 		/// Item2 is the frame for the area to draw the terminal contents in
 		/// </summary>
-		(CGRect, CGRect) CalculateLayouts (CGRect rect)
+		(CGRect scrollerFrame, CGRect contentFrame) CalculateLayouts (CGRect rect)
 		{
 			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
 			var scrollFrame = new CGRect (rect.Width - scrollWidth, 0, scrollWidth, rect.Height);
@@ -1529,6 +1529,21 @@ namespace XtermSharp.Mac {
 		}
 
 		#endregion
+
+		protected override void Dispose (bool disposing)
+		{
+			if (disposing) {
+				terminal.Scrolled -= HandleTerminalScrolled;
+				terminal.Buffers.Activated -= HandleBuffersActivated;
+
+				selection.SelectionChanged -= HandleSelectionChanged;
+
+				autoScrollTimer.Elapsed -= AutoScrollTimer_Elapsed;
+				scroller.Activated -= ScrollerActivated;
+			}
+
+			base.Dispose (disposing);
+		}
 
 		void OnSizeChanged (int cols, int rows)
 		{

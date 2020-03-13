@@ -74,6 +74,15 @@ namespace XtermSharp.Mac {
 			UpdateMask ();
 		}
 
+		protected override void Dispose (bool disposing)
+		{
+			if (disposing) {
+				selection.SelectionChanged -= HandleSelectionChanged;
+			}
+
+			base.Dispose (disposing);
+		}
+
 		void HandleSelectionChanged ()
 		{
 			UpdateMask ();

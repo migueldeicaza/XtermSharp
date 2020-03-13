@@ -15,7 +15,7 @@ namespace XtermSharp.Mac {
 			Build ();
 		}
 
-		public string WelcomeText { get; set; } = "Welcome to XtermSharp!";
+		public string WelcomeText { get; set; }
 
 		public string ExitText { get; set; } = string.Empty;
 
@@ -62,6 +62,25 @@ namespace XtermSharp.Mac {
 			terminalView.Frame = Bounds;
 		}
 
+		protected override void Dispose (bool disposing)
+		{
+			if (disposing) {
+				if (process != null) {
+					process.OnStarted -= ProcessOnStarted;
+					process.OnExited -= ProcessOnExited;
+					process.OnData -= ProcessOnData;
+				}
+
+				terminalView.UserInput = null;
+				terminalView.SizeChanged -= HandleSizeChanged;
+				terminalView.TitleChanged -= HandleTitleChanged;
+
+				terminalView.Terminal.DataEmitted -= HandleTerminalDataEmitted;
+			}
+
+			base.Dispose (disposing);
+		}
+
 		/// <summary>
 		/// Sets up the view and sets event handlers
 		/// </summary>
@@ -74,9 +93,7 @@ namespace XtermSharp.Mac {
 
 			terminalView.UserInput = HandleUserInput;
 			terminalView.SizeChanged += HandleSizeChanged;
-			terminalView.TitleChanged += (TerminalView sender, string title) => {
-				TitleChanged?.Invoke (title);
-			};
+			terminalView.TitleChanged += HandleTitleChanged;
 
 			AddSubview (terminalView);
 
@@ -91,6 +108,11 @@ namespace XtermSharp.Mac {
 		void HandleSizeChanged (int cols, int rows, nfloat width, nfloat height)
 		{
 			process?.NotifySizeChanged (cols, rows, width, height);
+		}
+
+		void HandleTitleChanged (TerminalView sender, string title)
+		{
+			TitleChanged?.Invoke (title);
 		}
 
 		void HandleUserInput (byte [] data)
