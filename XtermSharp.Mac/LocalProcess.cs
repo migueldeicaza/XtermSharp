@@ -54,6 +54,15 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		public override void NotifySizeChanged (int newCols, int newRows, nfloat width, nfloat height)
 		{
+			UnixWindowSize newSize = new UnixWindowSize ();
+			GetUnixWindowSize (newCols, newRows, width, height, ref newSize);
+
+			if (IsRunning) {
+				var res = Pty.SetWinSize (shellFileDescriptor, ref newSize);
+				// TODO: log result of SetWinSize if != 0
+			} else {
+				initialSize = newSize;
+			}
 		}
 
 		/// <summary>
