@@ -91,9 +91,6 @@ namespace XtermSharp.Mac {
 			}
 
 			set {
-				if (value == null)
-					throw new ArgumentNullException (nameof (CellDimensions));
-
 				dimensions = value;
 				UpdateMask ();
 			}

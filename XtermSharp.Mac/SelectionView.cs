@@ -24,8 +24,6 @@ namespace XtermSharp.Mac {
 				throw new ArgumentNullException (nameof (selection));
 			if (rect == null)
 				throw new ArgumentNullException (nameof (rect));
-			if (cellDimensions == null)
-				throw new ArgumentNullException (nameof (cellDimensions));
 
 			this.terminal = terminal;
 			this.selection = selection;
@@ -57,9 +55,6 @@ namespace XtermSharp.Mac {
 			}
 
 			set {
-				if (value == null)
-					throw new ArgumentNullException (nameof (CellDimensions));
-
 				cellDimensions = value;
 				UpdateMask ();
 			}

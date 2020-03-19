@@ -8,7 +8,7 @@ namespace XtermSharp.Mac {
 	/// <summary>
 	/// The dimensions of a single character cell in the terminal view
 	/// </summary>
-	sealed class CellDimension {
+	struct CellDimension {
 		public CellDimension (TerminalFonts fonts)
 		{
 			if (fonts == null)
