@@ -170,7 +170,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Given a range of text in the snapshot, find the start and end points in the buffer
 		/// </summary>
-		public (Point, Point) FindRange(Range textRange)
+		public (Point start, Point end) FindRange(Range textRange)
 		{
 			Point start = Point.Empty;
 			Point end = Point.Empty;
@@ -229,7 +229,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Given a line in the snapshot, find the start and end locations in the buffer
 		/// </summary>
-		public (int, int) FindRangeForLine (int line)
+		public (int start, int end) FindRangeForLine (int line)
 		{
 			// the start is the sum of all the lines before this line
 			if (line < 0)

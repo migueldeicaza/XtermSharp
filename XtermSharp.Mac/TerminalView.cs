@@ -25,51 +25,73 @@ namespace XtermSharp.Mac {
 		readonly SelectionService selection;
 		readonly AccessibilityService accessibility;
 		readonly SearchService search;
-		readonly CaretView caret;
+		readonly NSScroller scroller;
 		readonly SelectionView selectionView;
-		readonly NSFont fontNormal, fontItalic, fontBold, fontBoldItalic;
+		readonly CaretView caret;
 		readonly Timer autoScrollTimer = new Timer (80);
+		readonly Dictionary<int, NSStringAttributes> attributes = new Dictionary<int, NSStringAttributes> ();
 
-		nfloat cellHeight, cellWidth, cellDelta;
 		CircularList<NSAttributedString> buffer;
+
+		TerminalFonts fonts;
+		CellDimension cellDimensions;
+		NSColor backgroundColor;
+		NSColor foregroundColor;
+		NSColor invertedForegroundColor;
+		nfloat contentPadding;
 
 		public TerminalView (CGRect rect) : base (rect)
 		{
-			fontNormal = NSFont.FromFontName ("xLucida Sans Typewriter", 14) ?? NSFont.FromFontName ("Courier", 14);
-			fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", 14) ?? NSFont.FromFontName ("Courier Bold", 14);
-			fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", 14) ?? NSFont.FromFontName ("Courier Oblique", 14);
-			fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", 14) ?? NSFont.FromFontName ("Courier Bold Oblique", 14);
-			var textBounds = ComputeCellDimensions ();
+			contentPadding = 4;
+			backgroundColor = NSColor.White;
+			foregroundColor = NSColor.Black;
+			invertedForegroundColor = NSColor.White;
 
-			var cols = (int)(rect.Width / cellWidth);
-			var rows = (int)(rect.Height / cellHeight);
+			// calculate initial state of the terminal but do not update the display, we are still setting things up
+			SetFonts (null, false);
 
-			terminal = new Terminal (this, new TerminalOptions () { Cols = cols, Rows = rows });
+			var viewFrames = CalculateLayouts (rect);
+
+			// get the dimensions of terminal (cols and rows)
+			var dimensions = CalculateVisibleRowsAndColumns (cellDimensions, viewFrames.contentFrame);
+			var options = new TerminalOptions () { Cols = dimensions.cols, Rows = dimensions.rows };
+
+			// the terminal itself and services
+			terminal = new Terminal (this, options);
 			selection = new SelectionService (terminal);
-			selection.SelectionChanged += HandleSelectionChanged;
-			FullBufferUpdate ();
+			accessibility = new AccessibilityService (terminal, selection);
+			search = new SearchService (terminal);
 
-			var selectColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.8f);
-			selectionView = new SelectionView (terminal, selection, new CGRect (0, cellDelta, cellHeight, cellWidth), textBounds) {
-				SelectionColor = selectColor,
-			};
+			// scroller
+			scroller = new NSScroller (viewFrames.scrollerFrame);
+			scroller.ScrollerStyle = NSScrollerStyle.Legacy;
+			scroller.DoubleValue = 0.0;
+			scroller.KnobProportion = 0.1f;
+			scroller.Enabled = false;
+			AddSubview (scroller);
 
-			caret = new CaretView (new CGRect (0, cellDelta, cellHeight, cellWidth)) { Focused = false };
+			// caret view
+			caret = new CaretView (cellDimensions);
 			AddSubview (caret);
 
-			var caretColor = NSColor.FromColor (NSColor.Blue.ColorSpace, 0.4f, 0.2f, 0.9f, 0.5f);
+			// selection view
+			selectionView = new SelectionView (terminal, selection, new CGRect (0, 0, rect.Width, rect.Height), cellDimensions);
 
-			caret.CaretColor = caretColor;
+			// hook up terminal events
+			terminal.Scrolled += HandleTerminalScrolled;
+			terminal.Buffers.Activated += HandleBuffersActivated;
 
-			terminal.Scrolled += Terminal_Scrolled;
-			terminal.Buffers.Activated += Buffers_Activated;
-
-			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
-
-			accessibility = new AccessibilityService (terminal, selection);
+			// service events
 			SetupAccessibility ();
+			selection.SelectionChanged += HandleSelectionChanged;
 
-			search = new SearchService (terminal);
+			// UI events
+			autoScrollTimer.Elapsed += AutoScrollTimer_Elapsed;
+			scroller.Activated += ScrollerActivated;
+
+			// trigger an update of the buffers
+			FullBufferUpdate ();
+			UpdateDisplay ();
 		}
 
 		/// <summary>
@@ -89,6 +111,59 @@ namespace XtermSharp.Mac {
 		public SelectionService SelectionService => selection;
 
 		/// <summary>
+		/// Gets or sets the color of the caret
+		/// </summary>
+		public NSColor CaretColor { get { return caret.CaretColor; } set { caret.CaretColor = value; } }
+
+		/// <summary>
+		/// Gets or sets the color of selected text
+		/// </summary>
+		public NSColor SelectionColor { get { return selectionView.SelectionColor; } set { selectionView.SelectionColor = value; } }
+
+		public NSColor BackgroundColor {  get {
+				return backgroundColor;
+			}
+
+			set {
+				backgroundColor = value;
+				NeedsDisplay = true;
+			}
+		}
+
+		public NSColor ForegroundColor {
+			get {
+				return foregroundColor;
+			}
+
+			set {
+				foregroundColor = value;
+				NeedsDisplay = true;
+			}
+		}
+
+		public NSColor InvertedForegroundColor {
+			get {
+				return invertedForegroundColor;
+			}
+
+			set {
+				invertedForegroundColor = value;
+				NeedsDisplay = true;
+			}
+		}
+
+		public nfloat ContentPadding { get {
+				return contentPadding;
+			}
+
+			set {
+				contentPadding = value;
+				// trigger a redisplay and relayout
+				SetFonts (fonts);
+			}
+		}
+
+		/// <summary>
 		/// Gets or sets a value indicating whether this <see cref="T:XtermSharp.Mac.TerminalView"/> treats the "Alt/Option" key on the mac keyboard as a meta key,
 		/// which has the effect of sending ESC+letter when Meta-letter is pressed.   Otherwise, it passes the keystroke that MacOS provides from the OS keyboard.
 		/// </summary>
@@ -96,7 +171,7 @@ namespace XtermSharp.Mac {
 		public bool OptionAsMetaKey { get; set; } = true;
 
 		/// <summary>
-		/// Gets a value indicating the relative position of the terminal viewport
+		/// Gets a value indicating the relative position of the terminal scroller
 		/// </summary>
 		public double ScrollPosition {
 			get {
@@ -141,52 +216,38 @@ namespace XtermSharp.Mac {
 			}
 		}
 
-		public event Action<double> TerminalScrolled;
+		/// <summary>
+		///  This event is raised when the terminal size (cols and rows, width, height) has change, due to a NSView frame changed.
+		/// </summary>
+		public event Action<int, int, nfloat, nfloat> SizeChanged;
 
-		public event Action<bool> CanScrollChanged;
+		/// <summary>
+		/// Invoked to raise input on the control, which should probably be sent to the actual child process or remote connection 
+		/// </summary>
+		public Action<byte []> UserInput;
 
-		bool userScrolling;
-		public void ScrollToPosition (double position)
+		/// <summary>
+		/// Scrolls the terminal contents up by the given number of lines, up is negative, down is positive
+		/// </summary>
+		public void ScrollLines (int lines)
 		{
-			userScrolling = true;
-			try {
-				var oldPosition = Terminal.Buffer.YDisp;
-
-				var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
-				int newScrollPosition = (int)(maxScrollback * position);
-				if (newScrollPosition < 0)
-					newScrollPosition = 0;
-				if (newScrollPosition > maxScrollback)
-					newScrollPosition = maxScrollback;
-
-				if (newScrollPosition != oldPosition) {
-					ScrollToRow (newScrollPosition);
-				}
-			} finally {
-				userScrolling = false;
-			}
+			Terminal.ScrollLines (lines);
 		}
 
+		/// <summary>
+		/// Scrolls the terminal contents up one page (Terminal.Rows lines) 
+		/// </summary>
 		public void PageUp()
 		{
-			ScrollUp (Terminal.Rows);
+			ScrollLines (Terminal.Rows * -1);
 		}
 
+		/// <summary>
+		/// Scrolls the terminal contents down one page (Terminal.Rows lines) 
+		/// </summary>
 		public void PageDown ()
 		{
-			ScrollDown (Terminal.Rows);
-		}
-
-		public void ScrollUp (int lines)
-		{
-			int newPosition = Math.Max (Terminal.Buffer.YDisp - lines, 0);
-			ScrollToRow (newPosition);
-		}
-
-		public void ScrollDown (int lines)
-		{
-			int newPosition = Math.Min (Terminal.Buffer.YDisp + lines, Terminal.Buffer.Lines.Length - Terminal.Rows);
-			ScrollToRow (newPosition);
+			ScrollLines (Terminal.Rows);
 		}
 
 		/// <summary>
@@ -231,54 +292,6 @@ namespace XtermSharp.Mac {
 			return -1;
 		}
 
-		void ScrollToRow(int row, bool notifyAccessibility = true)
-		{
-			if (row != Terminal.Buffer.YDisp) {
-				Terminal.Buffer.YDisp = row;
-
-				// tell the terminal we want to refresh all the rows
-				Terminal.Refresh (0, Terminal.Rows);
-
-				// do the display update
-				UpdateDisplay (notifyAccessibility);
-
-				selectionView.NotifyScrolled ();
-				TerminalScrolled?.Invoke (ScrollPosition);
-			}
-		}
-
-		void EnsureCaretIsVisible()
-		{
-			int realCaret = Terminal.Buffer.Y + Terminal.Buffer.YBase;
-			int viewportEnd = Terminal.Buffer.YDisp + Terminal.Rows;
-
-			if (realCaret >= viewportEnd || realCaret < Terminal.Buffer.YDisp) {
-				ScrollToRow (Terminal.Buffer.YBase);
-			}
-		}
-
-		void Terminal_Scrolled (Terminal terminal, int yDisp)
-		{
-			selectionView.NotifyScrolled ();
-			TerminalScrolled?.Invoke (ScrollPosition);
-		}
-
-		void Buffers_Activated (Buffer active, Buffer inactive)
-		{
-			CanScrollChanged?.Invoke (CanScroll);
-		}
-
-		CGRect ComputeCellDimensions ()
-		{
-			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = fontNormal }));
-			var bounds = line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
-			cellWidth = bounds.Width;
-			cellHeight = (int)bounds.Height;
-			cellDelta = bounds.Y;
-
-			return bounds;
-		}
-
 		StringBuilder basBuilder = new StringBuilder ();
 
 		NSColor [] colors = new NSColor [257];
@@ -288,14 +301,14 @@ namespace XtermSharp.Mac {
 			// The default color
 			if (color == Renderer.DefaultColor) {
 				if (isFg)
-					return NSColor.Black;
+					return foregroundColor;
 				else
 					return NSColor.Clear;
 			} else if (color == Renderer.InvertedDefaultColor) {
 				if (isFg)
-					return NSColor.White;
+					return invertedForegroundColor;
 				else
-					return NSColor.Black;
+					return foregroundColor;
 			}
 
 			if (colors [color] == null) {
@@ -306,7 +319,6 @@ namespace XtermSharp.Mac {
 			return colors [color];
 		}
 
-		Dictionary<int, NSStringAttributes> attributes = new Dictionary<int, NSStringAttributes> ();
 		NSStringAttributes GetAttributes (int attribute)
 		{
 			// ((int)flags << 18) | (fg << 9) | bg;
@@ -331,13 +343,13 @@ namespace XtermSharp.Mac {
 			NSFont font;
 			if (flags.HasFlag (FLAGS.BOLD)){
 				if (flags.HasFlag (FLAGS.ITALIC))
-					font = fontBoldItalic;
+					font = fonts.BoldItalic;
 				else
-					font = fontBold;
+					font = fonts.Bold;
 			} else if (flags.HasFlag (FLAGS.ITALIC))
-				font = fontItalic;
+				font = fonts.Italic;
 			else
-				font = fontNormal;
+				font = fonts.Normal;
 			
 			var nsattr = new NSStringAttributes () { Font = font, ForegroundColor = MapColor (fg, true),  BackgroundColor = MapColor (bg, false)  };
 			if (flags.HasFlag (FLAGS.UNDERLINE)) {
@@ -398,31 +410,7 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
-			var pos = GetCaretPos (terminal.Buffer.X, terminal.Buffer.Y + terminal.Buffer.YBase );
-
-			caret.Frame = new CGRect (
-				// -1 to pad outside the character a little bit
-				pos.Item1 - 1,
-				// -2 to get the top of the selection to fit over the top of the text properly
-				// and to align with the cursor
-				pos.Item2 - 1,// - cellDelta + 2,
-				//Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
-				// +2 to pad outside the character a little bit on the other side
-				cellWidth + 2,
-				cellHeight + 0);
-		}
-
-		(float, float) GetCaretPos(int x, int y)
-		{
-			var x_ = x * (float)cellWidth;
-			var y_ = (float)Frame.Height - (float)cellHeight - ((y - terminal.Buffer.YDisp) * (float)cellHeight);
-			return (x_, y_);
-
-			//terminal.Buffer.X* cellWidth -1,
-			//	// -2 to get the top of the selection to fit over the top of the text properly
-			//	// and to align with the cursor
-			//	Frame.Height - cellHeight - ((terminal.Buffer.Y + terminal.Buffer.YBase - terminal.Buffer.YDisp) * cellHeight - cellDelta - 2),
-
+			caret.Pos = new System.Drawing.Point (terminal.Buffer.X, terminal.Buffer.Y - terminal.Buffer.YDisp + terminal.Buffer.YBase);
 		}
 
 		void UpdateDisplay ()
@@ -440,17 +428,18 @@ namespace XtermSharp.Mac {
 			for (int row = rowStart; row <= rowEnd; row++) {
 				buffer [row + tb.YDisp] = BuildAttributedString (terminal.Buffer.Lines [row + tb.YDisp], cols);
 			}
-			//var baseLine = Frame.Height - cellDelta;
-			// new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
+
 			UpdateCursorPosition ();
 
-			// Should compute the rectangle instead
-			//Console.WriteLine ($"Dirty range: {rowStart},{rowEnd}");
-			var region = new CGRect (0, Frame.Height - cellHeight - (rowEnd * cellHeight - cellDelta - 1), Frame.Width, (cellHeight - cellDelta) * (rowEnd-rowStart+1));
+			if (rowStart == int.MaxValue || rowEnd < 0) {
+				SetNeedsDisplayInRect (Bounds);
+			} else {
+				var rowY = Frame.Height - contentPadding - cellDimensions.GetRowPos (rowEnd);
+				var region = new CGRect (0, rowY, Frame.Width, cellDimensions.Height * (rowEnd - rowStart + 1));
 
-			//debug.Frame = region;
-			SetNeedsDisplayInRect (region);
-			//Console.WriteLine ("Dirty rectangle: " + region);
+				SetNeedsDisplayInRect (region);
+			}
+
 			pendingDisplay = false;
 
 			if (notifyAccessibility) {
@@ -493,7 +482,6 @@ namespace XtermSharp.Mac {
 
 			// The problem is calling UpdateDisplay here, because there is still data pending.
 			QueuePendingDisplay ();
-
 		}
 
 		public void Feed (IntPtr buffer, int length)
@@ -502,8 +490,6 @@ namespace XtermSharp.Mac {
 			terminal.Feed (buffer, length);
 			QueuePendingDisplay ();
 		}
-
-		NSTrackingArea trackingArea;
 
 		public override void CursorUpdate (NSEvent theEvent)
 		    => NSCursor.IBeamCursor.Set ();
@@ -514,25 +500,14 @@ namespace XtermSharp.Mac {
 		}
 
 		bool loadedCalled;
+		// TODO: is Loaded still needed?
 		internal event Action Loaded;
 		public override CGRect Frame {
 			get => base.Frame; set {
-				var oldSize = base.Frame.Size;
 				base.Frame = value;
 
-				var newRows = (int) (value.Height / cellHeight);
-				var newCols = (int) (value.Width / cellWidth);
+				ResizeTerminal (value);
 
-				if (newCols != terminal.Cols || newRows != terminal.Rows) {
-					terminal.Resize (newCols, newRows);
-					FullBufferUpdate ();
-				}
-
-				// make the selection view the entire visible portion of the view
-				// we will mask the selected text that is visible to the user
-				selectionView.Frame = Bounds;
-
-				UpdateCursorPosition ();
 				// It might seem like this wrong place to call Loaded, and that
 				// ViewDidMoveToSuperview might make more sense
 				// but Editor code expects Loaded to be called after ViewportWidth and ViewportHeight are set
@@ -540,18 +515,8 @@ namespace XtermSharp.Mac {
 					loadedCalled = true;
 					Loaded?.Invoke ();
 				}
-
-				accessibility.Invalidate ();
-				search.Invalidate ();
-
-				SizeChanged?.Invoke (newCols, newRows);
 			}
 		}
-
-		/// <summary>
-		///  This event is raised when the terminal size has change, due to a NSView frame changed.
-		/// </summary>
-		public event Action<int, int> SizeChanged;
 
 		[Export ("validateUserInterfaceItem:")]
 		bool INSUserInterfaceValidations.ValidateUserInterfaceItem (INSValidatedUserInterfaceItem item)
@@ -798,15 +763,6 @@ namespace XtermSharp.Mac {
 			}
 		}
 
-		// Invoked to raise input on the control, which should probably be sent to the actual child process or remote connection
-		public Action<byte []> UserInput;
-
-		public void Send (byte [] data)
-		{
-			EnsureCaretIsVisible ();
-			UserInput?.Invoke (data);
-		}
-
 		[Export ("doCommandBySelector:")]
 		public void DoCommandBySelector (Selector selector)
 		{
@@ -885,7 +841,16 @@ namespace XtermSharp.Mac {
 		}
 
 		[Export ("selectedRange")]
-		public NSRange SelectedRange => notFoundRange;
+		public NSRange SelectedRange {
+			get {
+				// can we just return this in all cases, or just when selection active?
+				if (selection.Active) {
+					return AccessibilitySelectedTextRange;
+				}
+
+				return notFoundRange;
+			}
+		}
 
 		bool hasFocus;
 		public bool HasFocus {
@@ -995,7 +960,7 @@ namespace XtermSharp.Mac {
 				var snapshot = accessibility.GetSnapshot ();
 				var locations = snapshot.FindRangeForLine ((int)line);
 
-				return new NSRange (locations.Item1, locations.Item2);
+				return new NSRange (locations.start, locations.end);
 			} catch (Exception e) {
 				return new NSRange (0, 0);
 			}
@@ -1013,19 +978,19 @@ namespace XtermSharp.Mac {
 			var locations = snapshot.FindRange (new AccessibilitySnapshot.Range { Start = (int)range.Location, Length = (int)range.Length });
 
 			// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
-			if ((locations.Item1.Y < terminal.Buffer.YDisp) || (locations.Item1.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
-				var newYDisp = Math.Max(locations.Item1.Y - (terminal.Rows / 2), 0);
-				ScrollToRow (newYDisp, false);
+			if ((locations.start.Y < terminal.Buffer.YDisp) || (locations.start.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
+				var newYDisp = Math.Max(locations.start.Y - (terminal.Rows / 2), 0);
+				ScrollToYDisp (newYDisp, false);
 			}
 
 			// calculate the frame for the start.
-			var startPos = GetCaretPos (locations.Item1.X, locations.Item1.Y);
+			var startPos = GetCaretPos (locations.start.X, locations.start.Y - terminal.Buffer.YDisp);
 
-			nfloat height = Math.Max(locations.Item2.Y - locations.Item1.Y, 1) * cellHeight;
-			nfloat width = range.Length * cellWidth;
+			nfloat height = Math.Max(locations.end.Y - locations.start.Y, 1) * cellDimensions.Height;
+			nfloat width = range.Length * cellDimensions.Width;
 
 			return CallSafely (() => {
-				var rect = new CGRect(startPos.Item1, startPos.Item2, width, height);
+				var rect = new CGRect(startPos.x, startPos.y, width, height);
 
 				return this.Window.ConvertRectToScreen (
 				    this.ConvertRectToView (
@@ -1036,6 +1001,15 @@ namespace XtermSharp.Mac {
 					    rect.Height),
 					null));
 			});
+		}
+
+		(float x, float y) GetCaretPos (int x, int y)
+		{
+			var x_ = (x * (float)cellDimensions.Width) + (float)contentPadding;
+
+			var y_ = (float)Frame.Height - (float)cellDimensions.GetRowPos(y) - (float)contentPadding;
+
+			return (x_, y_);
 		}
 
 		public override string AccessibilitySelectedText {
@@ -1088,72 +1062,68 @@ namespace XtermSharp.Mac {
 		}
 		#endregion
 
-		int count;
 		public override void DrawRect (CGRect dirtyRect)
 		{
-			//Console.WriteLine ($"DrawRect: {dirtyRect}");
-			NSColor.White.Set ();
+			backgroundColor.Set ();
 			NSGraphics.RectFill (dirtyRect);
 
 			CGContext context = NSGraphicsContext.CurrentContext.GraphicsPort;
 			context.SaveState ();
+			try {
+				var maxRow = terminal.Rows;
+				var yDisp = terminal.Buffer.YDisp;
 
-			//context.TextMatrix = textMatrix;
+				for (int row = 0; row < maxRow; row++) {
+					var rowY = Frame.Height - cellDimensions.GetRowPos (row);
 
-#if false
-			var maxCol = terminal.Cols;
-			var maxRow = terminal.Rows;
+					context.TextPosition = new CGPoint (contentPadding, rowY);
 
-			for (int row = 0; row < maxRow; row++) {
-				context.TextPosition = new CGPoint (0, 15 + row * 15);
-				var str = "";
-				for (int col = 0; col < maxCol; col++) {
-					var ch = terminal.Buffer.Lines [row] [col];
-					str += (ch.Code == 0) ? ' ' : (char)ch.Rune;
-				}
-				var ctline = new CTLine (new NSAttributedString (str, new NSStringAttributes () { Font = font }));
-				
-				ctline.Draw (context);
-			}
-#else
-			var maxRow = terminal.Rows;
-			var yDisp = terminal.Buffer.YDisp;
-			var baseLine = Frame.Height - cellDelta;
-			for (int row = 0; row < maxRow; row++) {
-				context.TextPosition = new CGPoint (0, baseLine - (cellHeight + row * cellHeight));
-				var attrLine = buffer [row + yDisp];
-				if (attrLine == null)
-					continue;
-				var ctline = new CTLine (attrLine);
-
-				ctline.Draw (context);
+					var attrLine = buffer [row + yDisp];
+					if (attrLine == null)
+						continue;
+					using (var ctline = new CTLine (attrLine)) {
+						ctline.Draw (context);
 
 #if DEBUG_DRAWING
-				// debug code
-				context.TextPosition = new CGPoint (Frame.Width - 40, baseLine - (cellHeight + row * cellHeight));
-				ctline = new CTLine (new NSAttributedString ((row).ToString ()));
-				ctline.Draw (context);
+						// debug code
+						context.TextPosition = new CGPoint (Frame.Width - 40, rowY);
+						ctline = new CTLine (new NSAttributedString ((row).ToString ()));
+						ctline.Draw (context);
 
-				context.TextPosition = new CGPoint (Frame.Width - 70, baseLine - (cellHeight + row * cellHeight));
-				ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
-				ctline.Draw (context);
+						context.TextPosition = new CGPoint (Frame.Width - 70, rowY);
+						ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
+						ctline.Draw (context);
 
-				//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
-				///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
-				//ctline.Draw (context);
+						//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
+						///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
+						//ctline.Draw (context);
 #endif
+					}
+
+				}
+
+			} finally {
+				context.RestoreState ();
 
 			}
+		}
 
-			context.RestoreState ();
-#endif
+		#region ITerminalDelegate
+
+		/// <summary>
+		/// Raised when the title of the teminal has changed.
+		/// </summary>
+		public event Action<TerminalView, string> TitleChanged;
+
+		public void Send (byte [] data)
+		{
+			EnsureCaretIsVisible ();
+			UserInput?.Invoke (data);
 		}
 
 		void ITerminalDelegate.ShowCursor (Terminal terminal)
 		{
 		}
-
-		public event Action<TerminalView, string> TitleChanged;
 
 		void ITerminalDelegate.SetTerminalTitle (Terminal source, string title)
 		{
@@ -1163,8 +1133,9 @@ namespace XtermSharp.Mac {
 
 		void ITerminalDelegate.SizeChanged (Terminal source)
 		{
-			throw new NotImplementedException ();
 		}
+
+		#endregion
 
 		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{
@@ -1187,8 +1158,8 @@ namespace XtermSharp.Mac {
 		void CalculateMouseHit (NSEvent theEvent, bool down, out int col, out int row)
 		{
 			var point = ConvertPointFromView (theEvent.LocationInWindow, null);
-			col = (int)(point.X / cellWidth);
-			row = (int)((Frame.Height - point.Y) / cellHeight);
+			col = (int)((point.X - contentPadding) / cellDimensions.Width);
+			row = (int)((Frame.Height - point.Y - contentPadding) / cellDimensions.Height);
 		}
 
 		public override void MouseDown (NSEvent theEvent)
@@ -1278,9 +1249,9 @@ namespace XtermSharp.Mac {
 				int velocity = CalcVelocity((int)Math.Abs (theEvent.DeltaY));
 				
 				if (theEvent.DeltaY > 0) {
-					ScrollUp (velocity);
+					ScrollLines (velocity * -1);
 				} else {
-					ScrollDown (velocity);
+					ScrollLines (velocity);
 				}
 			}
 		}
@@ -1292,15 +1263,9 @@ namespace XtermSharp.Mac {
 			if (autoScrollDelta == 0)
 				return;
 
-			if (autoScrollDelta < 0) {
-				this.BeginInvokeOnMainThread (() => {
-					ScrollUp (autoScrollDelta * -1);
-				});
-			} else {
-				this.BeginInvokeOnMainThread (() => {
-					ScrollDown (autoScrollDelta);
-				});
-			}
+			this.BeginInvokeOnMainThread (() => {
+				ScrollLines (autoScrollDelta);
+			});
 		}
 
 		/// <summary>
@@ -1321,6 +1286,9 @@ namespace XtermSharp.Mac {
 			return 1;
 		}
 
+		/// <summary>
+		/// Ensures that the mouse cursor shows correctly when hovering the view
+		/// </summary>
 		public override void ResetCursorRects ()
 		{
 			AddCursorRect (Bounds, NSCursor.IBeamCursor);
@@ -1348,9 +1316,252 @@ namespace XtermSharp.Mac {
 				// scroll to ensure range start is visible, try to get the start somewhere in the middle of the view
 				if ((searchResult.Start.Y < terminal.Buffer.YDisp) || (searchResult.Start.Y >= terminal.Buffer.YDisp + terminal.Rows)) {
 					var newYDisp = Math.Max (searchResult.Start.Y - (terminal.Rows / 2), 0);
-					ScrollToRow (newYDisp, false);
+					ScrollToYDisp (newYDisp, false);
 				}
 			}
+		}
+
+		#region Font handling
+		/// <summary>
+		/// Sets up the fonts and computes cell dimensions and re-adjusts the terminals rows and columns to suit
+		/// </summary>
+		public void SetFonts (TerminalFonts fonts = null)
+		{
+			SetFonts (fonts, true);
+		}
+
+		/// <summary>
+		/// Sets up the fonts and computes cell dimensions and optionally triggers a display update
+		/// </summary>
+		void SetFonts (TerminalFonts fonts, bool needsUpdateDisplay)
+		{
+			var newFonts = fonts ?? GetDefaultFonts ();
+			this.fonts = newFonts;
+			cellDimensions = new CellDimension (newFonts);
+			attributes.Clear ();
+
+			if (needsUpdateDisplay) {
+				// TODO: clear the selection for now, but we need to handle the remapping of buffer coords when lines are wrapped / unwrapped due to size changes
+				selection.Active = false;
+
+				// update the selection and caret view dimensions
+				selectionView.CellDimensions = cellDimensions;
+				caret.CellDimensions = cellDimensions;
+
+				ResizeTerminal (Frame);
+
+				Terminal.Refresh (0, Terminal.Rows);
+				UpdateDisplay ();
+			}
+		}
+
+		/// <summary>
+		/// Gets the default set of fonts for the terminal view
+		/// </summary>
+		static TerminalFonts GetDefaultFonts(int fontSize = 14)
+		{
+			var fontNormal = NSFont.FromFontName ("xLucida Sans Typewriter", fontSize) ?? NSFont.FromFontName ("Courier", fontSize);
+			var fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", fontSize) ?? NSFont.FromFontName ("Courier Bold", fontSize);
+			var fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", fontSize) ?? NSFont.FromFontName ("Courier Oblique", fontSize);
+			var fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", fontSize) ?? NSFont.FromFontName ("Courier Bold Oblique", fontSize);
+
+			return new TerminalFonts (fontNormal, fontBold, fontItalic, fontBoldItalic);
+		}
+		#endregion
+
+		#region Terminal dimension logic
+
+		/// <summary>
+		/// Calculates the visible number of rows and columns given the frame size and font
+		/// </summary>
+		static (int cols, int rows) CalculateVisibleRowsAndColumns (CellDimension dimensions, CGRect frame)
+		{
+			var cols = (int)(frame.Width / dimensions.Width);
+			var rows = (int)(frame.Height / dimensions.Height);
+
+			return (cols, rows);
+		}
+
+		/// <summary>
+		/// Resizes the terminal given a new frame and adjusts the number of rols and cols
+		/// allowing for the scroller
+		/// </summary>
+		void ResizeTerminal(CGRect frame)
+		{
+			var frames = CalculateLayouts (frame);
+			var dimensions = CalculateVisibleRowsAndColumns (cellDimensions, frames.contentFrame);
+
+			ResizeTerminalColsAndRows (dimensions.cols, dimensions.rows);
+
+			// make the selection view the entire visible portion of the view
+			// we will mask the selected text that is visible to the user
+			selectionView.Frame = frames.contentFrame;
+			caret.Frame = frames.contentFrame;
+
+			UpdateCursorPosition ();
+
+			accessibility.Invalidate ();
+			search.Invalidate ();
+
+			OnSizeChanged (dimensions.cols, dimensions.rows);
+		}
+
+		void ResizeTerminalColsAndRows(int cols, int rows)
+		{
+			if (cols != terminal.Cols || rows != terminal.Rows) {
+				terminal.Resize (cols, rows);
+				FullBufferUpdate ();
+			}
+		}
+
+		#endregion
+
+		#region Layout / scrolling logic
+
+		public override void Layout ()
+		{
+			var frames = CalculateLayouts (Frame);
+
+			scroller.Frame = frames.scrollerFrame;
+
+			caret.Frame = frames.contentFrame;
+			selectionView.Frame = frames.contentFrame;
+		}
+
+		/// <summary>
+		/// Calculates the layout of the views given a frame
+		/// Item1 is the frame for the scroller
+		/// Item2 is the frame for the area to draw the terminal contents in
+		/// </summary>
+		(CGRect scrollerFrame, CGRect contentFrame) CalculateLayouts (CGRect rect)
+		{
+			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
+			var scrollFrame = new CGRect (rect.Width - scrollWidth, 0, scrollWidth, rect.Height);
+
+			var terminalFrame = new CGRect (contentPadding, contentPadding, rect.Width - scrollWidth - (2 * contentPadding), rect.Height - (2 * contentPadding));
+
+			return (scrollFrame, terminalFrame);
+		}
+
+		/// <summary>
+		/// Handles user interaction with the scroller
+		/// </summary>
+		void ScrollerActivated (object sender, EventArgs e)
+		{
+			switch (scroller.HitPart) {
+			case NSScrollerPart.DecrementPage:
+				PageUp ();
+				scroller.DoubleValue = ScrollPosition;
+				break;
+			case NSScrollerPart.IncrementPage:
+				PageDown ();
+				scroller.DoubleValue = ScrollPosition;
+				break;
+			case NSScrollerPart.Knob:
+				ScrollToPosition (scroller.DoubleValue);
+				break;
+			}
+		}
+
+		void OnTerminalScrolled (double scrollPosition)
+		{
+			UpdateScroller ();
+		}
+
+		void OnCanScrollChanged (bool obj)
+		{
+			UpdateScroller ();
+		}
+
+		void UpdateScroller ()
+		{
+			var shouldBeEnabled = !Terminal.Buffers.IsAlternateBuffer;
+			shouldBeEnabled = shouldBeEnabled && Terminal.Buffer.HasScrollback;
+			shouldBeEnabled = shouldBeEnabled && Terminal.Buffer.Lines.Length > Terminal.Rows;
+			scroller.Enabled = shouldBeEnabled;
+
+			scroller.DoubleValue = ScrollPosition;
+			scroller.KnobProportion = ScrollThumbsize;
+		}
+
+		/// <summary>
+		/// Scrolls the terminal contents so that the given row is at the top of the view
+		/// </summary>
+		void ScrollToYDisp (int ydisp, bool notifyAccessibility = true)
+		{
+			int linesToScroll = ydisp - Terminal.Buffer.YDisp;
+			Terminal.ScrollLines (linesToScroll, !notifyAccessibility);
+			if (!notifyAccessibility) {
+				UpdateDisplay (notifyAccessibility);
+
+				selectionView.NotifyScrolled ();
+				OnTerminalScrolled (ScrollPosition);
+			}
+		}
+
+		/// <summary>
+		/// Scrolls the terminal contents to the relative position in the buffer
+		/// </summary>
+		void ScrollToPosition (double position)
+		{
+			var maxScrollback = Terminal.Buffer.Lines.Length - Terminal.Rows;
+			int newScrollPosition = (int)(maxScrollback * position);
+			if (newScrollPosition < 0)
+				newScrollPosition = 0;
+			if (newScrollPosition > maxScrollback)
+				newScrollPosition = maxScrollback;
+
+			ScrollToYDisp (newScrollPosition);
+		}
+
+		/// <summary>
+		/// Handles notfications that the terminal adjusted its YDisp and scrolled contents
+		/// </summary>
+		/// <param name="terminal">The terminal that scrolled</param>
+		/// <param name="yDisp">The new yDisp of the terminal</param>
+		void HandleTerminalScrolled (Terminal terminal, int yDisp)
+		{
+			selectionView.NotifyScrolled ();
+			OnTerminalScrolled (ScrollPosition);
+
+			QueuePendingDisplay ();
+			//UpdateDisplay ();
+		}
+
+		#endregion
+
+		protected override void Dispose (bool disposing)
+		{
+			if (disposing) {
+				terminal.Scrolled -= HandleTerminalScrolled;
+				terminal.Buffers.Activated -= HandleBuffersActivated;
+
+				selection.SelectionChanged -= HandleSelectionChanged;
+
+				autoScrollTimer.Elapsed -= AutoScrollTimer_Elapsed;
+				scroller.Activated -= ScrollerActivated;
+			}
+
+			base.Dispose (disposing);
+		}
+
+		void OnSizeChanged (int cols, int rows)
+		{
+			SizeChanged?.Invoke (cols, rows, Frame.Width, Frame.Height);
+			UpdateScroller ();
+		}
+
+		void HandleBuffersActivated (Buffer active, Buffer inactive)
+		{
+			OnCanScrollChanged (CanScroll);
+		}
+
+		/// <summary>
+		/// Ensures that the caret is visible
+		/// </summary>
+		void EnsureCaretIsVisible ()
+		{
+			ScrollToYDisp (Terminal.Buffer.YBase);
 		}
 	}
 }

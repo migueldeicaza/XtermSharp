@@ -9,7 +9,8 @@ using XtermSharp.Mac;
 
 namespace MacTerminal {
 	public partial class ViewController : NSViewController {
-		TerminalControl terminalControl;
+		ProcessTerminalView terminalControl;
+		LocalProcess process;
 
 		public ViewController (IntPtr handle) : base (handle)
 		{
@@ -18,19 +19,29 @@ namespace MacTerminal {
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
-			terminalControl = new TerminalControl (View.Frame);
-			terminalControl.ShellExited += () => {
+			process = new LocalProcess ();
+			process.OnExited += () => {
 				View.Window.Close ();
 			};
+
+			terminalControl = new ProcessTerminalView (View.Bounds);
+			terminalControl.Process = process;
+
+			terminalControl.TitleChanged += TerminalControl_TitleChanged;
 			View.AddSubview (terminalControl);
 
-			terminalControl.StartShell ();
+			process.Start ();
+		}
+
+		private void TerminalControl_TitleChanged (string obj)
+		{
+			View.Window.Title = obj;
 		}
 
 		public override void ViewDidLayout ()
 		{
 			base.ViewDidLayout ();
-			terminalControl.Frame = View.Frame;
+			terminalControl.Frame = View.Bounds;
 			terminalControl.NeedsLayout = true;
 		}
 
