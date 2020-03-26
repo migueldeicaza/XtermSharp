@@ -17,8 +17,7 @@ namespace XtermSharp.Mac {
 			var textBounds = ComputeCellDimensions (fonts.Normal);
 
 			Width = textBounds.Width;
-			// add a litle bit of padding
-			Height = textBounds.Height + 2;
+			Height = textBounds.Height;
 			Offset = textBounds.Y;
 		}
 
@@ -38,11 +37,19 @@ namespace XtermSharp.Mac {
 		nfloat Offset { get; }
 
 		/// <summary>
-		/// Given a row, returns the lower left Y position
+		/// Given a row, returns the lower Y position
 		/// </summary>
 		public nfloat GetRowPos(int row)
 		{
-			return (row * Height) + Height - Offset;
+			return (row * Height) + Height;
+		}
+
+		/// <summary>
+		/// Given a row, returns the lower left Y position relative to the content frame
+		/// </summary>
+		public CGPoint GetTextRowPosInContentFrame (int row, CGRect contentFrame)
+		{
+			return new CGPoint(contentFrame.X, (contentFrame.Height + contentFrame.Y) - GetTextRowPos(row));
 		}
 
 		/// <summary>
@@ -60,6 +67,14 @@ namespace XtermSharp.Mac {
 		{
 			var line = new CTLine (new NSAttributedString ("W", new NSStringAttributes () { Font = font }));
 			return line.GetBounds (CTLineBoundsOptions.UseOpticalBounds);
+		}
+
+		/// <summary>
+		/// Given a row, returns the lower Y position where 0,0 is the upper left corner
+		/// </summary>
+		nfloat GetTextRowPos (int row)
+		{
+			return (row * Height) + Height + Offset;
 		}
 	}
 }
