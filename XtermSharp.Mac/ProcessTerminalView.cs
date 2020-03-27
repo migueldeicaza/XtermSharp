@@ -88,9 +88,9 @@ namespace XtermSharp.Mac {
 		{
 			var terminalFrame = Bounds;
 
-			terminalView = new TerminalView (terminalFrame);
+			terminalView = OnCreateTerminalView (terminalFrame);
 			var t = terminalView.Terminal;
-
+			
 			terminalView.UserInput = HandleUserInput;
 			terminalView.SizeChanged += HandleSizeChanged;
 			terminalView.TitleChanged += HandleTitleChanged;
@@ -98,6 +98,13 @@ namespace XtermSharp.Mac {
 			AddSubview (terminalView);
 
 			t.DataEmitted += HandleTerminalDataEmitted;
+		}
+
+		protected virtual TerminalView OnCreateTerminalView (CGRect terminalFrame)
+		{
+			// temp logic for allowing for a different terminal view
+			// I think the best solution is to make ProcessTerminalView a subclass of TerminalView
+			return new TerminalView (terminalFrame);
 		}
 
 		void HandleTerminalDataEmitted (Terminal terminal, string txt)
