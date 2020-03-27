@@ -78,6 +78,12 @@ namespace XtermSharp.Mac {
 			base.Dispose (disposing);
 		}
 
+		public override NSView HitTest (CGPoint aPoint)
+		{
+			// we do not want to steal hits, let the terminal view take them
+			return null;
+		}
+
 		void HandleSelectionChanged ()
 		{
 			UpdateMask ();
