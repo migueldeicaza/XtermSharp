@@ -72,6 +72,19 @@ namespace XtermSharp {
 			return correct > Int32.MaxValue ? Int32.MaxValue : correct;
 		}
 
+		/// <summary>
+		/// Returns the CharData at the specified position in the buffer
+		/// </summary>
+		public CharData GetChar (int col, int row)
+		{
+			var bufferRow = lines [row];
+			if (bufferRow == null) {
+				return CharData.Null;
+			}
+
+			return bufferRow [col];
+		}
+
 		public BufferLine GetBlankLine (int attribute, bool isWrapped = false)
 		{
 			var cd = new CharData (attribute);

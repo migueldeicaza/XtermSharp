@@ -149,6 +149,73 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Selects a row in the terminal
+		/// </summary>
+		public void SelectRow (int row)
+		{
+			Start = new Point (0, row + terminal.Buffer.YDisp);
+			End = new Point (terminal.Cols - 1, row + terminal.Buffer.YDisp);
+			// set the field to bypass sending this event twice
+			active = true;
+			SelectionChanged?.Invoke ();
+		}
+
+		/// <summary>
+		/// Selects a word or expression based on the col and row that the user sees on screen
+		/// An expression is a balanced set parenthesis, braces or brackets
+		/// </summary>
+		public void SelectWordOrExpression(int col, int row)
+		{
+			row += terminal.Buffer.YDisp;
+			var buffer = terminal.Buffer;
+
+			Func<string, bool> isLetterOrChar = (s) => {
+				if (string.IsNullOrEmpty (s) || s.Length == 0)
+					return false;
+				return Char.IsLetterOrDigit (s [0]);
+			};
+
+			var chr = buffer.GetChar (col, row).GetCharacter();
+			if (chr == null || chr.Length == 0) {
+				SimpleScanSelection (col, row, (ch) => {
+					return ch == null;
+				});
+			} else {
+				if (isLetterOrChar(chr)) {
+					SimpleScanSelection (col, row, (ch) => {
+						return isLetterOrChar (ch) || ch == ".";
+						});
+				} else {
+					switch (chr) {
+					case " ":
+						// Select all white space
+						SimpleScanSelection (col, row, (ch) => {
+							return ch == " ";
+						});
+						break;
+					case "{":
+					case "(":
+					case "[":
+						BalancedSearchForward (col, row);
+						break;
+					case ")":
+					case "]":
+					case "}":
+						BalancedSearchBackward (col, row);
+						break;
+					default:
+						// For other characters, we just stop there
+						Start = End = new Point (col, row + terminal.Buffer.YDisp);
+						break;
+					}
+				}
+			}
+
+			active = true;
+			SelectionChanged?.Invoke ();
+		}
+
+		/// <summary>
 		/// Gets the selected range as text
 		/// </summary>
 		public string GetSelectedText ()
@@ -294,6 +361,128 @@ namespace XtermSharp {
 		string TranslateBufferLineToString(Buffer buffer, int line, int start, int end)
 		{
 			return buffer.TranslateBufferLineToString (line, true, start, end).Replace (nullString, spaceString).ToString();
+		}
+
+		/// <summary>
+		/// Performs a simple "word" selection based on a function that determines inclussion into the group
+		/// </summary>
+		void SimpleScanSelection (int col, int row, Func<string, bool> includeFunc)
+		{
+			var buffer = terminal.Buffer;
+
+			// Look backward
+			var colScan = col;
+			var left = colScan;
+			while (colScan >= 0) {
+				var ch = buffer.GetChar(colScan, row).GetCharacter ();
+				if (!includeFunc (ch)) {
+					break;
+				}
+
+				left = colScan;
+				colScan -= 1;
+			}
+
+			// Look forward
+			colScan = col;
+			var right = colScan;
+			var limit = terminal.Cols;
+			while (colScan < limit) {
+				var ch = buffer.GetChar (colScan, row).GetCharacter ();
+
+				if (!includeFunc (ch)) {
+					break;
+				}
+
+				colScan += 1;
+				right = colScan;
+			}
+
+			Start = new Point (left, row);
+			End = new Point (right, row);
+		}
+
+		/// <summary>
+		/// Performs a forward search for the `end` character, but this can extend across matching subexpressions
+		/// made of pairs of parenthesis, braces and brackets.
+		/// </summary>
+		void BalancedSearchForward (int col, int row)
+		{
+			var buffer = terminal.Buffer;
+			var startCol = col;
+			var wait = new List<string> ();
+
+			Start = new Point(col, row);
+
+			for (int line = row; line < terminal.Rows; line++) {
+				for (int colIndex = startCol; colIndex < terminal.Cols; colIndex++) {
+					var p = new Point (colIndex, line);
+					var ch = buffer.GetChar (colIndex, line).GetCharacter ();
+                
+					if (ch == "(") {
+							wait.Insert (0, ")");
+					} else if (ch == "[") {
+							wait.Insert (0, "]");
+					} else if (ch == "{") {
+							wait.Insert (0, "}");
+					} else {
+						var v = wait.Count > 0 ? wait [0] : null;
+						if (v != null && v == ch) {
+							wait.RemoveAt (0);
+							if (wait.Count == 0) {
+								End = new Point (p.X + 1, p.Y);
+								return;
+							}
+						}
+					}
+				}
+
+				startCol = 0;
+			}
+
+			Start = End = new Point (col, row);
+		}
+
+		/// <summary>
+		/// Performs a backward search for the `end` character, but this can extend across matching subexpressions
+		/// made of pairs of parenthesis, braces and brackets.
+		/// </summary>
+		void BalancedSearchBackward (int col, int row)
+		{
+			var buffer = terminal.Buffer;
+			var startCol = col;
+			var wait = new List<string> ();
+
+			End = new Point (col, row);
+
+			for (int line = row; line > 0; line--) {
+				for (int colIndex = startCol; colIndex > 0; colIndex--) {
+					var p = new Point (colIndex, line);
+					var ch = buffer.GetChar (colIndex, line).GetCharacter ();
+
+					if (ch == ")") {
+						wait.Insert (0, "(");
+					} else if (ch == "]") {
+						wait.Insert (0, "[");
+					} else if (ch == "}") {
+						wait.Insert (0, "{");
+					} else {
+						var v = wait.Count > 0 ? wait [0] : null;
+						if (v != null && v == ch) {
+							wait.RemoveAt (0);
+							if (wait.Count == 0) {
+								End = new Point (End.X + 1, End.Y);
+								Start = p;
+								return;
+							}
+						}
+					}
+				}
+
+				startCol = terminal.Cols - 1;
+			}
+
+			Start = End = new Point (col, row);
 		}
 
 		class PointComparer : IComparer<Point> {

@@ -35,6 +35,11 @@ namespace XtermSharp {
 			Code = 0;
 		}
 
+		public string GetCharacter()
+		{
+			return Rune.ToString ().TrimEnd ('\0');
+		}
+
 		public override string ToString ()
 		{
 			return $"[CharData (Attr={Attribute},Rune={Rune},W={Width},Code={Code})]";
