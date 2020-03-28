@@ -1399,10 +1399,10 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		static TerminalFonts GetDefaultFonts(int fontSize = 14)
 		{
-			var fontNormal = NSFont.FromFontName ("xLucida Sans Typewriter", fontSize) ?? NSFont.FromFontName ("Courier", fontSize);
-			var fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", fontSize) ?? NSFont.FromFontName ("Courier Bold", fontSize);
-			var fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", fontSize) ?? NSFont.FromFontName ("Courier Oblique", fontSize);
-			var fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", fontSize) ?? NSFont.FromFontName ("Courier Bold Oblique", fontSize);
+			var fontNormal = NSFont.FromFontName ("Menlo Regular", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Regular);
+			var fontBold = NSFont.FromFontName ("Menlo Bold", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Bold);
+			var fontItalic = NSFont.FromFontName ("Menlo Italic", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Regular);
+			var fontBoldItalic = NSFont.FromFontName ("Menlo Bold Italic", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Bold);
 
 			return new TerminalFonts (fontNormal, fontBold, fontItalic, fontBoldItalic);
 		}
