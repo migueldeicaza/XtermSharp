@@ -17,7 +17,7 @@ namespace XtermSharp.Mac {
 			var textBounds = ComputeCellDimensions (fonts.Normal);
 
 			Width = textBounds.Width;
-			Height = textBounds.Height;
+			Height = (nfloat)Math.Round(textBounds.Height);
 			Offset = textBounds.Y;
 		}
 
