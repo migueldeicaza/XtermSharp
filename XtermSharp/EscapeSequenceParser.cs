@@ -309,6 +309,8 @@ namespace XtermSharp {
 		List<int> _pars;
 		string _collect;
 		unsafe PrintHandler printHandler = (data, start, end) => { };
+		public Action PrintStateReset = () => { };
+
 
 		TransitionTable table;
 		public EscapeSequenceParser ()
@@ -435,6 +437,7 @@ namespace XtermSharp {
 			_pars.Add (0);
 			_collect = "";
 			ActiveDcsHandler = null;
+			PrintStateReset ();
 		}
 
 		unsafe public void Parse (byte *data, int len)
@@ -584,6 +587,7 @@ namespace XtermSharp {
 					pars.Add (0);
 					collect = "";
 					dcs = -1;
+					PrintStateReset ();
 					break;
 				case ParserAction.DcsHook:
 					if (DcsHandlers.TryGetValue (collect + (char)code, out dcsHandler))
@@ -608,6 +612,7 @@ namespace XtermSharp {
 					pars.Add (0);
 					collect = "";
 					dcs = -1;
+					PrintStateReset ();
 					break;
 				case ParserAction.OscStart:
 					if (~print != 0) {
@@ -665,6 +670,7 @@ namespace XtermSharp {
 					pars.Add (0);
 					collect = "";
 					dcs = -1;
+					PrintStateReset ();
 					break;
 				}
 				currentState = (ParserState)(transition & 15);
