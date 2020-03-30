@@ -430,6 +430,7 @@ namespace XtermSharp.Mac {
 			}
 
 			UpdateCursorPosition ();
+			UpdateScroller ();
 
 			if (rowStart == int.MaxValue || rowEnd < 0) {
 				SetNeedsDisplayInRect (Bounds);
@@ -1070,45 +1071,84 @@ namespace XtermSharp.Mac {
 			CGContext context = NSGraphicsContext.CurrentContext.GraphicsPort;
 			context.SaveState ();
 			try {
+				var contentFrame = CalculateLayouts (Bounds).contentFrame;
+#if DEBUG_DRAWING
+				DrawDebugFrame ();
+				DrawDebugGrid (x.contentFrame);
+#endif
 				var maxRow = terminal.Rows;
 				var yDisp = terminal.Buffer.YDisp;
 
 				for (int row = 0; row < maxRow; row++) {
-					var rowY = Frame.Height - cellDimensions.GetRowPos (row);
-
-					context.TextPosition = new CGPoint (contentPadding, rowY);
-
 					var attrLine = buffer [row + yDisp];
 					if (attrLine == null)
 						continue;
+
+					context.TextPosition = cellDimensions.GetTextRowPosInContentFrame (row, contentFrame);
+
 					using (var ctline = new CTLine (attrLine)) {
 						ctline.Draw (context);
-
-#if DEBUG_DRAWING
-						// debug code
-						context.TextPosition = new CGPoint (Frame.Width - 40, rowY);
-						ctline = new CTLine (new NSAttributedString ((row).ToString ()));
-						ctline.Draw (context);
-
-						context.TextPosition = new CGPoint (Frame.Width - 70, rowY);
-						ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
-						ctline.Draw (context);
-
-						//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
-						///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
-						//ctline.Draw (context);
-#endif
 					}
-
+#if DEBUG_DRAWING
+					DrawDebugContent (context, row, contentFrame);
+#endif
 				}
-
 			} finally {
 				context.RestoreState ();
-
 			}
 		}
 
-		#region ITerminalDelegate
+#if DEBUG_DRAWING
+		void DrawDebugContent(CGContext context, int row, CGRect contentFrame)
+		{
+			// debug code
+			var rowY = cellDimensions.GetTextRowPosInContentFrame (row, contentFrame);
+			context.TextPosition = new CGPoint (contentFrame.X + contentFrame.Width - (cellDimensions.Width * 3), rowY.Y);
+			using (var ctline = new CTLine (new NSAttributedString (row.ToString ()))) {
+				ctline.Draw (context);
+			}
+			//ctline = new CTLine (new NSAttributedString ((row).ToString ()));
+			//ctline.Draw (context);
+
+			//context.TextPosition = new CGPoint (Frame.Width - 70, rowY);
+			//ctline = new CTLine (new NSAttributedString ((attrLine.Length).ToString ()));
+			//ctline.Draw (context);
+
+			//context.TextPosition = new CGPoint (Frame.Width - 80, baseLine - (cellHeight + row * cellHeight));
+			///ctline = new CTLine (new NSAttributedString ((yDisp).ToString ()));
+			//ctline.Draw (context);
+		}
+
+		void DrawDebugFrame ()
+		{
+			NSColor.Orange.Set ();
+			NSGraphics.FrameRectWithWidth (Bounds, 1);
+		}
+
+		void DrawDebugGrid(CGRect contentFrame)
+		{
+			NSColor.Red.Set ();
+			NSGraphics.FrameRectWithWidth (contentFrame, 1);
+
+			var maxCol = terminal.Cols;
+			var maxRow = terminal.Rows;
+			for (int row = 0; row < maxRow; row++) {
+				var rowY = (contentFrame.Height + contentFrame.Y) - (cellDimensions.Height * row) - cellDimensions.Height;
+				var rowFrame = new CGRect (contentFrame.X, rowY, contentFrame.Width, cellDimensions.Height);
+
+				NSColor.Green.Set ();
+				NSGraphics.FrameRectWithWidth (rowFrame, 1);
+
+				for (int col = 0; col < maxCol; col++) {
+					var colFrame = new CGRect (contentFrame.X + (col * cellDimensions.Width), rowY, cellDimensions.Width, cellDimensions.Height);
+					NSColor.Gray.Set ();
+					NSGraphics.FrameRectWithWidth (colFrame, 1);
+				}
+			}
+		}
+#endif
+
+#region ITerminalDelegate
 
 		/// <summary>
 		/// Raised when the title of the teminal has changed.
@@ -1135,7 +1175,7 @@ namespace XtermSharp.Mac {
 		{
 		}
 
-		#endregion
+#endregion
 
 		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{
@@ -1353,7 +1393,7 @@ namespace XtermSharp.Mac {
 			}
 		}
 
-		#region Font handling
+#region Font handling
 		/// <summary>
 		/// Sets up the fonts and computes cell dimensions and re-adjusts the terminals rows and columns to suit
 		/// </summary>
@@ -1392,16 +1432,16 @@ namespace XtermSharp.Mac {
 		/// </summary>
 		static TerminalFonts GetDefaultFonts(int fontSize = 14)
 		{
-			var fontNormal = NSFont.FromFontName ("xLucida Sans Typewriter", fontSize) ?? NSFont.FromFontName ("Courier", fontSize);
-			var fontBold = NSFont.FromFontName ("xLucida Sans Typewriter Bold", fontSize) ?? NSFont.FromFontName ("Courier Bold", fontSize);
-			var fontItalic = NSFont.FromFontName ("xLucida Sans Typewriter Oblique", fontSize) ?? NSFont.FromFontName ("Courier Oblique", fontSize);
-			var fontBoldItalic = NSFont.FromFontName ("xLucida Sans Typewriter Bold Oblique", fontSize) ?? NSFont.FromFontName ("Courier Bold Oblique", fontSize);
+			var fontNormal = NSFont.FromFontName ("Menlo Regular", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Regular);
+			var fontBold = NSFont.FromFontName ("Menlo Bold", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Bold);
+			var fontItalic = NSFont.FromFontName ("Menlo Italic", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Regular);
+			var fontBoldItalic = NSFont.FromFontName ("Menlo Bold Italic", fontSize) ?? NSFont.MonospacedSystemFont (fontSize, NSFontWeight.Bold);
 
 			return new TerminalFonts (fontNormal, fontBold, fontItalic, fontBoldItalic);
 		}
-		#endregion
+#endregion
 
-		#region Terminal dimension logic
+#region Terminal dimension logic
 
 		/// <summary>
 		/// Calculates the visible number of rows and columns given the frame size and font
@@ -1446,9 +1486,9 @@ namespace XtermSharp.Mac {
 			}
 		}
 
-		#endregion
+#endregion
 
-		#region Layout / scrolling logic
+#region Layout / scrolling logic
 
 		public override void Layout ()
 		{
@@ -1462,9 +1502,10 @@ namespace XtermSharp.Mac {
 
 		/// <summary>
 		/// Calculates the layout of the views given a frame
-		/// Item1 is the frame for the scroller
-		/// Item2 is the frame for the area to draw the terminal contents in
 		/// </summary>
+		/// <remarks>
+		/// `contentFrame` is the region of the view within which to render terminal output
+		/// </remarks>
 		(CGRect scrollerFrame, CGRect contentFrame) CalculateLayouts (CGRect rect)
 		{
 			var scrollWidth = NSScroller.ScrollerWidthForControlSize (NSControlSize.Regular);
@@ -1560,7 +1601,7 @@ namespace XtermSharp.Mac {
 			//UpdateDisplay ();
 		}
 
-		#endregion
+#endregion
 
 		protected override void Dispose (bool disposing)
 		{
