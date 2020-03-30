@@ -81,11 +81,14 @@ namespace XtermSharp {
 	// each function's header comment.
 	// 
 	class InputHandler {
+		readonly ReadingBuffer readingBuffer;
 		Terminal terminal;
 		EscapeSequenceParser parser;
 
 		public InputHandler (Terminal terminal)
 		{
+			readingBuffer = new ReadingBuffer ();
+
 			this.terminal = terminal;
 			parser = new EscapeSequenceParser ();
 			parser.SetCsiHandlerFallback ((string collect, int [] pars, int flag) => {
@@ -103,6 +106,7 @@ namespace XtermSharp {
 
 			// Print handler
 			unsafe { parser.SetPrintHandler (Print); }
+			parser.PrintStateReset = PrintStateReset;
 
 			// CSI handler
 			parser.SetCsiHandler ('@', (pars, collect) => InsertChars (pars));
@@ -1945,8 +1949,15 @@ namespace XtermSharp {
 			terminal.UpdateRange (buffer.Y);
 		}
 
+		void PrintStateReset()
+		{
+			readingBuffer.Reset ();
+		}
+
 		unsafe void Print (byte* data, int start, int end)
 		{
+			readingBuffer.Prepare (data, start, end - start);
+
 			var buffer = terminal.Buffer;
 			var charset = terminal.Charset;
 			var screenReaderMode = terminal.Options.ScreenReaderMode;
@@ -1959,26 +1970,30 @@ namespace XtermSharp {
 
 			terminal.UpdateRange (buffer.Y);
 
-			for (var pos = start; pos < end; ++pos) {
+			while (readingBuffer.HasNext ()) {
 				int code;
-				var n = RuneExt.ExpectedSizeFromFirstByte (data [pos]);
+				byte bufferValue = readingBuffer.GetNext ();
+				var n = RuneExt.ExpectedSizeFromFirstByte (bufferValue);
 				if (n == -1) {
 					// Invalid UTF-8 sequence, client sent us some junk, happens if we run with the wrong locale set
 					// for example if LANG=en
-					code = (int)((uint)data [pos]);
-				} else if (n == 1)
-					code = data [pos];
-				else if (pos + n <= end) {
-					var x = new byte [n];
-					for (int j = 0; j < n; j++)
-						x [j] = data [pos++];
-					(var r, var size) = Rune.DecodeRune (x);
-					code = (int)(uint)r;
-					pos--;
+					code = (int)((uint)bufferValue);
+				} else if (n == 1) {
+					code = bufferValue;
 				} else {
-					// Alternative: keep a buffer here that can be cleared on Reset(), and use that to process the data on partial inputs
-					Console.WriteLine ("Partial data, need to tell the caller that a partial UTF-8 string was received and process later");
-					return;
+					var bytesRemaining = readingBuffer.BytesLeft ();
+					if (readingBuffer.BytesLeft () >= (n - 1)) {
+						var x = new byte [n];
+						x [0] = bufferValue;
+						for (int j = 1; j < n; j++)
+							x [j] = readingBuffer.GetNext ();
+
+						(var r, var size) = Rune.DecodeRune (x);
+						code = (int)(uint)r;
+					} else {
+						readingBuffer.Putback (bufferValue);
+						return;
+					}
 				}
 
 				// MIGUEL-TODO: I suspect this needs to be a stirng in C# to cope with Grapheme clusters
@@ -2099,6 +2114,7 @@ namespace XtermSharp {
 				}
 			}
 			terminal.UpdateRange (buffer.Y);
+			readingBuffer.Done ();
 		}
 	}
 }
