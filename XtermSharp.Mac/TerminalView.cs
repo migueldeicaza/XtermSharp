@@ -430,6 +430,7 @@ namespace XtermSharp.Mac {
 			}
 
 			UpdateCursorPosition ();
+			UpdateScroller ();
 
 			if (rowStart == int.MaxValue || rowEnd < 0) {
 				SetNeedsDisplayInRect (Bounds);
