@@ -1166,12 +1166,14 @@ namespace XtermSharp.Mac {
 		{
 			if (terminal.MouseEvents) {
 				SharedMouseEvent (theEvent, down: true);
+				base.MouseDown (theEvent);
 				return;
 			}
 
 			autoScrollTimer.AutoReset = true;
 
 			autoScrollTimer.Enabled = true;
+			base.MouseDown (theEvent);
 		}
 
 		bool didSelectionDrag;
@@ -1184,25 +1186,37 @@ namespace XtermSharp.Mac {
 				if (terminal.MouseSendsRelease)
 					SharedMouseEvent (theEvent, down: false);
 
+				base.MouseUp (theEvent);
 				return;
 			}
 
 			CalculateMouseHit (theEvent, true, out var col, out var row);
-			if (!selection.Active) {
-				if (theEvent.ModifierFlags.HasFlag(NSEventModifierMask.ShiftKeyMask)) {
-					selection.ShiftExtend (row, col);
-				} else {
-					selection.SetSoftStart (row, col);
-				}
-			} else {
-				if (!didSelectionDrag) {
+
+			switch (theEvent.ClickCount) {
+			case 1:
+				if (!selection.Active) {
 					if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ShiftKeyMask)) {
 						selection.ShiftExtend (row, col);
-					} else if (!theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
-						selection.Active = false;
+					} else {
 						selection.SetSoftStart (row, col);
 					}
+				} else {
+					if (!didSelectionDrag) {
+						if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ShiftKeyMask)) {
+							selection.ShiftExtend (row, col);
+						} else if (!theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
+							selection.Active = false;
+							selection.SetSoftStart (row, col);
+						}
+					}
 				}
+				break;
+			case 2:
+				selection.SelectWordOrExpression (col, row);
+				break;
+			case 3:
+				selection.SelectRow (row);
+				break;
 			}
 
 			didSelectionDrag = false;
@@ -1210,6 +1224,8 @@ namespace XtermSharp.Mac {
 			if (theEvent.ModifierFlags.HasFlag (NSEventModifierMask.ControlKeyMask)) {
 				OnShowContextMenu (theEvent);
 			}
+
+			base.MouseUp (theEvent);
 		}
 
 		public override void RightMouseUp (NSEvent theEvent)
@@ -1231,6 +1247,7 @@ namespace XtermSharp.Mac {
 					terminal.SendMotion (buttonFlags, col, row);
 				}
 
+				base.MouseDragged (theEvent);
 				return;
 			}
 
@@ -1250,6 +1267,8 @@ namespace XtermSharp.Mac {
 					autoScrollDelta = CalcVelocity (row - terminal.Rows);
 				}
 			}
+
+			base.MouseDragged (theEvent);
 		}
 
 		public override void ScrollWheel (NSEvent theEvent)

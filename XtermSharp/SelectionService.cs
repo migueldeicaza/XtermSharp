@@ -149,6 +149,63 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Selects a row in the terminal
+		/// </summary>
+		public void SelectRow (int row)
+		{
+			Start = new Point (0, row + terminal.Buffer.YDisp);
+			End = new Point (terminal.Cols - 1, row + terminal.Buffer.YDisp);
+			// set the field to bypass sending this event twice
+			active = true;
+			SelectionChanged?.Invoke ();
+		}
+
+		/// <summary>
+		/// Selects a word or expression based on the col and row that the user sees on screen
+		/// An expression is a balanced set parenthesis, braces or brackets
+		/// </summary>
+		public void SelectWordOrExpression(int col, int row)
+		{
+			row += terminal.Buffer.YDisp;
+			var buffer = terminal.Buffer;
+
+			Func<CharData, bool> isLetterOrChar = (cd) => {
+				if (cd.IsNullChar ())
+					return false;
+				return Rune.IsLetterOrDigit (cd.Rune);
+			};
+
+			var chr = buffer.GetChar (col, row);
+			if (chr.IsNullChar()) {
+				SimpleScanSelection (col, row, (ch) => {
+					return ch.IsNullChar ();
+				});
+			} else {
+				if (isLetterOrChar(chr)) {
+					SimpleScanSelection (col, row, (ch) => {
+						return isLetterOrChar (ch) || ch.MatchesRune(CharData.Period);
+						});
+				} else {
+					if (chr.MatchesRune(CharData.WhiteSpace)) {
+						SimpleScanSelection (col, row, (ch) => {
+							return ch.MatchesRune (CharData.WhiteSpace);
+						});
+					} else if (chr.MatchesRune (CharData.LeftBrace) || chr.MatchesRune (CharData.LeftBracket) || chr.MatchesRune (CharData.LeftParenthesis)) {
+						BalancedSearchForward (col, row);
+					} else if (chr.MatchesRune (CharData.RightBrace) || chr.MatchesRune (CharData.RightBracket) || chr.MatchesRune (CharData.RightParenthesis)) {
+						BalancedSearchBackward (col, row);
+					} else {
+						// For other characters, we just stop there
+						Start = End = new Point (col, row + terminal.Buffer.YDisp);
+					}
+				}
+			}
+
+			active = true;
+			SelectionChanged?.Invoke ();
+		}
+
+		/// <summary>
 		/// Gets the selected range as text
 		/// </summary>
 		public string GetSelectedText ()
@@ -294,6 +351,128 @@ namespace XtermSharp {
 		string TranslateBufferLineToString(Buffer buffer, int line, int start, int end)
 		{
 			return buffer.TranslateBufferLineToString (line, true, start, end).Replace (nullString, spaceString).ToString();
+		}
+
+		/// <summary>
+		/// Performs a simple "word" selection based on a function that determines inclussion into the group
+		/// </summary>
+		void SimpleScanSelection (int col, int row, Func<CharData, bool> includeFunc)
+		{
+			var buffer = terminal.Buffer;
+
+			// Look backward
+			var colScan = col;
+			var left = colScan;
+			while (colScan >= 0) {
+				var ch = buffer.GetChar(colScan, row);
+				if (!includeFunc (ch)) {
+					break;
+				}
+
+				left = colScan;
+				colScan -= 1;
+			}
+
+			// Look forward
+			colScan = col;
+			var right = colScan;
+			var limit = terminal.Cols;
+			while (colScan < limit) {
+				var ch = buffer.GetChar (colScan, row);
+
+				if (!includeFunc (ch)) {
+					break;
+				}
+
+				colScan += 1;
+				right = colScan;
+			}
+
+			Start = new Point (left, row);
+			End = new Point (right, row);
+		}
+
+		/// <summary>
+		/// Performs a forward search for the `end` character, but this can extend across matching subexpressions
+		/// made of pairs of parenthesis, braces and brackets.
+		/// </summary>
+		void BalancedSearchForward (int col, int row)
+		{
+			var buffer = terminal.Buffer;
+			var startCol = col;
+			var wait = new List<CharData> ();
+
+			Start = new Point(col, row);
+
+			for (int line = row; line < terminal.Rows; line++) {
+				for (int colIndex = startCol; colIndex < terminal.Cols; colIndex++) {
+					var p = new Point (colIndex, line);
+					var ch = buffer.GetChar (colIndex, line);
+                
+					if (ch.MatchesRune(CharData.LeftParenthesis)) {
+							wait.Insert (0, CharData.RightParenthesis);
+					} else if (ch.MatchesRune(CharData.LeftBracket)) {
+							wait.Insert (0, CharData.RightBracket);
+					} else if (ch.MatchesRune(CharData.LeftBrace)) {
+							wait.Insert (0, CharData.RightBrace);
+					} else {
+						var v = wait.Count > 0 ? wait [0] : CharData.Null;
+						if (!v.MatchesRune(CharData.Null) && v.MatchesRune(ch)) {
+							wait.RemoveAt (0);
+							if (wait.Count == 0) {
+								End = new Point (p.X + 1, p.Y);
+								return;
+							}
+						}
+					}
+				}
+
+				startCol = 0;
+			}
+
+			Start = End = new Point (col, row);
+		}
+
+		/// <summary>
+		/// Performs a backward search for the `end` character, but this can extend across matching subexpressions
+		/// made of pairs of parenthesis, braces and brackets.
+		/// </summary>
+		void BalancedSearchBackward (int col, int row)
+		{
+			var buffer = terminal.Buffer;
+			var startCol = col;
+			var wait = new List<CharData> ();
+
+			End = new Point (col, row);
+
+			for (int line = row; line > 0; line--) {
+				for (int colIndex = startCol; colIndex > 0; colIndex--) {
+					var p = new Point (colIndex, line);
+					var ch = buffer.GetChar (colIndex, line);
+
+					if (ch.MatchesRune(CharData.RightParenthesis)) {
+						wait.Insert (0, CharData.LeftParenthesis);
+					} else if (ch.MatchesRune(CharData.RightBracket)) {
+						wait.Insert (0,CharData.LeftBracket);
+					} else if (ch.MatchesRune(CharData.RightBrace)) {
+						wait.Insert (0, CharData.LeftBrace);
+					} else {
+						var v = wait.Count > 0 ? wait [0] : CharData.Null;
+						if (!v.MatchesRune (CharData.Null) && v.MatchesRune (ch)) {
+							wait.RemoveAt (0);
+							if (wait.Count == 0) {
+								End = new Point (End.X + 1, End.Y);
+								Start = p;
+								return;
+							}
+						}
+					}
+				}
+
+				startCol = terminal.Cols - 1;
+			}
+
+			Start = End = new Point (col, row);
 		}
 
 		class PointComparer : IComparer<Point> {
