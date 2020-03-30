@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace XtermSharp {
 	// MIGUEL TODO:
     	// The original code used Rune + Code, but it really makes no sense to keep those separate, excpt for null that has a
 	// zero-width thing for code 0.
+	[DebuggerDisplay("[CharData (Attr={Attribute},Rune={Rune},W={Width},Code={Code})]")]
 	public struct CharData {
 		public int Attribute;
 		public Rune Rune;
@@ -17,6 +19,13 @@ namespace XtermSharp {
 
 		public static CharData Null = new CharData (DefaultAttr, '\u0200', 1, 0);
 		public static CharData WhiteSpace = new CharData (DefaultAttr, ' ', 1, 32);
+		public static CharData LeftBrace = new CharData (DefaultAttr, '{', 1, 123);
+		public static CharData RightBrace = new CharData (DefaultAttr, '}', 1, 125);
+		public static CharData LeftBracket = new CharData (DefaultAttr, '[', 1, 91);
+		public static CharData RightBracket = new CharData (DefaultAttr, ']', 1, 93);
+		public static CharData LeftParenthesis = new CharData (DefaultAttr, '(', 1, 40);
+		public static CharData RightParenthesis = new CharData (DefaultAttr, ')', 1, 41);
+		public static CharData Period = new CharData (DefaultAttr, '.', 1, 46);
 
 		public CharData (int attribute, Rune rune, int width, int code)
 		{
@@ -35,16 +44,28 @@ namespace XtermSharp {
 			Code = 0;
 		}
 
-		public string GetCharacter()
+		/// <summary>
+		/// Returns true if this CharData matches the given Rune, irrespective of character attributes
+		/// </summary>
+		public bool MatchesRune(Rune rune)
 		{
-			return Rune.ToString ().TrimEnd ('\0');
+			return rune == Rune;
 		}
 
-		public override string ToString ()
+		/// <summary>
+		/// Returns true if this CharData matches the given Rune, irrespective of character attributes
+		/// </summary>
+		public bool MatchesRune (CharData chr)
 		{
-			return $"[CharData (Attr={Attribute},Rune={Rune},W={Width},Code={Code})]";
+			return Rune == chr.Rune;
+		}
+
+		/// <summary>
+		/// returns true if this CharData matches Null or has a code of 0
+		/// </summary>
+		public bool IsNullChar()
+		{
+			return Rune == Null.Rune || Code == 0;
 		}
 	}
-
-
 }

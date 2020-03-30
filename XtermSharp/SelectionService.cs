@@ -169,44 +169,34 @@ namespace XtermSharp {
 			row += terminal.Buffer.YDisp;
 			var buffer = terminal.Buffer;
 
-			Func<string, bool> isLetterOrChar = (s) => {
-				if (string.IsNullOrEmpty (s) || s.Length == 0)
+			Func<CharData, bool> isLetterOrChar = (cd) => {
+				if (cd.IsNullChar ())
 					return false;
-				return Char.IsLetterOrDigit (s [0]);
+				return Rune.IsLetterOrDigit (cd.Rune);
 			};
 
-			var chr = buffer.GetChar (col, row).GetCharacter();
-			if (chr == null || chr.Length == 0) {
+			var chr = buffer.GetChar (col, row);
+			if (chr.IsNullChar()) {
 				SimpleScanSelection (col, row, (ch) => {
-					return ch == null;
+					return ch.IsNullChar ();
 				});
 			} else {
 				if (isLetterOrChar(chr)) {
 					SimpleScanSelection (col, row, (ch) => {
-						return isLetterOrChar (ch) || ch == ".";
+						return isLetterOrChar (ch) || ch.MatchesRune(CharData.Period);
 						});
 				} else {
-					switch (chr) {
-					case " ":
-						// Select all white space
+					if (chr.MatchesRune(CharData.WhiteSpace)) {
 						SimpleScanSelection (col, row, (ch) => {
-							return ch == " ";
+							return ch.MatchesRune (CharData.WhiteSpace);
 						});
-						break;
-					case "{":
-					case "(":
-					case "[":
+					} else if (chr.MatchesRune (CharData.LeftBrace) || chr.MatchesRune (CharData.LeftBracket) || chr.MatchesRune (CharData.LeftParenthesis)) {
 						BalancedSearchForward (col, row);
-						break;
-					case ")":
-					case "]":
-					case "}":
+					} else if (chr.MatchesRune (CharData.RightBrace) || chr.MatchesRune (CharData.RightBracket) || chr.MatchesRune (CharData.RightParenthesis)) {
 						BalancedSearchBackward (col, row);
-						break;
-					default:
+					} else {
 						// For other characters, we just stop there
 						Start = End = new Point (col, row + terminal.Buffer.YDisp);
-						break;
 					}
 				}
 			}
@@ -366,7 +356,7 @@ namespace XtermSharp {
 		/// <summary>
 		/// Performs a simple "word" selection based on a function that determines inclussion into the group
 		/// </summary>
-		void SimpleScanSelection (int col, int row, Func<string, bool> includeFunc)
+		void SimpleScanSelection (int col, int row, Func<CharData, bool> includeFunc)
 		{
 			var buffer = terminal.Buffer;
 
@@ -374,7 +364,7 @@ namespace XtermSharp {
 			var colScan = col;
 			var left = colScan;
 			while (colScan >= 0) {
-				var ch = buffer.GetChar(colScan, row).GetCharacter ();
+				var ch = buffer.GetChar(colScan, row);
 				if (!includeFunc (ch)) {
 					break;
 				}
@@ -388,7 +378,7 @@ namespace XtermSharp {
 			var right = colScan;
 			var limit = terminal.Cols;
 			while (colScan < limit) {
-				var ch = buffer.GetChar (colScan, row).GetCharacter ();
+				var ch = buffer.GetChar (colScan, row);
 
 				if (!includeFunc (ch)) {
 					break;
@@ -410,24 +400,24 @@ namespace XtermSharp {
 		{
 			var buffer = terminal.Buffer;
 			var startCol = col;
-			var wait = new List<string> ();
+			var wait = new List<CharData> ();
 
 			Start = new Point(col, row);
 
 			for (int line = row; line < terminal.Rows; line++) {
 				for (int colIndex = startCol; colIndex < terminal.Cols; colIndex++) {
 					var p = new Point (colIndex, line);
-					var ch = buffer.GetChar (colIndex, line).GetCharacter ();
+					var ch = buffer.GetChar (colIndex, line);
                 
-					if (ch == "(") {
-							wait.Insert (0, ")");
-					} else if (ch == "[") {
-							wait.Insert (0, "]");
-					} else if (ch == "{") {
-							wait.Insert (0, "}");
+					if (ch.MatchesRune(CharData.LeftParenthesis)) {
+							wait.Insert (0, CharData.RightParenthesis);
+					} else if (ch.MatchesRune(CharData.LeftBracket)) {
+							wait.Insert (0, CharData.RightBracket);
+					} else if (ch.MatchesRune(CharData.LeftBrace)) {
+							wait.Insert (0, CharData.RightBrace);
 					} else {
-						var v = wait.Count > 0 ? wait [0] : null;
-						if (v != null && v == ch) {
+						var v = wait.Count > 0 ? wait [0] : CharData.Null;
+						if (!v.MatchesRune(CharData.Null) && v.MatchesRune(ch)) {
 							wait.RemoveAt (0);
 							if (wait.Count == 0) {
 								End = new Point (p.X + 1, p.Y);
@@ -451,24 +441,24 @@ namespace XtermSharp {
 		{
 			var buffer = terminal.Buffer;
 			var startCol = col;
-			var wait = new List<string> ();
+			var wait = new List<CharData> ();
 
 			End = new Point (col, row);
 
 			for (int line = row; line > 0; line--) {
 				for (int colIndex = startCol; colIndex > 0; colIndex--) {
 					var p = new Point (colIndex, line);
-					var ch = buffer.GetChar (colIndex, line).GetCharacter ();
+					var ch = buffer.GetChar (colIndex, line);
 
-					if (ch == ")") {
-						wait.Insert (0, "(");
-					} else if (ch == "]") {
-						wait.Insert (0, "[");
-					} else if (ch == "}") {
-						wait.Insert (0, "{");
+					if (ch.MatchesRune(CharData.RightParenthesis)) {
+						wait.Insert (0, CharData.LeftParenthesis);
+					} else if (ch.MatchesRune(CharData.RightBracket)) {
+						wait.Insert (0,CharData.LeftBracket);
+					} else if (ch.MatchesRune(CharData.RightBrace)) {
+						wait.Insert (0, CharData.LeftBrace);
 					} else {
-						var v = wait.Count > 0 ? wait [0] : null;
-						if (v != null && v == ch) {
+						var v = wait.Count > 0 ? wait [0] : CharData.Null;
+						if (!v.MatchesRune (CharData.Null) && v.MatchesRune (ch)) {
 							wait.RemoveAt (0);
 							if (wait.Count == 0) {
 								End = new Point (End.X + 1, End.Y);
