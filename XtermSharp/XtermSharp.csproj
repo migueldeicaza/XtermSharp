@@ -13,6 +13,7 @@
   <ItemGroup>
     <Folder Include="Utils\" />
     <Folder Include="Renderer\" />
+    <Folder Include="InputHandlers\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="NStack.Core" Version="0.12.0" />
