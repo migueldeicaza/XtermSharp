@@ -39,27 +39,40 @@ namespace XtermSharp {
 		public void Unhook ()
 		{
 			var newData = System.Text.Encoding.Default.GetString (data.ToArray ());
+			int ok = 1; // 0 means the request is valid according to docs, but tests expect 0?
+			string result = null;
+
 			switch (newData) {
-			case "\"q": // DECCSA
-				terminal.SendResponse ("\x1bP1$r0\"q$\x1b\\");
+			case "\"q": // DECCSA - Set Character Attribute
+				result = "\"q";
 				return;
-			case "\"p": // DECSCL
-				terminal.SendResponse ("\x1bP1$r61\"p$\x1b\\");
-				return;
-			case "r": // DECSTBM
-				var pt = "" + (terminal.Buffer.ScrollTop + 1) +
-					';' + (terminal.Buffer.ScrollBottom + 1) + 'r';
-				terminal.SendResponse ("\x1bP1$r$" + pt + "\x1b\\");
-				return;
-			case "m": // SGR
+			case "\"p": // DECSCL - conformance level
+				result = "65;1\"p";
+				break;
+			case "r": // DECSTBM - the top and bottom margins
+				result = $"{terminal.Buffer.ScrollTop + 1};{terminal.Buffer.ScrollBottom + 1}r";
+				break;
+			case "m": // SGR- the set graphic rendition
 				  // TODO: report real settings instead of 0m
-				throw new NotImplementedException ();
+				result = CharacterAttribute.ToSGR (terminal.CurAttr);
+				break;
+			case "s": // DECSLRM - the current left and right margins
+				result = $"{terminal.Buffer.MarginLeft + 1};{terminal.Buffer.MarginRight + 1}s";
+				break;
+			case " q": // DECSCUSR - the set cursor style
+				// TODO this should send a number for the current cursor style 2 for block, 4 for underline and 6 for bar
+				var style = "2"; // block
+				result = $"{style} q";
+				break;
 			default:
+				ok = 0; // this means the request is not valid, report that to the host.
+				result = string.Empty;
 				// invalid: DCS 0 $ r Pt ST (xterm)
 				terminal.Error ($"Unknown DCS + {newData}");
-				terminal.SendResponse ("\x1bP0$r$\x1b");
 				break;
 			}
+
+			terminal.SendResponse ($"{terminal.ControlCodes.DCS}{ok}$r{result}{terminal.ControlCodes.ST}");
 		}
 	}
 }

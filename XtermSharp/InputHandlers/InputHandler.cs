@@ -10,17 +10,6 @@ using NStack;
 //  DCS + p Pt ST (xterm) * set terminfo data
 
 namespace XtermSharp {
-	[Flags]
-	public enum FLAGS {
-		BOLD = 1,
-		UNDERLINE = 2,
-		BLINK = 4,
-		INVERSE = 8,
-		INVISIBLE = 16,
-		DIM = 32,
-		ITALIC = 64
-	}
-
 	// 
 	// The terminal's standard implementation of IInputHandler, this handles all
 	// input from the Parser.
@@ -30,15 +19,15 @@ namespace XtermSharp {
 	// 
 	class InputHandler {
 		readonly ReadingBuffer readingBuffer;
-		readonly CsiInputHandler csiHandler;
-		Terminal terminal;
-		EscapeSequenceParser parser;
+		readonly Terminal terminal;
+		readonly TerminalCommands terminalCommands;
+		readonly EscapeSequenceParser parser;
 
 		public InputHandler (Terminal terminal)
 		{
 			this.terminal = terminal;
+			terminalCommands = new TerminalCommands (terminal);
 			readingBuffer = new ReadingBuffer ();
-			csiHandler = new CsiInputHandler (terminal);
 
 			parser = new EscapeSequenceParser ();
 			parser.SetCsiHandlerFallback ((string collect, int [] pars, int flag) => {
@@ -62,18 +51,18 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('@', (pars, collect) => InsertChars (pars));
 			parser.SetCsiHandler ('A', (pars, collect) => CursorUp (pars));
 			parser.SetCsiHandler ('B', (pars, collect) => CursorDown (pars));
-			parser.SetCsiHandler ('C', (pars, collect) => CursorForward (pars));
+			parser.SetCsiHandler ('C', (pars, collect) => terminalCommands.CursorForward (pars));
 			parser.SetCsiHandler ('D', (pars, collect) => CursorBackward (pars));
 			parser.SetCsiHandler ('E', (pars, collect) => CursorNextLine (pars));
 			parser.SetCsiHandler ('F', (pars, collect) => CursorPrecedingLine (pars));
-			parser.SetCsiHandler ('G', (pars, collect) => CursorCharAbsolute (pars));
+			parser.SetCsiHandler ('G', (pars, collect) => terminalCommands.CursorCharAbsolute (pars));
 			parser.SetCsiHandler ('H', (pars, collect) => CursorPosition (pars));
 			parser.SetCsiHandler ('I', (pars, collect) => CursorForwardTab (pars));
 			parser.SetCsiHandler ('J', (pars, collect) => EraseInDisplay (pars));
 			parser.SetCsiHandler ('K', (pars, collect) => EraseInLine (pars));
 			parser.SetCsiHandler ('L', (pars, collect) => InsertLines (pars));
 			parser.SetCsiHandler ('M', (pars, collect) => DeleteLines (pars));
-			parser.SetCsiHandler ('P', (pars, collect) => DeleteChars (pars));
+			parser.SetCsiHandler ('P', (pars, collect) => terminalCommands.DeleteChars (pars));
 			parser.SetCsiHandler ('S', (pars, collect) => ScrollUp (pars));
 			parser.SetCsiHandler ('T', (pars, collect) => ScrollDown (pars));
 			parser.SetCsiHandler ('X', (pars, collect) => EraseChars (pars));
@@ -89,13 +78,33 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('h', (pars, collect) => SetMode (pars, collect));
 			parser.SetCsiHandler ('l', (pars, collect) => ResetMode (pars, collect));
 			parser.SetCsiHandler ('m', (pars, collect) => CharAttributes (pars));
-			parser.SetCsiHandler ('n', (pars, collect) => DeviceStatus (pars, collect));
-			parser.SetCsiHandler ('p', (pars, collect) => SoftReset (pars, collect));
+			parser.SetCsiHandler ('n', (pars, collect) => terminalCommands.DeviceStatus (pars, collect));
+			parser.SetCsiHandler ('p', (pars, collect) => {
+				switch (collect) {
+				case "!":
+					terminalCommands.SoftReset ();
+					break;
+				case "\"":
+					//TODO: SetConformanceLevel (pars, collect);
+					break;
+				default:
+					terminal.Error ("Unknown CSI code", collect, pars, "p");
+					break;
+				}
+			});
 			parser.SetCsiHandler ('q', (pars, collect) => SetCursorStyle (pars, collect));
 			parser.SetCsiHandler ('r', (pars, collect) => SetScrollRegion (pars, collect));
-			parser.SetCsiHandler ('s', (pars, collect) => SaveCursor (pars));
-			parser.SetCsiHandler ('t', (pars, collect) => csiHandler.SetWindowOptions (pars));
-			parser.SetCsiHandler ('u', (pars, collect) => RestoreCursor (pars));
+			parser.SetCsiHandler ('s', (pars, collect) => {
+				// "CSI s" is overloaded, can mean save cursor, but also set the margins with DECSLRM
+				if (terminal.MarginMode) {
+					terminalCommands.SetMargins (pars);
+				} else {
+					terminalCommands.SaveCursor ();
+				}
+			});
+			parser.SetCsiHandler ('t', (pars, collect) => terminalCommands.SetWindowOptions (pars));
+			parser.SetCsiHandler ('u', (pars, collect) => terminalCommands.RestoreCursor ());
+
 
 			// Execute Handler
 			parser.SetExecuteHandler (7, terminal.Bell);
@@ -103,7 +112,7 @@ namespace XtermSharp {
 			parser.SetExecuteHandler (11, LineFeedBasic);   // VT Vertical Tab - ignores auto-new-line behavior in ConvertEOL
 			parser.SetExecuteHandler (12, LineFeedBasic);
 			parser.SetExecuteHandler (13, CarriageReturn);
-			parser.SetExecuteHandler (8, Backspace);
+			parser.SetExecuteHandler (8, terminalCommands.Backspace);
 			parser.SetExecuteHandler (9, Tab);
 			parser.SetExecuteHandler (14, ShiftOut);
 			parser.SetExecuteHandler (15, ShiftIn);
@@ -111,15 +120,16 @@ namespace XtermSharp {
 
 			// some C1 control codes - FIXME: should those be enabled by default?
 			parser.SetExecuteHandler (0x84 /* Index */, () => terminal.Index ());
-			parser.SetExecuteHandler (0x85 /* Next Line */, NextLine);
+			parser.SetExecuteHandler (0x85 /* Next Line */, terminalCommands.NextLine);
 			parser.SetExecuteHandler (0x88 /* Horizontal Tabulation Set */, TabSet);
 
 			// 
 			// OSC handler
 			// 
 			//   0 - icon name + title
-			parser.SetOscHandler (0, SetTitle);
+			parser.SetOscHandler (0, SetTitleAndIcon);
 			//   1 - icon name
+			parser.SetOscHandler (1, SetIconTitle);
 			//   2 - title
 			parser.SetOscHandler (2, SetTitle);
 			//   3 - set property X in the form "prop=value"
@@ -155,10 +165,10 @@ namespace XtermSharp {
 			// 
 			// ESC handlers
 			// 
-			parser.SetEscHandler ("7", SaveCursor);
-			parser.SetEscHandler ("8", RestoreCursor);
+			parser.SetEscHandler ("7", (c, f) => terminalCommands.SaveCursor());
+			parser.SetEscHandler ("8", (c, f) => terminalCommands.RestoreCursor());
 			parser.SetEscHandler ("D", (c, f) => terminal.Index ());
-			parser.SetEscHandler ("E", (c, b) => NextLine ());
+			parser.SetEscHandler ("E", (c, b) => terminalCommands.NextLine ());
 			parser.SetEscHandler ("H", (c, f) => TabSet ());
 			parser.SetEscHandler ("M", (c, f) => ReverseIndex ());
 			parser.SetEscHandler ("=", (c, f) => KeypadApplicationMode ());
@@ -392,41 +402,34 @@ namespace XtermSharp {
 			terminal.ReverseIndex ();
 		}
 
-		//
-		// CSI s
-		// ESC 7
-		//   Save cursor (ANSI.SYS).
-		//
-		void RestoreCursor (string collect, int flag)
+		/// <summary>
+		/// OSC 0; <data> ST (set window and icon title)
+		///   Proxy to set window title.
+		/// </summary>
+		/// <param name="data"></param>
+		void SetTitleAndIcon (string data)
 		{
-			var buffer = terminal.Buffer;
-			buffer.X = buffer.SavedX;
-			buffer.Y = buffer.SavedY;
-			terminal.CurAttr = buffer.SavedAttr;
+			terminal.SetTitle (data);
+			terminal.SetIconTitle (data);
 		}
 
-		//
-		// CSI s
-		// ESC 7
-		//   Save cursor (ANSI.SYS).
-		//
-
-		void SaveCursor (string collect, int flag)
-		{
-			var buffer = terminal.Buffer;
-			buffer.SavedX = buffer.X;
-			buffer.SavedY = buffer.Y;
-			buffer.SavedAttr = terminal.CurAttr;
-		}
-
-		// 
-		// OSC 0; <data> ST (set icon name + window title)
-		// OSC 2; <data> ST (set window title)
-		//   Proxy to set window title. Icon name is not supported.
-		// 
+		/// <summary>
+		/// OSC 2; <data> ST (set window title)
+		///   Proxy to set window title.
+		/// </summary>
+		/// <param name="data"></param>
 		void SetTitle (string data)
 		{
 			terminal.SetTitle (data);
+		}
+
+		/// <summary>
+		/// OSC 1; <data> ST (set window title)
+		///   Proxy to set icon title.
+		/// </summary>
+		void SetIconTitle (string data)
+		{
+			terminal.SetIconTitle (data);
 		}
 
 		// 
@@ -439,18 +442,6 @@ namespace XtermSharp {
 		void TabSet ()
 		{
 			terminal.Buffer.TabSet (terminal.Buffer.X);
-		}
-
-		// 
-		// ESC E
-		// C1.NEL
-		//   DEC mnemonic: NEL (https://vt100.net/docs/vt510-rm/NEL)
-		//   Moves cursor to first position on next line.
-		//   
-		void NextLine ()
-		{
-			terminal.Buffer.X = 0;
-			terminal.Index ();
 		}
 
 		// SI
@@ -478,25 +469,27 @@ namespace XtermSharp {
 				terminal.EmitA11yTab (terminal.Buffer.X - originalX);
 		}
 
-		// 
-		// Backspace handler (Control-h)
-		//
-		void Backspace ()
-		{
-			if (terminal.Buffer.X > 0)
-				terminal.Buffer.X--;
-		}
-
 		void CarriageReturn ()
 		{
-			terminal.Buffer.X = 0;
+			var buffer = terminal.Buffer;
+			if (terminal.MarginMode) {
+				if (buffer.X < buffer.MarginLeft) {
+					buffer.X = 0;
+				} else {
+					buffer.X = buffer.MarginLeft;
+				}
+			} else {
+				terminal.Buffer.X = 0;
+			}
 		}
 
 		void LineFeed ()
 		{
 			var buffer = terminal.Buffer;
-			if (terminal.Options.ConvertEol)
-				buffer.X = 0;
+			if (terminal.Options.ConvertEol) {
+				buffer.X = terminal.MarginMode ? buffer.MarginLeft : 0;
+			}
+
 			LineFeedBasic ();
 		}
 
@@ -543,27 +536,6 @@ namespace XtermSharp {
 		void ResetBufferLine (int y)
 		{
 			EraseInBufferLine (y, 0, terminal.Cols, true);
-		}
-
-		void RestoreCursor (int [] pars)
-		{
-			var buffer = terminal.Buffer;
-			buffer.X = buffer.SavedX;
-			buffer.Y = buffer.SavedY;
-			terminal.CurAttr = buffer.SavedAttr;
-		}
-
-		//
-		//  CSI s
-		//  ESC 7
-		//   Save cursor (ANSI.SYS).
-		// 
-		void SaveCursor (int [] pars)
-		{
-			var buffer = terminal.Buffer;
-			buffer.SavedX = buffer.X;
-			buffer.SavedY = buffer.Y;
-			buffer.SavedAttr = terminal.CurAttr;
 		}
 
 		// 
@@ -618,103 +590,6 @@ namespace XtermSharp {
 			case 6:
 				terminal.SetCursorStyle (CursorStyle.SteadyBar);
 				break;
-			}
-		}
-
-		// 
-		// CSI ! p   Soft terminal reset (DECSTR).
-		// http://vt100.net/docs/vt220-rm/table4-10.html
-		// 
-		void SoftReset (int [] pars, string collect)
-		{
-			if (collect != "!")
-				return;
-
-			terminal.CursorHidden = false;
-			terminal.InsertMode = false;
-			terminal.OriginMode = false;
-			terminal.Wraparound = true;  // defaults: xterm - true, vt100 - false
-			terminal.ApplicationKeypad = false; // ?
-			terminal.SyncScrollArea ();
-			terminal.ApplicationCursor = false;
-			terminal.Buffer.ScrollTop = 0;
-			terminal.Buffer.ScrollBottom = terminal.Rows - 1;
-			terminal.CurAttr = CharData.DefaultAttr;
-			terminal.Buffer.X = 0;
-			terminal.Buffer.Y = 0;
-
-			terminal.Charset = null;
-			terminal.SetgLevel (0);
-
-			// MIGUEL TODO:
-			// Should SavedX, SavedY and SavedAttr be reset as well?
-		}
-
-		// 
-		// CSI Ps n  Device Status Report (DSR).
-		//     Ps = 5  -> Status Report.  Result (``OK'') is
-		//   CSI 0 n
-		//     Ps = 6  -> Report Cursor Position (CPR) [row;column].
-		//   Result is
-		//   CSI r ; c R
-		// CSI ? Ps n
-		//   Device Status Report (DSR, DEC-specific).
-		//     Ps = 6  -> Report Cursor Position (CPR) [row;column] as CSI
-		//     ? r ; c R (assumes page is zero).
-		//     Ps = 1 5  -> Report Printer status as CSI ? 1 0  n  (ready).
-		//     or CSI ? 1 1  n  (not ready).
-		//     Ps = 2 5  -> Report UDK status as CSI ? 2 0  n  (unlocked)
-		//     or CSI ? 2 1  n  (locked).
-		//     Ps = 2 6  -> Report Keyboard status as
-		//   CSI ? 2 7  ;  1  ;  0  ;  0  n  (North American).
-		//   The last two parameters apply to VT400 & up, and denote key-
-		//   board ready and LK01 respectively.
-		//     Ps = 5 3  -> Report Locator status as
-		//   CSI ? 5 3  n  Locator available, if compiled-in, or
-		//   CSI ? 5 0  n  No Locator, if not.
-		// 
-		void DeviceStatus (int [] pars, string collect)
-		{
-			if (collect == "") {
-				switch (pars [0]) {
-				case 5:
-					// status report
-					terminal.EmitData ("\x1b[0n");
-					break;
-				case 6:
-					// cursor position
-					var y = terminal.Buffer.Y + 1;
-					var x = terminal.Buffer.X + 1;
-					terminal.EmitData ($"\x1b[{y};{x}R");
-					break;
-				}
-			} else if (collect == "?") {
-				// modern xterm doesnt seem to
-				// respond to any of these except ?6, 6, and 5
-				switch (pars [0]) {
-				case 6:
-					// cursor position
-					var y = terminal.Buffer.Y + 1;
-					var x = terminal.Buffer.X + 1;
-					terminal.EmitData ($"\x1b[?{y};{x}R");
-					break;
-				case 15:
-					// no printer
-					// this.handler(C0.ESC + '[?11n');
-					break;
-				case 25:
-					// dont support user defined keys
-					// this.handler(C0.ESC + '[?21n');
-					break;
-				case 26:
-					// north american keyboard
-					// this.handler(C0.ESC + '[?27;1;0;0n');
-					break;
-				case 53:
-					// no dec locator/mouse
-					// this.handler(C0.ESC + '[?50n');
-					break;
-				}
 			}
 		}
 
@@ -1050,6 +925,10 @@ namespace XtermSharp {
 					terminal.ApplicationKeypad = false;
 					terminal.SyncScrollArea ();
 					break;
+				case 69:
+					// DECSLRM
+					terminal.MarginMode = false;
+					break;
 				case 9: // X10 Mouse
 					terminal.MouseEvents = false;
 					break;
@@ -1078,7 +957,7 @@ namespace XtermSharp {
 					terminal.CursorHidden = true;
 					break;
 				case 1048: // alt screen cursor
-					this.RestoreCursor (Array.Empty<int> ());
+					terminalCommands.RestoreCursor ();
 					break;
 				case 1049: // alt screen buffer cursor
 					   // FALL-THROUGH
@@ -1088,7 +967,7 @@ namespace XtermSharp {
 					   // Ensure the selection manager has the correct buffer
 					terminal.Buffers.ActivateNormalBuffer ();
 					if (par == 1049)
-						this.RestoreCursor (Array.Empty<int> ());
+						terminalCommands.RestoreCursor ();
 					terminal.Refresh (0, terminal.Rows - 1);
 					terminal.SyncScrollArea ();
 					terminal.ShowCursor ();
@@ -1254,6 +1133,10 @@ namespace XtermSharp {
 					// no release, no motion, no wheel, no modifiers.
 					terminal.SetX10MouseStyle ();
 					break;
+				case 69:
+					// Enable left and right margin mode (DECLRMM),
+					terminal.MarginMode = true;
+					break;
 				case 1000: // vt200 mouse
 					   // no motion.
 					   // no modifiers, except control on the wheel.
@@ -1301,10 +1184,10 @@ namespace XtermSharp {
 					break;
 				case 1048: // alt screen cursor
 
-					SaveCursor (Array.Empty<int> ());
+					terminalCommands.SaveCursor ();
 					break;
 				case 1049: // alt screen buffer cursor
-					SaveCursor (Array.Empty<int> ());
+					terminalCommands.SaveCursor ();
 					// FALL-THROUGH
 					goto case 47;
 				case 47: // alt screen buffer
@@ -1577,21 +1460,6 @@ namespace XtermSharp {
 		}
 
 		// 
-		// CSI Ps P
-		// Delete Ps Character(s) (default = 1) (DCH).
-		// 
-		void DeleteChars (int [] pars)
-		{
-			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
-			var buffer = terminal.Buffer;
-
-			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (
-			  buffer.X, p, new CharData (terminal.EraseAttr ()));
-
-			terminal.UpdateRange (buffer.Y);
-		}
-
-		// 
 		// CSI Ps M
 		// Delete Ps Line(s) (default = 1) (DL).
 		// 
@@ -1752,18 +1620,6 @@ namespace XtermSharp {
 		}
 
 		// 
-		// CSI Ps G
-		// Cursor Character Absolute  [column] (default = [row,1]) (CHA).
-		// 
-		void CursorCharAbsolute (int [] pars)
-		{
-			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
-			var buffer = terminal.Buffer;
-
-			buffer.X = param - 1;
-		}
-
-		// 
 		// CSI Ps F
 		// Cursor Preceding Line Ps Times (default = 1) (CNL).
 		// reuse CSI Ps A ?
@@ -1802,38 +1658,28 @@ namespace XtermSharp {
 			buffer.X = 0;
 		}
 
-		// 
-		// CSI Ps D
-		// Cursor Backward Ps Times (default = 1) (CUB).
-		// 
+		/// <summary>
+		/// CSI Ps D
+		/// Cursor Backward Ps Times (default = 1) (CUB).
+		/// </summary>
 		void CursorBackward (int [] pars)
 		{
 			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
 			var buffer = terminal.Buffer;
 
-			// If the end of the line is hit, prevent this action from wrapping around to the next line.
-			if (buffer.X >= terminal.Cols) {
-				buffer.X--;
+			// What is our left margin - depending on the settings.
+			var left = terminal.MarginMode ? buffer.MarginLeft : 0;
+
+			// If the cursor is positioned before the margin, we can go backwards to the first column
+			if (buffer.X < left) {
+				left = 0;
 			}
 			buffer.X -= param;
-			if (buffer.X < 0)
-				buffer.X = 0;
+        
+			if (buffer.X < left) {
+				buffer.X = left;
+			}
 		}
-
-		// 
-		// CSI Ps B
-		// Cursor Forward Ps Times (default = 1) (CUF).
-		// 
-		void CursorForward (int [] pars)
-		{
-			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
-			var buffer = terminal.Buffer;
-
-			buffer.X += param;
-			if (buffer.X > terminal.Cols)
-				buffer.X = terminal.Cols - 1;
-		}
-
 		// 
 		// CSI Ps B
 		// Cursor Down Ps Times (default = 1) (CUD).
@@ -1856,17 +1702,6 @@ namespace XtermSharp {
 			// If the end of the line is hit, prevent this action from wrapping around to the next line.
 			if (buffer.X >= terminal.Cols)
 				buffer.X--;
-		}
-
-		void SetCursor (int x, int y)
-		{
-			if (terminal.OriginMode) {
-				terminal.Buffer.X = x;
-				terminal.Buffer.Y = terminal.Buffer.ScrollTop + y;
-			} else {
-				terminal.Buffer.X = x;
-				terminal.Buffer.Y = y;
-			}
 		}
 
 		// 
@@ -2010,11 +1845,12 @@ namespace XtermSharp {
 				// FIXME: additionally ensure chWidth fits into a line
 				//   -->  maybe forbid cols<xy at higher level as it would
 				//        introduce a bad runtime penalty here
-				if (buffer.X + chWidth - 1 >= cols) {
+				var right = terminal.MarginMode ? buffer.MarginRight : cols - 1;
+				if (buffer.X + chWidth - 1 >= right) {
 					// autowrap - DECAWM
 					// automatically wraps to the beginning of the next line
 					if (wrapAroundMode) {
-						buffer.X = 0;
+						buffer.X = terminal.MarginMode ? buffer.MarginLeft : 0;
 
 						if (buffer.Y >= buffer.ScrollBottom) {
 							terminal.Scroll (isWrapped: true);
@@ -2023,6 +1859,7 @@ namespace XtermSharp {
 							// wrapped line
 							buffer.Lines [++buffer.Y].IsWrapped = true;
 						}
+
 						// row changed, get it again
 						bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
 					} else {
@@ -2031,8 +1868,8 @@ namespace XtermSharp {
 							// What to do here? We got a wide char that does not fit into last cell
 							continue;
 						}
-						// FIXME: Do we have to set buffer.x to cols - 1, if not wrapping?
-						buffer.X = cols - 1;
+
+						buffer.X = right;
 					}
 				}
 

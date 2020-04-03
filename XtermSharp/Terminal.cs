@@ -9,17 +9,21 @@ namespace XtermSharp {
 		readonly ControlCodes controlCodes;
 		readonly List<string> titleStack;
 		readonly List<string> iconTitleStack;
+		readonly BufferSet buffers;
+		readonly InputHandler input;
 
 		const int MINIMUM_COLS = 2;
 		const int MINIMUM_ROWS = 1;
 
-		BufferSet buffers;
-		InputHandler input;
-		bool applicationKeypad, applicationCursor;
-		bool cursorHidden;
-		bool originMode;
+		// modes
 		bool insertMode;
 		bool bracketedPasteMode;
+		// saved mode states
+		bool savedMarginMode;
+		bool savedOriginMode;
+
+		bool applicationKeypad, applicationCursor;
+		bool cursorHidden;
 		Dictionary<byte, string> charset;
 		int gcharset;
 
@@ -29,8 +33,14 @@ namespace XtermSharp {
 			controlCodes = new ControlCodes () { Send8bit = false };
 			titleStack = new List<string> ();
 			iconTitleStack = new List<string> ();
+			input = new InputHandler (this);
 
 			Options = options ?? new TerminalOptions ();
+			Cols = Math.Max (Options.Cols, MINIMUM_COLS);
+			Rows = Math.Max (Options.Rows, MINIMUM_ROWS);
+
+			buffers = new BufferSet (this);
+
 			Setup ();
 		}
 
@@ -53,6 +63,36 @@ namespace XtermSharp {
 		/// Gets the current icon title of the terminal
 		/// </summary>
 		public string IconTitle { get; private set; }
+
+		/// <summary>
+		/// Gets the currently active buffer
+		/// </summary>
+		public Buffer Buffer => buffers.Active;
+
+		/// <summary>
+		/// Gets the BufferSet for the terminal
+		/// </summary>
+		public BufferSet Buffers => buffers;
+
+		/// <summary>
+		/// Gets or sets the margin mode of the terminal
+		/// </summary>
+		public bool MarginMode { get; internal set; }
+
+		/// <summary>
+		/// Gets or sets the saved margin mode of the terminal
+		/// </summary>
+		public bool SavedMarginMode { get; internal set; }
+
+		/// <summary>
+		/// Gets or sets the origin mode of the terminal
+		/// </summary>
+		public bool OriginMode { get; internal set; }
+
+		/// <summary>
+		/// Gets or sets the saved origin mode of the terminal
+		/// </summary>
+		public bool SavedOriginMode { get; internal set; }
 
 		/// <summary>
 		/// Called by input handlers to set the title
@@ -114,34 +154,6 @@ namespace XtermSharp {
 			terminalDelegate.SetTerminalIconTitle (this, IconTitle);
 		}
 
-
-		void Setup ()
-		{
-			Cols = Math.Max (Options.Cols, MINIMUM_COLS);
-			Rows = Math.Max (Options.Rows, MINIMUM_ROWS);
-
-			buffers = new BufferSet (this);
-			input = new InputHandler (this);
-			cursorHidden = false;
-
-			// modes
-			applicationKeypad = false;
-			applicationCursor = false;
-			originMode = false;
-			InsertMode = false;
-			Wraparound = true;
-			bracketedPasteMode = false;
-
-			// charset
-			charset = null;
-			gcharset = 0;
-			gLevel = 0;
-
-			CurAttr = CharData.DefaultAttr;
-
-			// TODO REST
-		}
-
 		public void SendResponse (string txt)
 		{
 			terminalDelegate.Send (Encoding.UTF8.GetBytes (txt));
@@ -189,9 +201,6 @@ namespace XtermSharp {
 			}
 		}
 
-		public Buffer Buffer => buffers.Active;
-		public BufferSet Buffers => buffers;
-
 		public bool ApplicationCursor { get; internal set; }
 		public int SavedCols { get; internal set; }
 		public bool ApplicationKeypad { get; internal set; }
@@ -201,7 +210,6 @@ namespace XtermSharp {
 		internal bool Vt200Mouse { get; set; }
 
 		public bool SendFocus { get; internal set; }
-		public bool OriginMode { get; internal set; }
 
 
 		/// <summary>
@@ -693,7 +701,6 @@ namespace XtermSharp {
 		/// Provides a baseline set of environment variables that would be useful to run the terminal,
 		/// you can customzie these accordingly.
 		/// </summary>
-		/// <returns></returns>
 		public static string [] GetEnvironmentVariables (string termName = null)
 		{
 			var l = new List<string> ();
@@ -709,6 +716,32 @@ namespace XtermSharp {
 				if (env.Contains (x))
 					l.Add ($"{x}={env [x]}");
 			return l.ToArray ();
+		}
+
+		/// <summary>
+		/// Sets up the terminals initial state
+		/// </summary>
+		void Setup ()
+		{
+			cursorHidden = false;
+
+			// modes
+			applicationKeypad = false;
+			applicationCursor = false;
+			OriginMode = false;
+			MarginMode = false;
+			InsertMode = false;
+			Wraparound = true;
+			bracketedPasteMode = false;
+
+			// charset
+			charset = null;
+			gcharset = 0;
+			gLevel = 0;
+
+			CurAttr = CharData.DefaultAttr;
+
+			// TODO REST
 		}
 	}
 }
