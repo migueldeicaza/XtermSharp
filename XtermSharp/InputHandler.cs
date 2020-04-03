@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using NStack;
 
 // 
@@ -82,14 +83,16 @@ namespace XtermSharp {
 	// 
 	class InputHandler {
 		readonly ReadingBuffer readingBuffer;
+		readonly CsiInputHandler csiHandler;
 		Terminal terminal;
 		EscapeSequenceParser parser;
 
 		public InputHandler (Terminal terminal)
 		{
-			readingBuffer = new ReadingBuffer ();
-
 			this.terminal = terminal;
+			readingBuffer = new ReadingBuffer ();
+			csiHandler = new CsiInputHandler (terminal);
+
 			parser = new EscapeSequenceParser ();
 			parser.SetCsiHandlerFallback ((string collect, int [] pars, int flag) => {
 				terminal.Error ("Unknown CSI code", collect, pars, flag);
@@ -144,6 +147,7 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('q', (pars, collect) => SetCursorStyle (pars, collect));
 			parser.SetCsiHandler ('r', (pars, collect) => SetScrollRegion (pars, collect));
 			parser.SetCsiHandler ('s', (pars, collect) => SaveCursor (pars));
+			parser.SetCsiHandler ('t', (pars, collect) => csiHandler.SetWindowOptions (pars));
 			parser.SetCsiHandler ('u', (pars, collect) => RestoreCursor (pars));
 
 			// Execute Handler

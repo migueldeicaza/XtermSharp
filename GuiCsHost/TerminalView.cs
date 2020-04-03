@@ -308,6 +308,7 @@ namespace GuiCsHost {
 		{
 			//
 		}
+		public void SetTerminalIconTitle (XtermSharp.Terminal source, string title) { }
 
 		public void ShowCursor (XtermSharp.Terminal source)
 		{
@@ -317,6 +318,11 @@ namespace GuiCsHost {
 		public void SizeChanged (XtermSharp.Terminal source)
 		{
 			// Triggered by the terminal
+		}
+
+		public string WindowCommand (XtermSharp.Terminal source, WindowManipulationCommand command, params int [] args)
+		{
+			return null;
 		}
 
 		public override void PositionCursor ()

@@ -309,6 +309,7 @@ namespace XtermSharp {
 				index = X;
 			while (index > 0 && !tabStops [--index])
 				;
+
 			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
 		}
 

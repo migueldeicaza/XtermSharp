@@ -1162,10 +1162,18 @@ namespace XtermSharp.Mac {
 				TitleChanged (this, title);
 		}
 
+		void ITerminalDelegate.SetTerminalIconTitle (XtermSharp.Terminal source, string title)
+		{
+		}
+
 		void ITerminalDelegate.SizeChanged (Terminal source)
 		{
 		}
 
+		string ITerminalDelegate.WindowCommand (XtermSharp.Terminal source, WindowManipulationCommand command, params int [] args)
+		{
+			return null;
+		}
 #endregion
 
 		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)

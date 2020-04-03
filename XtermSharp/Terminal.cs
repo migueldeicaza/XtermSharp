@@ -5,7 +5,10 @@ using System.Text;
 namespace XtermSharp {
 
 	public class Terminal {
-		ITerminalDelegate terminalDelegate;
+		readonly ITerminalDelegate terminalDelegate;
+		readonly ControlCodes controlCodes;
+		readonly List<string> titleStack;
+		readonly List<string> iconTitleStack;
 
 		const int MINIMUM_COLS = 2;
 		const int MINIMUM_ROWS = 1;
@@ -23,13 +26,97 @@ namespace XtermSharp {
 		public Terminal (ITerminalDelegate terminalDelegate = null, TerminalOptions options = null)
 		{
 			this.terminalDelegate = terminalDelegate ?? new SimpleTerminalDelegate ();
+			controlCodes = new ControlCodes () { Send8bit = false };
+			titleStack = new List<string> ();
+			iconTitleStack = new List<string> ();
+
 			Options = options ?? new TerminalOptions ();
 			Setup ();
 		}
 
+		/// <summary>
+		/// Gets the delegate for the terminal
+		/// </summary>
+		public ITerminalDelegate Delegate => terminalDelegate;
+
+		/// <summary>
+		/// Gets the control codes for the terminal
+		/// </summary>
+		public ControlCodes ControlCodes => controlCodes;
+
+		/// <summary>
+		/// Gets the current title of the terminal
+		/// </summary>
+		public string Title { get; private set; }
+
+		/// <summary>
+		/// Gets the current icon title of the terminal
+		/// </summary>
+		public string IconTitle { get; private set; }
+
+		/// <summary>
+		/// Called by input handlers to set the title
+		/// </summary>
+		internal void SetTitle (string text)
+		{
+			Title = text;
+			terminalDelegate.SetTerminalTitle (this, text);
+		}
+
+		/// <summary>
+		/// Called by input handlers to push the current title onto the stack
+		/// </summary>
+		internal void PushTitle ()
+		{
+			titleStack.Insert (0, Title);
+		}
+
+		/// <summary>
+		/// Called by input handlers to pop and set the title to the last one on the stack
+		/// </summary>
+		internal void PopTitle ()
+		{
+			if (titleStack.Count > 0) {
+				Title = titleStack[0];
+				titleStack.RemoveAt (0);
+			}
+
+			terminalDelegate.SetTerminalTitle (this, Title);
+		}
+
+		/// <summary>
+		/// Called by input handlers to set the icon title
+		/// </summary>
+		internal void SetIconTitle (string text)
+		{
+			IconTitle = text;
+			terminalDelegate.SetTerminalIconTitle (this, text);
+		}
+
+		/// <summary>
+		/// Called by input handlers to push the current icon title onto the stack
+		/// </summary>
+		internal void PushIconTitle ()
+		{
+			iconTitleStack.Insert (0, IconTitle);
+		}
+
+		/// <summary>
+		/// Called by input handlers to pop and set the icon title to the last one on the stack
+		/// </summary>
+		internal void PopIconTitle ()
+		{
+			if (iconTitleStack.Count > 0) {
+				IconTitle = iconTitleStack [0];
+				iconTitleStack.RemoveAt (0);
+			}
+
+			terminalDelegate.SetTerminalIconTitle (this, IconTitle);
+		}
+
+
 		void Setup ()
 		{
-
 			Cols = Math.Max (Options.Cols, MINIMUM_COLS);
 			Rows = Math.Max (Options.Rows, MINIMUM_ROWS);
 
@@ -581,16 +668,6 @@ namespace XtermSharp {
 		/// <param name="style"></param>
 		public void SetCursorStyle (CursorStyle style)
 		{
-		}
-
-		string TerminalTitle { get; set; }
-		/// <summary>
-		/// Override to set the current terminal title
-		/// </summary>
-		internal void SetTitle (string text)
-		{
-			TerminalTitle = text;
-			terminalDelegate.SetTerminalTitle (this, text);
 		}
 
 		internal void ReverseIndex ()
