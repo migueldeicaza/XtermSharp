@@ -136,7 +136,7 @@ namespace XtermSharp {
 						response = $"{terminal.ControlCodes.CSI}5;768;1024t";
 					}
 
-					terminal.Delegate.Send (Encoding.UTF8.GetBytes (response));
+					terminal.SendResponse (response);
 					return;
 				case 16:
 					response = terminal.Delegate.WindowCommand (terminal, WindowManipulationCommand.ReportCellSizeInPixels);
@@ -144,7 +144,7 @@ namespace XtermSharp {
 						response = $"{terminal.ControlCodes.CSI}6;16;10t";
 					}
 
-					terminal.Delegate.Send (Encoding.UTF8.GetBytes (response));
+					terminal.SendResponse (response);
 					return;
 				case 17:
 					return;
@@ -154,7 +154,7 @@ namespace XtermSharp {
 						response = $"{terminal.ControlCodes.CSI}8;{terminal.Rows};{terminal.Cols}t";
 					}
 
-					terminal.Delegate.Send (Encoding.UTF8.GetBytes (response));
+					terminal.SendResponse (response);
 					return;
 				case 19:
 					response = terminal.Delegate.WindowCommand (terminal, WindowManipulationCommand.ReportScreenSizeCharacters);
@@ -162,21 +162,20 @@ namespace XtermSharp {
 						response = $"{terminal.ControlCodes.CSI}9;{terminal.Rows};{terminal.Cols}t";
 					}
 
-					terminal.Delegate.Send (Encoding.UTF8.GetBytes (response));
+					terminal.SendResponse (response);
 					return;
 				case 20:
 					response = terminal.IconTitle.Replace ("\\", "");
-					terminal.Delegate.Send (Encoding.UTF8.GetBytes ($"\u001b]L{response}\\"));
+					terminal.SendResponse ($"\u001b]L{response}\\");
 					return;
 				case 21:
 					response = terminal.Title.Replace ("\\", "");
-					terminal.Delegate.Send (Encoding.UTF8.GetBytes ($"\u001b]l{response}\\"));
+					terminal.SendResponse ($"\u001b]l{response}\\");
 					return;
 				default:
 					return;
 				}
 			}
 		}
-
 	}
 }
