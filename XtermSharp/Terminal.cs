@@ -18,9 +18,6 @@ namespace XtermSharp {
 		// modes
 		bool insertMode;
 		bool bracketedPasteMode;
-		// saved mode states
-		bool savedMarginMode;
-		bool savedOriginMode;
 
 		bool applicationKeypad, applicationCursor;
 		bool cursorHidden;
@@ -80,19 +77,9 @@ namespace XtermSharp {
 		public bool MarginMode { get; internal set; }
 
 		/// <summary>
-		/// Gets or sets the saved margin mode of the terminal
-		/// </summary>
-		public bool SavedMarginMode { get; internal set; }
-
-		/// <summary>
 		/// Gets or sets the origin mode of the terminal
 		/// </summary>
 		public bool OriginMode { get; internal set; }
-
-		/// <summary>
-		/// Gets or sets the saved origin mode of the terminal
-		/// </summary>
-		public bool SavedOriginMode { get; internal set; }
 
 		/// <summary>
 		/// Called by input handlers to set the title

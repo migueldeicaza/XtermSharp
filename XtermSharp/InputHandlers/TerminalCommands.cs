@@ -8,6 +8,8 @@ namespace XtermSharp {
 	// TODO: unit tests, mock Terminal
 	internal class TerminalCommands {
 		readonly Terminal terminal;
+		bool savedMarginMode;
+		bool savedOriginMode;
 
 		public TerminalCommands (Terminal terminal)
 		{
@@ -179,10 +181,10 @@ namespace XtermSharp {
 
 
 			terminal.OriginMode = false;
-			terminal.SavedOriginMode = false;
 			terminal.InsertMode = false;
 			terminal.MarginMode = false;
-			terminal.SavedMarginMode = false;
+			savedOriginMode = false;
+			savedMarginMode = false;
 
 
 
@@ -253,8 +255,8 @@ namespace XtermSharp {
 			buffer.SavedY = buffer.Y;
 			buffer.SavedAttr = terminal.CurAttr;
 			//savedWraparound = wraparound
-			terminal.SavedMarginMode = terminal.MarginMode;
-			terminal.SavedOriginMode = terminal.OriginMode;
+			savedMarginMode = terminal.MarginMode;
+			savedOriginMode = terminal.OriginMode;
 			//savedReverseWraparound = reverseWraparound
 		}
 
@@ -264,8 +266,8 @@ namespace XtermSharp {
 			buffer.X = buffer.SavedX;
 			buffer.Y = buffer.SavedY;
 			terminal.CurAttr = buffer.SavedAttr;
-			terminal.MarginMode = terminal.SavedMarginMode;
-			terminal.OriginMode = terminal.SavedOriginMode;
+			terminal.MarginMode = savedMarginMode;
+			terminal.OriginMode = savedOriginMode;
 			//wraparound = savedWraparound
 			//reverseWraparound = savedReverseWraparound
 		}
