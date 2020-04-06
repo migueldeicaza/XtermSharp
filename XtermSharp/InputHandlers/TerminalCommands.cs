@@ -10,6 +10,8 @@ namespace XtermSharp {
 		readonly Terminal terminal;
 		bool savedMarginMode;
 		bool savedOriginMode;
+		bool savedWraparound;
+		bool savedReverseWraparound;
 
 		public TerminalCommands (Terminal terminal)
 		{
@@ -254,10 +256,10 @@ namespace XtermSharp {
 			buffer.SavedX = buffer.X;
 			buffer.SavedY = buffer.Y;
 			buffer.SavedAttr = terminal.CurAttr;
-			//savedWraparound = wraparound
+			savedWraparound = terminal.Wraparound;
+			savedReverseWraparound = terminal.ReverseWraparound;
 			savedMarginMode = terminal.MarginMode;
 			savedOriginMode = terminal.OriginMode;
-			//savedReverseWraparound = reverseWraparound
 		}
 
 		public void RestoreCursor ()
@@ -268,8 +270,8 @@ namespace XtermSharp {
 			terminal.CurAttr = buffer.SavedAttr;
 			terminal.MarginMode = savedMarginMode;
 			terminal.OriginMode = savedOriginMode;
-			//wraparound = savedWraparound
-			//reverseWraparound = savedReverseWraparound
+			terminal.Wraparound = savedWraparound;
+			terminal.ReverseWraparound = savedReverseWraparound;
 		}
 
 		/// <summary>
@@ -515,17 +517,14 @@ namespace XtermSharp {
 		{
 			var buffer = terminal.Buffer;
 
-			var reverseWraparound = false;
-
-			//RestrictCursor (!terminal.ReverseWraparound);
-			RestrictCursor ();
+			RestrictCursor (!terminal.ReverseWraparound);
 
 			int left = terminal.MarginMode ? buffer.MarginLeft : 0;
 			int right = terminal.MarginMode ? buffer.MarginRight : buffer.Cols - 1;
 
 			if (buffer.X > left) {
 				buffer.X--;
-			} else if (reverseWraparound) {
+			} else if (terminal.ReverseWraparound) {
 				if (buffer.X <= left) {
 					if (buffer.Y > buffer.ScrollTop && buffer.Y <= buffer.ScrollBottom && (buffer.Lines [buffer.Y + buffer.YBase].IsWrapped || terminal.MarginMode)) {
 						if (!terminal.MarginMode) {

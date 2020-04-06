@@ -82,6 +82,16 @@ namespace XtermSharp {
 		public bool OriginMode { get; internal set; }
 
 		/// <summary>
+		/// Gets or sets the origin mode of the terminal
+		/// </summary>
+		public bool Wraparound { get; internal set; }
+
+		/// <summary>
+		/// Gets or sets the origin mode of the terminal
+		/// </summary>
+		public bool ReverseWraparound { get; internal set; }
+
+		/// <summary>
 		/// Called by input handlers to set the title
 		/// </summary>
 		internal void SetTitle (string text)
@@ -244,7 +254,6 @@ namespace XtermSharp {
 		public TerminalOptions Options { get; private set; }
 		public int Cols { get; private set; }
 		public int Rows { get; private set; }
-		public bool Wraparound;
 		public bool InsertMode;
 		public int CurAttr;
 		int gLevel;

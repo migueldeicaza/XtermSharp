@@ -923,6 +923,9 @@ namespace XtermSharp {
 				case 12:
 					// this.cursorBlink = false;
 					break;
+				case 45:
+					terminal.ReverseWraparound = false;
+					break;
 				case 66:
 					terminal.Log ("Switching back to normal keypad.");
 					terminal.ApplicationKeypad = false;
@@ -1126,6 +1129,13 @@ namespace XtermSharp {
 					break;
 				case 12:
 					// this.cursorBlink = true;
+					break;
+				case 45:
+					// Xterm Reverse Wrap-around
+					// reverse wraparound can only be enabled if Auto-wrap is enabled (DECAWM)
+					if (terminal.Wraparound) {
+						terminal.ReverseWraparound = true;
+					}
 					break;
 				case 66:
 					terminal.Log ("Serial port requested application keypad.");
