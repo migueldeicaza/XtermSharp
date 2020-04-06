@@ -1855,7 +1855,7 @@ namespace XtermSharp {
 				//   -->  maybe forbid cols<xy at higher level as it would
 				//        introduce a bad runtime penalty here
 				var right = terminal.MarginMode ? buffer.MarginRight : cols - 1;
-				if (buffer.X + chWidth - 1 >= right) {
+				if (buffer.X + chWidth - 1 > right) {
 					// autowrap - DECAWM
 					// automatically wraps to the beginning of the next line
 					if (wrapAroundMode) {
