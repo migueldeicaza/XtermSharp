@@ -438,6 +438,62 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Required by the test suite
+		/// CSI Pi ; Pg ; Pt ; Pl ; Pb ; Pr * y
+		/// Request Checksum of Rectangular Area (DECRQCRA), VT420 and up.
+		/// Response is
+		/// DCS Pi ! ~ x x x x ST
+		///   Pi is the request id.
+		///   Pg is the page number.
+		///   Pt ; Pl ; Pb ; Pr denotes the rectangle.
+		///   The x's are hexadecimal digits 0-9 and A-F.
+		/// </summary>
+		public void DECRQCRA (int[] pars)
+		{
+			var buffer = terminal.Buffer;
+
+			int checksum = 0;
+			var rid = pars.Length > 0 ? pars [0] : 1;
+			var _ = pars.Length > 1 ? pars [1] : 0;
+			var result = "0000";
+
+			// Still need to imeplemnt the checksum here
+			// Which is just the sum of the rune values
+			if (terminal.Delegate.IsProcessTrusted()) {
+
+				var top = Math.Max (1, pars.Length > 2 ? pars [2] : 1);
+				var left = Math.Max (pars.Length > 3 ? pars [3] : 1, 1);
+				var bottom = pars.Length > 4 ? pars [4] : -1;
+				var right = pars.Length > 5 ? pars [5] : -1;
+
+				var rect = GetRectangleFromRequest (buffer, top, left, bottom, right);
+
+				top = rect.top;
+				left = rect.left;
+				bottom = rect.bottom;
+				right = rect.right;
+
+				for (int row = top; row <= bottom; row++) {
+					var line = buffer.Lines [row + buffer.YBase];
+					for (int col = left; col <= right; col++) {
+						var cd = line [col];
+
+						//var ch = cd.getCharacter ();
+						//for (scalar in ch.unicodeScalars) {
+						//	checksum += scalar.value;
+						//}
+						checksum += cd.Code;
+					}
+				}
+
+				result = String.Format ("{0,4:X}", checksum);
+			}
+
+			terminal.SendResponse ($"{terminal.ControlCodes.DCS}{rid}!~{result}{terminal.ControlCodes.ST}");
+		}
+
+
+		/// <summary>
 		/// Restrict cursor to viewport size / scroll margin (origin mode)
 		/// - Parameter limitCols: by default it is true, but the reverseWraparound mechanism in Backspace needs `x` to go beyond.
 		/// </summary>
@@ -506,5 +562,35 @@ namespace XtermSharp {
 		{
 			return terminal.OriginMode && terminal.MarginMode;
 		}
+
+		/// <summary>
+		/// Validates optional arguments for top, left, bottom, right sent by various
+		/// escape sequences and returns validated top, left, bottom, right in our 0-based
+		/// internal coordinates
+		/// </summary>
+		(int top, int left, int bottom, int right) GetRectangleFromRequest (Buffer buffer, int top, int left, int bottom, int right)
+		{
+			if (bottom < 0) {
+				bottom = buffer.Rows;
+			}
+			if (right < 0) {
+				right = buffer.Cols;
+			}
+			if (right > buffer.Cols) {
+				right = buffer.Cols;
+			}
+			if (bottom > buffer.Rows) {
+				bottom = buffer.Rows;
+			}
+			if (terminal.OriginMode) {
+				top += buffer.ScrollTop;
+				bottom += buffer.ScrollBottom;
+			}
+
+			top = Math.Min (top, bottom);
+			left = Math.Min (left, right);
+			return (top - 1, left - 1, bottom - 1, right - 1);
+		}
+
 	}
 }

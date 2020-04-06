@@ -38,6 +38,13 @@
 		/// see the WindowManipulationCommand enumeration for those that need to return values
 		/// </summary>
 		string WindowCommand (Terminal source, WindowManipulationCommand command, params int[] args);
+
+		/// <summary>
+		/// This method should return `true` if operations that can read the buffer back should be allowed,
+		/// otherwise, return false.   This is useful to run some applications that attempt to checksum the
+		/// contents of the screen (unit tests)
+		/// </summary>
+		bool IsProcessTrusted ();
 	}
 
 	/// <summary>
@@ -67,6 +74,11 @@
 		public virtual string WindowCommand (Terminal source, WindowManipulationCommand command, int [] args)
 		{
 			return null;
+		}
+
+		public virtual bool IsProcessTrusted ()
+		{
+			return true;
 		}
 	}
 }

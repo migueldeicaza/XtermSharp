@@ -1174,7 +1174,13 @@ namespace XtermSharp.Mac {
 		{
 			return null;
 		}
-#endregion
+
+		bool ITerminalDelegate.IsProcessTrusted ()
+		{
+			return true;
+		}
+
+		#endregion
 
 		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{

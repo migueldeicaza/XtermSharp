@@ -104,6 +104,9 @@ namespace XtermSharp {
 			});
 			parser.SetCsiHandler ('t', (pars, collect) => terminalCommands.SetWindowOptions (pars));
 			parser.SetCsiHandler ('u', (pars, collect) => terminalCommands.RestoreCursor ());
+			parser.SetCsiHandler ('y', (pars, collect) => terminalCommands.DECRQCRA (pars));
+
+			
 
 
 			// Execute Handler
@@ -479,7 +482,7 @@ namespace XtermSharp {
 					buffer.X = buffer.MarginLeft;
 				}
 			} else {
-				terminal.Buffer.X = 0;
+				buffer.X = 0;
 			}
 		}
 
@@ -1611,12 +1614,8 @@ namespace XtermSharp {
 				row = 0;
 				break;
 			}
-			col = Math.Min (Math.Max (col, 0), terminal.Cols - 1);
-			row = Math.Min (Math.Max (row, 0), terminal.Rows - 1);
 
-			var buffer = terminal.Buffer;
-			buffer.X = col;
-			buffer.Y = row;
+			terminalCommands.SetCursor (col, row);
 		}
 
 		// 
