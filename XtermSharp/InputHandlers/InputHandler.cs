@@ -1625,7 +1625,7 @@ namespace XtermSharp {
 				break;
 			}
 
-			terminalCommands.SetCursor (col, row);
+			terminalCommands.SetCursor (Math.Max(col, 0), Math.Max(row, 0));
 		}
 
 		// 

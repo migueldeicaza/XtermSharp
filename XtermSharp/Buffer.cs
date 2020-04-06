@@ -54,7 +54,7 @@ namespace XtermSharp {
 			get => y;
 			set {
 				if (value < 0 || value > Terminal.Rows - 1)
-					throw new Exception ();
+					throw new ArgumentException ("Y cannot be outside the bounds of the terminal rows", nameof(Y));
 				else
 					y = value;
 			}
