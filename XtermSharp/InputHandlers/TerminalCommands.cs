@@ -132,7 +132,7 @@ namespace XtermSharp {
 					var y = buffer.Y + 1 - (terminal.OriginMode ? buffer.ScrollTop : 0);
 					// Need the max, because the cursor could be before the leftMargin
 					var x = Math.Max (1, buffer.X + 1 - (IsUsingMargins () ? buffer.MarginLeft : 0));
-					terminal.EmitData ($"\x1b[?{y};{x}R");
+					terminal.EmitData ($"\x1b[?{y};{x}1R");
 					break;
 				case 15:
 					// no printer
@@ -543,7 +543,7 @@ namespace XtermSharp {
 					}
 				}
 			} else {
-				if (buffer.Y < left) {
+				if (buffer.X < left) {
 					// This compensates for the scenario where backspace is supposed to move one step
 					// backwards if the "x" position is behind the left margin.
 					// Test BS_MovesLeftWhenLeftOfLeftMargin
