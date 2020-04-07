@@ -412,8 +412,8 @@ namespace XtermSharp {
 		/// <param name="data"></param>
 		void SetTitleAndIcon (string data)
 		{
-			terminal.SetTitle (data);
-			terminal.SetIconTitle (data);
+			terminal.SetTitle (data ?? string.Empty);
+			terminal.SetIconTitle (data ?? string.Empty);
 		}
 
 		/// <summary>
@@ -423,7 +423,7 @@ namespace XtermSharp {
 		/// <param name="data"></param>
 		void SetTitle (string data)
 		{
-			terminal.SetTitle (data);
+			terminal.SetTitle (data ?? string.Empty);
 		}
 
 		/// <summary>
@@ -432,7 +432,7 @@ namespace XtermSharp {
 		/// </summary>
 		void SetIconTitle (string data)
 		{
-			terminal.SetIconTitle (data);
+			terminal.SetIconTitle (data ?? string.Empty);
 		}
 
 		// 
@@ -1243,7 +1243,7 @@ namespace XtermSharp {
 			if (pars.Length > 0) {
 				p = Math.Max (pars [0], 1);
 				if (pars.Length > 1)
-					q = Math.Max (pars [0], 1);
+					q = Math.Max (pars [1], 1);
 			}
 			var buffer = terminal.Buffer;
 			buffer.Y = p - 1;
@@ -1734,7 +1734,7 @@ namespace XtermSharp {
 
 			buffer.Lines [buffer.Y + buffer.YBase].InsertCells (
 				buffer.X,
-				pars.Length > 0 ? pars [0] : 1,
+				pars.Length > 0 ? Math.Max(pars [0], 1) : 1,
 				rightMargin: terminal.MarginMode ? buffer.MarginRight : buffer.Cols - 1,
 				cd);
 

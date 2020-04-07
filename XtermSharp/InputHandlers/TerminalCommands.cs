@@ -427,11 +427,11 @@ namespace XtermSharp {
 					return;
 				case 20:
 					response = terminal.IconTitle.Replace ("\\", "");
-					terminal.SendResponse ($"\u001b]L{response}\\");
+					terminal.SendResponse ($"{terminal.ControlCodes.OSC}l{response}{terminal.ControlCodes.ST}");
 					return;
 				case 21:
 					response = terminal.Title.Replace ("\\", "");
-					terminal.SendResponse ($"\u001b]l{response}\\");
+					terminal.SendResponse ($"{terminal.ControlCodes.OSC}l{response}{terminal.ControlCodes.ST}");
 					return;
 				default:
 					return;
