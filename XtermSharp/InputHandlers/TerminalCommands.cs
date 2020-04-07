@@ -484,7 +484,7 @@ namespace XtermSharp {
 						//for (scalar in ch.unicodeScalars) {
 						//	checksum += scalar.value;
 						//}
-						checksum += cd.Code;
+						checksum += cd.Code == 0 ? 32 : cd.Code;
 					}
 				}
 
