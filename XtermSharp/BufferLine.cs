@@ -62,9 +62,9 @@ namespace XtermSharp {
 			}
 		}
 
-		public void InsertCells (int pos, int n, CharData fillCharData)
+		public void InsertCells (int pos, int n, int rightMargin, CharData fillCharData)
 		{
-			var len = Length;
+			var len = rightMargin + 1;
 			pos = pos % len;
 			if (n < len - pos) {
 				for (var i = len - pos - n - 1; i >= 0; --i)

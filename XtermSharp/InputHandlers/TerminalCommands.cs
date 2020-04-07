@@ -499,7 +499,7 @@ namespace XtermSharp {
 		/// Restrict cursor to viewport size / scroll margin (origin mode)
 		/// - Parameter limitCols: by default it is true, but the reverseWraparound mechanism in Backspace needs `x` to go beyond.
 		/// </summary>
-		void RestrictCursor (bool limitCols = true)
+		public void RestrictCursor (bool limitCols = true)
 		{
 			var buffer = terminal.Buffer;
 			buffer.X = Math.Min (buffer.Cols - (limitCols ? 1 : 0), Math.Max (0, buffer.X));

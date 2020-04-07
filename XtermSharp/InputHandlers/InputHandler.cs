@@ -1728,13 +1728,15 @@ namespace XtermSharp {
 		//
 		void InsertChars (int [] pars)
 		{
+			terminalCommands.RestrictCursor ();
 			var buffer = terminal.Buffer;
 			var cd = new CharData (terminal.EraseAttr ());
 
 			buffer.Lines [buffer.Y + buffer.YBase].InsertCells (
-				  buffer.X,
-				  pars.Length > 0 ? pars [0] : 1,
-				    cd);
+				buffer.X,
+				pars.Length > 0 ? pars [0] : 1,
+				rightMargin: terminal.MarginMode ? buffer.MarginRight : buffer.Cols - 1,
+				cd);
 
 			terminal.UpdateRange (buffer.Y);
 		}
@@ -1882,7 +1884,7 @@ namespace XtermSharp {
 				// insert mode: move characters to right
 				if (insertMode) {
 					// right shift cells according to the width
-					bufferRow.InsertCells (buffer.X, chWidth, empty);
+					bufferRow.InsertCells (buffer.X, chWidth, terminal.MarginMode ? buffer.MarginRight : cols - 1, empty);
 					// test last cell - since the last cell has only room for
 					// a halfwidth char any fullwidth shifted there is lost
 					// and will be set to eraseChar
