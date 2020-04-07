@@ -1620,7 +1620,7 @@ namespace XtermSharp {
 				break;
 			}
 
-			terminalCommands.SetCursor (Math.Max(col, 0), Math.Max(row, 0));
+			terminalCommands.SetCursor (Math.Min(Math.Max(col, 0), terminal.Cols-1), Math.Min(Math.Max(row, 0), terminal.Rows-1));
 		}
 
 		// 
