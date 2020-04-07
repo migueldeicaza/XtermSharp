@@ -638,9 +638,39 @@ namespace XtermSharp.Mac {
 				// Sends the control sequence
 				var ch = theEvent.CharactersIgnoringModifiers;
 				if (ch.Length == 1) {
-					var d = Char.ToUpper (ch [0]);
-					if (d >= 'A' && d <= 'Z')
-						Send (new byte [] { (byte)(d - 'A' + 1) });
+					var d = ch [0];
+
+					byte value;
+					switch (d) {
+					case char c when c >= 'A' && c <= 'Z':
+						value = (byte)(d - 'A' + 1);
+						break;
+					case char c when c >= 'a' && c <= 'z':
+						value = (byte)(d - 'a' + 1);
+						break;
+					case ' ':
+						value = 0;
+						break;
+					case '\\':
+						value = 0x1c;
+						break;
+					case '_':
+						value = 0x1f;
+						break;
+					case ']':
+						value = 0x1d;
+						break;
+					case '[':
+						value = 0x1b;
+						break;
+					case '^':
+						value = 0x1e;
+						break;
+					default:
+						return;
+					}
+
+					Send (new byte [] { value });
 					return;
 				} 
 			} else if (eventFlags.HasFlag (NSEventModifierMask.FunctionKeyMask)) {
