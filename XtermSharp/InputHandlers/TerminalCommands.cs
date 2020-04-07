@@ -583,11 +583,15 @@ namespace XtermSharp {
 			}
 			if (terminal.OriginMode) {
 				top += buffer.ScrollTop;
-				bottom += buffer.ScrollBottom;
+				bottom += buffer.ScrollTop;
+				left += buffer.MarginLeft;
+				right += buffer.MarginLeft;
 			}
 
-			top = Math.Min (top, bottom);
-			left = Math.Min (left, right);
+			if (top > bottom || left > right) {
+				return (0, 0, 0, 0);
+			}
+
 			return (top - 1, left - 1, bottom - 1, right - 1);
 		}
 
