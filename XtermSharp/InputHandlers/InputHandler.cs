@@ -936,28 +936,28 @@ namespace XtermSharp {
 					terminal.MarginMode = false;
 					break;
 				case 9: // X10 Mouse
-					terminal.MouseEvents = false;
-					break;
 				case 1000: // vt200 mouse
-					terminal.MouseEvents = false;
-					break;
 				case 1002: // button event mouse
-					terminal.MouseSendsMotionWhenPressed = false;
-					break;
 				case 1003: // any event mouse
-					terminal.MouseSendsAllMotion = false;
+					terminal.MouseMode = MouseMode.Off;
 					break;
 				case 1004: // send focusin/focusout events
 					terminal.SendFocus = false;
 					break;
 				case 1005: // utf8 ext mode mouse
-					terminal.UtfMouse = false;
+					if (terminal.MouseProtocol == MouseProtocolEncoding.UTF8) {
+						terminal.MouseProtocol = MouseProtocolEncoding.X10;
+					}
 					break;
 				case 1006: // sgr ext mode mouse
-					terminal.SgrMouse = false;
+					if (terminal.MouseProtocol == MouseProtocolEncoding.SGR) {
+						terminal.MouseProtocol = MouseProtocolEncoding.X10;
+					}
 					break;
 				case 1015: // urxvt ext mode mouse
-					terminal.UrxvtMouse = false;
+					if (terminal.MouseProtocol == MouseProtocolEncoding.URXVT) {
+						terminal.MouseProtocol = MouseProtocolEncoding.X10;
+					}
 					break;
 				case 25: // hide cursor
 					terminal.CursorHidden = true;
@@ -1127,6 +1127,10 @@ namespace XtermSharp {
 				case 7:
 					terminal.Wraparound = true;
 					break;
+				case 9: // X10 Mouse
+					// no release, no motion, no wheel, no modifiers.
+					terminal.MouseMode = MouseMode.X10;
+					break;
 				case 12:
 					// this.cursorBlink = true;
 					break;
@@ -1142,10 +1146,6 @@ namespace XtermSharp {
 					terminal.ApplicationKeypad = true;
 					terminal.SyncScrollArea ();
 					break;
-				case 9: // X10 Mouse
-					// no release, no motion, no wheel, no modifiers.
-					terminal.SetX10MouseStyle ();
-					break;
 				case 69:
 					// Enable left and right margin mode (DECLRMM),
 					terminal.MarginMode = true;
@@ -1153,18 +1153,16 @@ namespace XtermSharp {
 				case 1000: // vt200 mouse
 					   // no motion.
 					   // no modifiers, except control on the wheel.
-					terminal.SetVT200MouseStyle ();
+					terminal.MouseMode = MouseMode.VT200;
 					break;
 				case 1002:
 					// SET_BTN_EVENT_MOUSE
-					terminal.MouseSendsMotionWhenPressed = true;
+					terminal.MouseMode = MouseMode.ButtonEventTracking;
 					break;
-
 				case 1003:
 					// SET_ANY_EVENT_MOUSE 
-					terminal.MouseSendsAllMotion = true;
+					terminal.MouseMode = MouseMode.AnyEvent;
 					break;
-
 				case 1004: // send focusin/focusout events
 					   // focusin: ^[[I
 					   // focusout: ^[[O
@@ -1173,20 +1171,17 @@ namespace XtermSharp {
 				case 1005: // utf8 ext mode mouse
 					   // for wide terminals
 					   // simply encodes large values as utf8 characters
-					terminal.UtfMouse = true;
+					terminal.MouseProtocol = MouseProtocolEncoding.UTF8;
 					break;
 				case 1006: // sgr ext mode mouse
-					terminal.SetVT200MouseStyle ();
-					terminal.SgrMouse = true;
+					terminal.MouseProtocol = MouseProtocolEncoding.SGR;
 					// for wide terminals
 					// does not add 32 to fields
 					// press: ^[[<b;x;yM
 					// release: ^[[<b;x;ym
 					break;
 				case 1015: // urxvt ext mode mouse
-					terminal.SetVT200MouseStyle ();
-
-					terminal.UrxvtMouse = true;
+					terminal.MouseProtocol = MouseProtocolEncoding.URXVT;
 					// for wide terminals
 					// numbers for fields
 					// press: ^[[b;x;yM

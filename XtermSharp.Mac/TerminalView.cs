@@ -1186,7 +1186,7 @@ namespace XtermSharp.Mac {
 		{
 			var flags = theEvent.ModifierFlags;
 
-			buttonFlags = terminal.EncodeButton (
+			buttonFlags = terminal.EncodeMouseButton (
 				(int)theEvent.ButtonNumber, release: false,
 				shift: flags.HasFlag (NSEventModifierMask.ShiftKeyMask),
 				meta: flags.HasFlag (NSEventModifierMask.AlternateKeyMask),
@@ -1209,7 +1209,7 @@ namespace XtermSharp.Mac {
 
 		public override void MouseDown (NSEvent theEvent)
 		{
-			if (terminal.MouseEvents) {
+			if (terminal.MouseMode.SendButtonPress()) {
 				SharedMouseEvent (theEvent, down: true);
 				base.MouseDown (theEvent);
 				return;
@@ -1227,10 +1227,8 @@ namespace XtermSharp.Mac {
 		{
 			autoScrollTimer.Enabled = false;
 
-			if (terminal.MouseEvents) {
-				if (terminal.MouseSendsRelease)
-					SharedMouseEvent (theEvent, down: false);
-
+			if (terminal.MouseMode.SendButtonRelease()) {
+				SharedMouseEvent (theEvent, down: false);
 				base.MouseUp (theEvent);
 				return;
 			}
@@ -1286,13 +1284,14 @@ namespace XtermSharp.Mac {
 		{
 			CalculateMouseHit (theEvent, true, out var col, out var row);
 
-			if (terminal.MouseEvents) {
-				if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
-					ComputeMouseEvent (theEvent, true, out var buttonFlags);
-					terminal.SendMotion (buttonFlags, col, row);
-				}
-
+			if (terminal.MouseMode.SendMotionEvent()) {
+				ComputeMouseEvent (theEvent, true, out var buttonFlags);
+				terminal.SendMouseMotion (buttonFlags, col, row);
 				base.MouseDragged (theEvent);
+				return;
+			}
+
+			if (terminal.MouseMode != MouseMode.Off) {
 				return;
 			}
 
@@ -1314,6 +1313,16 @@ namespace XtermSharp.Mac {
 			}
 
 			base.MouseDragged (theEvent);
+		}
+
+		public override void MouseMoved (NSEvent theEvent)
+		{
+			if (terminal.MouseMode.SendMotionEvent ()) {
+				CalculateMouseHit (theEvent, true, out var col, out var row);
+				ComputeMouseEvent (theEvent, true, out var buttonFlags);
+				terminal.SendMouseMotion (buttonFlags, col, row);
+				return;
+			}
 		}
 
 		public override void ScrollWheel (NSEvent theEvent)

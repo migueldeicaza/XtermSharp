@@ -24,6 +24,7 @@ namespace XtermSharp {
 		Dictionary<byte, string> charset;
 		int gcharset;
 
+
 		public Terminal (ITerminalDelegate terminalDelegate = null, TerminalOptions options = null)
 		{
 			this.terminalDelegate = terminalDelegate ?? new SimpleTerminalDelegate ();
@@ -92,6 +93,16 @@ namespace XtermSharp {
 		public bool ReverseWraparound { get; internal set; }
 
 		/// <summary>
+		/// Gets or sets the current mouse mode
+		/// </summary>
+		public MouseMode MouseMode { get; internal set; }
+
+		/// <summary>
+		/// Gets or sets the current mouse protocol
+		/// </summary>
+		public MouseProtocolEncoding MouseProtocol { get; internal set; }
+
+		/// <summary>
 		/// Called by input handlers to set the title
 		/// </summary>
 		internal void SetTitle (string text)
@@ -151,9 +162,62 @@ namespace XtermSharp {
 			terminalDelegate.SetTerminalIconTitle (this, IconTitle);
 		}
 
+		/// <summary>
+		/// Sends a response to a command
+		/// </summary>
 		public void SendResponse (string txt)
 		{
 			terminalDelegate.Send (Encoding.UTF8.GetBytes (txt));
+		}
+
+		/// <summary>
+		/// Sends a response to a command
+		/// </summary>
+		public void SendResponse (params object[] args)
+		{
+			if (args == null) {
+				return;
+			}
+
+			int len = args.Length;
+			for (int i = 0; i < args.Length; i++) {
+				if (args [i] is string s) {
+					len += s != null ? s.Length - 1: 0;
+				} else if (args [i] is byte [] ba) {
+					len += ba.Length - 1;
+				}
+			}
+
+			var buffer = new byte [len];
+
+			int bufferIndex = 0;
+			for (int i = 0; i < args.Length; i++) {
+				if (args[i] == null) {
+					buffer [bufferIndex] = 0;
+				} else if (args[i] is byte b) {
+					buffer [bufferIndex] = b;
+				} else if (args[i] is string s) {
+					if (s == null) {
+						buffer [bufferIndex] = 0;
+					} else {
+						foreach (var sb in Encoding.UTF8.GetBytes (s)) {
+							buffer [bufferIndex++] = sb;
+						}
+					}
+					bufferIndex--;
+				} else if (args[i] is byte[] ba) {
+					foreach (var bab in ba) {
+						buffer [bufferIndex++] = bab;
+					}
+					bufferIndex--;
+				} else {
+					Error ("Unsupported type in SendResponse", args[i].GetType());
+				}
+
+				bufferIndex++;
+			}
+
+			terminalDelegate.Send (buffer);
 		}
 
 		public void Error (string txt, params object [] args)
@@ -202,51 +266,7 @@ namespace XtermSharp {
 		public int SavedCols { get; internal set; }
 		public bool ApplicationKeypad { get; internal set; }
 
-		internal bool X10Mouse { get; set; }
-		internal bool UtfMouse { get; set; }
-		internal bool Vt200Mouse { get; set; }
-
 		public bool SendFocus { get; internal set; }
-
-
-		/// <summary>
-		/// If MouseEvents is set, then we are supposed to send some kind of mouse events, which
-		/// are determined by the boolean flags below.  Additionally, a "style" is encoded in
-		/// SgrMouse, UrxvtMouse which alter the responses.
-		/// </summary>
-		/// <value><c>true</c> if mouse events; otherwise, <c>false</c>.</value>
-		public bool MouseEvents { get; internal set; }
-
-		/// <summary>
-		/// If MouseEvents is set, then this value should be probed to determine whether a UI front-end needs to send the MouseRelease event.
-		/// </summary>
-		/// <value><c>true</c> if the UI is expected to send a mouse release event when the button is released.</value>
-		public bool MouseSendsRelease { get; internal set; }
-
-		/// <summary>
-		/// If MosueEvents is set, and this is set, then all motion events should be sent, regardless of the state of the mouse buttons. (Xterm flag 1003)
-		/// </summary>
-		/// <value><c>true</c> if mouse sends all motion; otherwise, <c>false</c>.</value>
-		public bool MouseSendsAllMotion { get; internal set; }
-
-		// Should sent motion events when a button is pressed (1002)
-		/// <summary>
-		/// If MouseEvents is set, then motion events should be sent when the mouse button is held down (Xterm flag 1002)
-		/// </summary>
-		/// <value><c>true</c> if mouse sends motion when pressed; otherwise, <c>false</c>.</value>
-		public bool MouseSendsMotionWhenPressed { get; internal set; }
-
-
-		/// <summary>
-		/// If MouseEvents is set, this determines whether the UI layer should send Wheel events.
-		/// </summary>
-		/// <value><c>true</c> if mouse sends wheel; otherwise, <c>false</c>.</value>
-		public bool MouseSendsWheel { get; internal set; }
-
-		// Whether control/meta/shift modifiers are encoded
-		internal bool MouseSendsModifiers = false;
-		internal bool SgrMouse;
-		internal bool UrxvtMouse;
 
 		public bool CursorHidden { get; internal set; }
 		public bool BracketedPasteMode { get; internal set; }
@@ -521,66 +541,36 @@ namespace XtermSharp {
 			terminalDelegate.ShowCursor (this);
 		}
 
-		internal void SetX10MouseStyle ()
+		/// <summary>
+		/// Encodes button and position to characters
+		/// </summary>
+		void EncodeMouseUtf (List<byte> data, int ch)
 		{
-			X10Mouse = true;
-			MouseEvents = true;
-
-			MouseSendsRelease = false;
-			MouseSendsAllMotion = false;
-			MouseSendsWheel = false;
-			MouseSendsModifiers = false;
-		}
-
-		internal void SetVT200MouseStyle ()
-		{
-			Vt200Mouse = true;
-			MouseEvents = true;
-
-			MouseSendsRelease = true;
-			MouseSendsAllMotion = false;
-			MouseSendsWheel = true;
-			MouseSendsModifiers = false;
-		}
-
-		// Encode button and position to characters
-		void Encode (List<byte> data, int ch)
-		{
-			if (UtfMouse) {
-				if (ch == 2047) {
-					data.Add (0);
-					return;
-				}
-				if (ch < 127) {
-					data.Add ((byte)ch);
-				} else {
-					if (ch > 2047) 
-						ch = 2047;
-					data.Add ((byte)(0xC0 | (ch >> 6)));
-					data.Add ((byte)(0x80 | (ch & 0x3F)));
-				}
+			if (ch == 2047) {
+				data.Add (0);
+				return;
+			}
+			if (ch < 127) {
+				data.Add ((byte)ch);
 			} else {
-				if (ch == 255) {
-					data.Add (0);
-					return;
-				}
-				if (ch > 127) 
-					ch = 127;
-				data.Add ((byte) ch);
+				if (ch > 2047) 
+					ch = 2047;
+				data.Add ((byte)(0xC0 | (ch >> 6)));
+				data.Add ((byte)(0x80 | (ch & 0x3F)));
 			}
 		}
 
 		/// <summary>
-		/// Encodes the button.
+		/// Encodes the mouse button.
 		/// </summary>
-		/// <returns>The button.</returns>
+		/// <returns>The mouse button.</returns>
 		/// <param name="button">Button (0, 1, 2 for left, middle, right) and 4 for wheel up, and 5 for wheel down.</param>
 		/// <param name="release">If set to <c>true</c> release.</param>
 		/// <param name="wheelUp">If set to <c>true</c> wheel up.</param>
 		/// <param name="shift">If set to <c>true</c> shift.</param>
 		/// <param name="meta">If set to <c>true</c> meta.</param>
 		/// <param name="control">If set to <c>true</c> control.</param>
-		public int EncodeButton (int button, bool release, bool shift, bool meta, bool control)
+		public int EncodeMouseButton (int button, bool release, bool shift, bool meta, bool control)
 		{
 			int value;
 
@@ -608,7 +598,8 @@ namespace XtermSharp {
 					break;
 				}
 			}
-			if (MouseSendsModifiers) {
+
+			if (MouseMode.SendsModifiers()) {
 				if (shift)
 					value |= 4;
 				if (meta)
@@ -627,28 +618,29 @@ namespace XtermSharp {
 		/// <param name="y">The y coordinate.</param>
 		public void SendEvent (int buttonFlags, int x, int y)
 		{
-			// TODO
-			// Handle X10 Mouse,
-			// Urxvt Mouse
-			// SgrMouse
-			if (SgrMouse) {
+			switch (MouseProtocol) {
+			case MouseProtocolEncoding.X10:
+				SendResponse (ControlCodes.CSI, "M", (byte)(buttonFlags + 32), (byte)Math.Min (255, (32 + x + 1)), (byte)Math.Min (255, (32 + y + 1)));
+				break;
+			case MouseProtocolEncoding.SGR:
 				var bflags = ((buttonFlags & 3) == 3) ? (buttonFlags & ~3) : buttonFlags;
-				var sres = "\x1b[<" + bflags + ";" + (x+1) + ";" + (y+1) + (((buttonFlags & 3) == 3) ? 'm' : 'M');
-				terminalDelegate.Send (Encoding.UTF8.GetBytes (sres));
-				return;
+				var m = ((buttonFlags & 3) == 3) ? "m" : "M";
+				SendResponse (ControlCodes.CSI, $"<{bflags};{x+1};{y+1}{m}");
+				break;
+			case MouseProtocolEncoding.URXVT:
+				SendResponse (ControlCodes.CSI, $"{buttonFlags+32};{x+1};{y+1}M");
+				break;
+			case MouseProtocolEncoding.UTF8:
+				var utf8 = new List<byte> () { 0x4d /* M */ };
+				EncodeMouseUtf (utf8, ch: buttonFlags+32);
+				EncodeMouseUtf (utf8, ch: x+33);
+				EncodeMouseUtf (utf8, ch: y+33);
+				SendResponse (ControlCodes.CSI, utf8.ToArray());
+				break;
 			}
-			if (Vt200Mouse) {
-
-			}
-			var res = new List<byte> () { 0x1b, (byte)'[', (byte)'M' };
-			Encode (res, buttonFlags+32);
-			Encode (res, x+33);
-			Encode (res, y+33);
-			terminalDelegate.Send (res.ToArray ());
-
 		}
 
-		public void SendMotion (int buttonFlags, int x, int y)
+		public void SendMouseMotion (int buttonFlags, int x, int y)
 		{
 			SendEvent (buttonFlags + 32, x, y);
 
@@ -736,6 +728,9 @@ namespace XtermSharp {
 			gLevel = 0;
 
 			CurAttr = CharData.DefaultAttr;
+
+			MouseMode = MouseMode.Off;
+			MouseProtocol = MouseProtocolEncoding.X10;
 
 			// TODO REST
 		}
