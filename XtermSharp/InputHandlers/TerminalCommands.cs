@@ -291,16 +291,17 @@ namespace XtermSharp {
 					terminal.EmitData ($"\x1b[?{y};{x}1R");
 					break;
 				case 15:
-					// no printer
-					// this.handler(C0.ESC + '[?11n');
+					// Request printer status report, we respond "We are ready"
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?10n");
 					break;
 				case 25:
-					// dont support user defined keys
-					// this.handler(C0.ESC + '[?21n');
+					// We respond "User defined keys are locked"
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?21n");
 					break;
 				case 26:
-					// north american keyboard
-					// this.handler(C0.ESC + '[?27;1;0;0n');
+					// Requests keyboard type
+					// We respond "American keyboard", TODO: worth plugging something else?  Mac perhaps?
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?27;1;0;0n");
 					break;
 				case 53:
 					// no dec locator/mouse
