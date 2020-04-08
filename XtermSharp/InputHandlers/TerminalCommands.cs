@@ -198,6 +198,39 @@ namespace XtermSharp {
 			//conformance = .vt500
 		}
 
+		/// <summary>
+		/// CSI Ps ; Ps r
+		///   Set Scrolling Region [top;bottom] (default = full size of win-
+		///   dow) (DECSTBM).
+		// CSI ? Pm r
+		/// </summary>
+		public void SetScrollRegion (int [] pars, string collect)
+		{
+			if (collect != "")
+				return;
+			var buffer = terminal.Buffer;
+			var top = pars.Length > 0 ? Math.Max (pars [0] - 1, 0) : 0;
+			var bottom = buffer.Rows;
+			if (pars.Length > 1) {
+				// bottom = 0 means "bottom of the screen"
+				var p = pars [1];
+				if (p != 0) {
+					bottom = Math.Min (pars [1], buffer.Rows);
+				}
+			}
+
+			// normalize
+			bottom--;
+        
+			// only set the scroll region if top < bottom
+			if (top < bottom) {
+				buffer.ScrollBottom = bottom;
+				buffer.ScrollTop = top;
+			}
+
+			SetCursor (0, 0);
+		}
+
 		public void SetMargins (int [] pars)
 		{
 			var buffer = terminal.Buffer;
@@ -535,6 +568,44 @@ namespace XtermSharp {
 				}
 			}
 		}
+
+		/// <summary>
+		/// Performs a linefeed
+		/// </summary>
+		public void LineFeed ()
+		{
+			var buffer = terminal.Buffer;
+			if (terminal.Options.ConvertEol) {
+				buffer.X = terminal.MarginMode ? buffer.MarginLeft : 0;
+			}
+
+			LineFeedBasic ();
+		}
+
+		/// <summary>
+		/// Performs a basic linefeed
+		/// </summary>
+		public void LineFeedBasic ()
+		{
+			var buffer = terminal.Buffer;
+			var by = buffer.Y;
+
+			if (by == buffer.ScrollBottom) {
+				terminal.Scroll (isWrapped: false);
+			} else if (by == buffer.Rows - 1) {
+			} else {
+				buffer.Y = by + 1;
+			}
+
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= buffer.Cols) {
+				buffer.X -= 1;
+			}
+
+			// This event is emitted whenever the terminal outputs a LF or NL.
+			terminal.EmitLineFeed ();
+		}
+
 
 		bool IsUsingMargins ()
 		{

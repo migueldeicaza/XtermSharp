@@ -388,7 +388,11 @@ namespace XtermSharp {
 				// scrollTop is non-zero which means no line will be going to the
 				// scrollback, instead we can just shift them in-place.
 				var scrollRegionHeight = bottomRow - topRow + 1/*as it's zero-based*/;
-				buffer.Lines.ShiftElements (topRow + 1, scrollRegionHeight - 1, -1);
+
+				if (scrollRegionHeight > 1) {
+					buffer.Lines.ShiftElements (topRow + 1, scrollRegionHeight - 1, -1);
+				}
+
 				buffer.Lines [bottomRow] = new BufferLine (newLine);
 			}
 

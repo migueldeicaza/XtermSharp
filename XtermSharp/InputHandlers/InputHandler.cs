@@ -93,7 +93,7 @@ namespace XtermSharp {
 				}
 			});
 			parser.SetCsiHandler ('q', (pars, collect) => SetCursorStyle (pars, collect));
-			parser.SetCsiHandler ('r', (pars, collect) => SetScrollRegion (pars, collect));
+			parser.SetCsiHandler ('r', (pars, collect) => terminalCommands.SetScrollRegion (pars, collect));
 			parser.SetCsiHandler ('s', (pars, collect) => {
 				// "CSI s" is overloaded, can mean save cursor, but also set the margins with DECSLRM
 				if (terminal.MarginMode) {
@@ -111,9 +111,9 @@ namespace XtermSharp {
 
 			// Execute Handler
 			parser.SetExecuteHandler (7, terminal.Bell);
-			parser.SetExecuteHandler (10, LineFeed);
-			parser.SetExecuteHandler (11, LineFeedBasic);   // VT Vertical Tab - ignores auto-new-line behavior in ConvertEOL
-			parser.SetExecuteHandler (12, LineFeedBasic);
+			parser.SetExecuteHandler (10, terminalCommands.LineFeed);
+			parser.SetExecuteHandler (11, terminalCommands.LineFeedBasic);   // VT Vertical Tab - ignores auto-new-line behavior in ConvertEOL
+			parser.SetExecuteHandler (12, terminalCommands.LineFeedBasic);
 			parser.SetExecuteHandler (13, CarriageReturn);
 			parser.SetExecuteHandler (8, terminalCommands.Backspace);
 			parser.SetExecuteHandler (9, Tab);
@@ -485,36 +485,6 @@ namespace XtermSharp {
 				buffer.X = 0;
 			}
 		}
-
-		void LineFeed ()
-		{
-			var buffer = terminal.Buffer;
-			if (terminal.Options.ConvertEol) {
-				buffer.X = terminal.MarginMode ? buffer.MarginLeft : 0;
-			}
-
-			LineFeedBasic ();
-		}
-
-		void LineFeedBasic ()
-		{
-			var buffer = terminal.Buffer;
-			var by = buffer.Y;
-
-			// If we are inside the scroll region, or we hit the last row of the display
-			if (by == buffer.ScrollBottom || by == terminal.Rows - 1) {
-				terminal.Scroll (isWrapped: false);
-			} else
-				buffer.Y = by + 1;
-
-			// If the end of the line is hit, prevent this action from wrapping around to the next line.
-			if (buffer.X >= terminal.Cols)
-				buffer.X--;
-
-			// This event is emitted whenever the terminal outputs a LF or NL.
-			terminal.EmitLineFeed ();
-		}
-
 		// 
 		// Helper method to erase cells in a terminal row.
 		// The cell gets replaced with the eraseChar of the terminal.
@@ -539,23 +509,6 @@ namespace XtermSharp {
 		void ResetBufferLine (int y)
 		{
 			EraseInBufferLine (y, 0, terminal.Cols, true);
-		}
-
-		// 
-		// CSI Ps ; Ps r
-		//   Set Scrolling Region [top;bottom] (default = full size of win-
-		//   dow) (DECSTBM).
-		// CSI ? Pm r
-		// 
-		void SetScrollRegion (int [] pars, string collect)
-		{
-			if (collect != "")
-				return;
-			var buffer = terminal.Buffer;
-			buffer.ScrollTop = pars.Length > 0 ? Math.Max (pars [0] - 1, 0) : 0;
-			buffer.ScrollBottom = (pars.Length > 1 ? Math.Min (pars [1], terminal.Rows) : terminal.Rows) - 1;
-			buffer.X = 0;
-			buffer.Y = 0;
 		}
 
 		// 

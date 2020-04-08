@@ -10,6 +10,8 @@ namespace XtermSharp {
 	[DebuggerDisplay ("({X},{Y}) YD={YDisp}:YB={YBase} Scroll={ScrollBottom,ScrollTop}")]
 	public class Buffer {
 		CircularList<BufferLine> lines;
+		int scrollTop;
+		int scrollBottom;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="T:XtermSharp.Buffer"/> class.
@@ -38,6 +40,35 @@ namespace XtermSharp {
 		public int Rows => rows;
 
 		/// <summary>
+		/// Gets or sets the top scrolling region in the buffer when Origin Mode is turned on
+		/// </summary>
+		public int ScrollTop {
+			get {
+				return scrollTop;
+			}
+			set {
+				if(value >= 0) {
+					scrollTop = value;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Gets or sets the top scrolling region in the buffer when Origin Mode is turned on
+		/// </summary>
+		public int ScrollBottom {
+			get {
+				return scrollBottom;
+			}
+			set {
+				if (value < 0)
+					throw new ArgumentException ("Scroll bottom cannot be less than zero", nameof(ScrollBottom));
+
+				scrollBottom = value;
+			}
+		}
+
+		/// <summary>
 		/// Gets or sets the left margin, 0 based
 		/// </summary>
 		public int MarginLeft { get; set; }
@@ -57,18 +88,6 @@ namespace XtermSharp {
 					throw new ArgumentException ("Y cannot be outside the bounds of the terminal rows", nameof(Y));
 				else
 					y = value;
-			}
-		}
-		public int ScrollBottom;
-		int st;
-		public int ScrollTop {
-			get {
-				return st;
-			}
-			set {
-				if (value < 0)
-					throw new Exception ();
-				st = value;
 			}
 		}
 		BitArray tabStops;
