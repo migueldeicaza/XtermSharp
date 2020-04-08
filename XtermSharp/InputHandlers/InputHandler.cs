@@ -1578,8 +1578,6 @@ namespace XtermSharp {
 					buffer.Lines.TrimStart (scrollBackSize);
 					buffer.YBase = Math.Max (buffer.YBase - scrollBackSize, 0);
 					buffer.YDisp = Math.Max (buffer.YDisp - scrollBackSize, 0);
-					// Force a scroll event to refresh viewport
-					terminal.EmitScroll (0);
 				}
 				break;
 
