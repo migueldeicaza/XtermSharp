@@ -858,10 +858,11 @@ namespace XtermSharp {
 					terminal.ApplicationCursor = false;
 					break;
 				case 3:
-					if (terminal.Cols == 132 && terminal.SavedCols != 0)
-						terminal.Resize (terminal.SavedCols, terminal.Rows);
-
-					terminal.SavedCols = 0;
+					if (terminal.Allow80To132) {
+						terminal.Resize (80, terminal.Rows);
+						terminal.Delegate.SizeChanged (terminal);
+						terminal.Reset ();
+					}
 					break;
 				case 5:
 					// Reset default color
@@ -875,6 +876,9 @@ namespace XtermSharp {
 					break;
 				case 12:
 					// this.cursorBlink = false;
+					break;
+				case 40:
+					terminal.Allow80To132 = false;
 					break;
 				case 45:
 					terminal.ReverseWraparound = false;
@@ -1067,8 +1071,11 @@ namespace XtermSharp {
 					// set VT100 mode here
 					break;
 				case 3: // 132 col mode
-					terminal.SavedCols = terminal.Cols;
-					terminal.Resize (132, terminal.Rows);
+					if (terminal.Allow80To132) {
+						terminal.Resize (132, terminal.Rows);
+						terminal.Reset ();
+						terminal.Delegate.SizeChanged (terminal);
+					}
 					break;
 				case 5:
 					// Inverted colors
@@ -1086,6 +1093,9 @@ namespace XtermSharp {
 					break;
 				case 12:
 					// this.cursorBlink = true;
+					break;
+				case 40:
+					terminal.Allow80To132 = true;
 					break;
 				case 45:
 					// Xterm Reverse Wrap-around

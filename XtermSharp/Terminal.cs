@@ -103,6 +103,11 @@ namespace XtermSharp {
 		public MouseProtocolEncoding MouseProtocol { get; internal set; }
 
 		/// <summary>
+		/// Gets or sets a value indicating whether the terminal can be resized to 132
+		/// </summary>
+		public bool Allow80To132 { get; internal set; }
+
+		/// <summary>
 		/// Called by input handlers to set the title
 		/// </summary>
 		internal void SetTitle (string text)
@@ -736,6 +741,7 @@ namespace XtermSharp {
 			MouseMode = MouseMode.Off;
 			MouseProtocol = MouseProtocolEncoding.X10;
 
+			Allow80To132 = false;
 			// TODO REST
 		}
 	}
