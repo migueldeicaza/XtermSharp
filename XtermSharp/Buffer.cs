@@ -368,18 +368,19 @@ namespace XtermSharp {
 		{
 			// Users marginMode because apparently for tabs, there is no need to have originMode set
 			var limit = Terminal.MarginMode ? MarginRight : (Cols - 1);
-
 			if (index == -1)
 				index = X;
 
 			do {
 				index++;
-				if (index >= limit)
+				if (index > limit)
 					break;
+
 				if (tabStops [index])
 					break;
 			} while (index < limit);
-			return index >= limit ? limit - 1 : index;
+
+			return index >= limit ? limit : index;
 		}
 
 		void Reflow (int newCols, int newRows)

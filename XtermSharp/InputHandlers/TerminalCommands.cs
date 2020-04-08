@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace XtermSharp {
@@ -19,7 +20,59 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		// CSI Ps A
+		// Cursor Up Ps Times (default = 1) (CUU).
+		/// </summary>
+		public void CursorUp (int [] pars)
+		{
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+			var top = buffer.ScrollTop;
+
+			if (buffer.Y < top) {
+				top = 0;
+			}
+
+			if (buffer.Y - param < top)
+				buffer.Y = top;
+			else
+				buffer.Y -= param;
+		}
+
+		/// <summary>
 		// CSI Ps B
+		// Cursor Down Ps Times (default = 1) (CUD).
+		/// </summary>
+		public void CursorDown (int [] pars)
+		{
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+			var bottom = buffer.ScrollBottom;
+
+			// When the cursor starts below the scroll region, CUD moves it down to the
+			// bottom of the screen.
+			if (buffer.Y > bottom) {
+				bottom = buffer.Rows - 1;
+			}
+
+			var newY = buffer.Y + param;
+
+			// review
+			//if (buffer.Y > buffer.ScrollBottom)
+			//	buffer.Y = buffer.ScrollBottom - 1;
+			if (newY >= bottom)
+				buffer.Y = bottom;
+			else
+				buffer.Y = newY;
+
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= terminal.Cols)
+				buffer.X--;
+		}
+
+
+		/// <summary>
+		// CSI Ps C
 		// Cursor Forward Ps Times (default = 1) (CUF).
 		/// </summary>
 		public void CursorForward (int [] pars)
@@ -35,6 +88,29 @@ namespace XtermSharp {
 			buffer.X += param;
 			if (buffer.X > right) {
 				buffer.X = right;
+			}
+		}
+
+		/// <summary>
+		/// CSI Ps D
+		/// Cursor Backward Ps Times (default = 1) (CUB).
+		/// </summary>
+		public void CursorBackward (int [] pars)
+		{
+			int param = Math.Max (pars.Length > 0 ? pars [0] : 1, 1);
+			var buffer = terminal.Buffer;
+
+			// What is our left margin - depending on the settings.
+			var left = terminal.MarginMode ? buffer.MarginLeft : 0;
+
+			// If the cursor is positioned before the margin, we can go backwards to the first column
+			if (buffer.X < left) {
+				left = 0;
+			}
+			buffer.X -= param;
+
+			if (buffer.X < left) {
+				buffer.X = left;
 			}
 		}
 
@@ -82,6 +158,86 @@ namespace XtermSharp {
 			terminal.UpdateRange (buffer.Y);
 		}
 
+		// 
+		// CSI Ps c  Send Device Attributes (Primary DA).
+		//     Ps = 0  or omitted -> request attributes from terminal.  The
+		//     response depends on the decTerminalID resource setting.
+		//     -> CSI ? 1 ; 2 c  (``VT100 with Advanced Video Option'')
+		//     -> CSI ? 1 ; 0 c  (``VT101 with No Options'')
+		//     -> CSI ? 6 c  (``VT102'')
+		//     -> CSI ? 6 0 ; 1 ; 2 ; 6 ; 8 ; 9 ; 1 5 ; c  (``VT220'')
+		//   The VT100-style response parameters do not mean anything by
+		//   themselves.  VT220 parameters do, telling the host what fea-
+		//   tures the terminal supports:
+		//     Ps = 1  -> 132-columns.
+		//     Ps = 2  -> Printer.
+		//     Ps = 6  -> Selective erase.
+		//     Ps = 8  -> User-defined keys.
+		//     Ps = 9  -> National replacement character sets.
+		//     Ps = 1 5  -> Technical characters.
+		//     Ps = 2 2  -> ANSI color, e.g., VT525.
+		//     Ps = 2 9  -> ANSI text locator (i.e., DEC Locator mode).
+		// CSI > Ps c
+		//   Send Device Attributes (Secondary DA).
+		//     Ps = 0  or omitted -> request the terminal's identification
+		//     code.  The response depends on the decTerminalID resource set-
+		//     ting.  It should apply only to VT220 and up, but xterm extends
+		//     this to VT100.
+		//     -> CSI  > Pp ; Pv ; Pc c
+		//   where Pp denotes the terminal type
+		//     Pp = 0  -> ``VT100''.
+		//     Pp = 1  -> ``VT220''.
+		//   and Pv is the firmware version (for xterm, this was originally
+		//   the XFree86 patch number, starting with 95).  In a DEC termi-
+		//   nal, Pc indicates the ROM cartridge registration number and is
+		//   always zero.
+		// More information:
+		//   xterm/charproc.c - line 2012, for more information.
+		//   vim responds with ^[[?0c or ^[[?1c after the terminal's response (?)
+		// 
+		public void SendDeviceAttributes (int [] pars, string collect)
+		{
+			if (pars.Length > 0 && pars [0] > 0)
+				return;
+
+
+			if (collect == ">" || collect == ">0") {
+				// DA2 Secondary Device Attributes
+				if (pars.Length == 0 || pars [0] == 0) {
+					var vt510 = 61; // we identified as a vt510
+					var kbd = 1; // PC-style keyboard
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}>{vt510};20;{kbd}c");
+					return;
+				}
+
+				return;
+			}
+
+			var name = terminal.Options.TermName;
+			if (collect == "") {
+				if (name.StartsWith ("xterm", StringComparison.Ordinal) || name.StartsWith ("rxvt-unicode", StringComparison.Ordinal) || name.StartsWith ("screen", StringComparison.Ordinal)) {
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?1;2c");
+				} else if (name.StartsWith ("linux", StringComparison.Ordinal)) {
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?6c");
+				}
+			} else if (collect == ">") {
+				// xterm and urxvt
+				// seem to spit this
+				// out around ~370 times (?).
+				if (name.StartsWith ("xterm", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[>0;276;0c");
+				} else if (name.StartsWith ("rxvt-unicode", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[>85;95;0c");
+				} else if (name.StartsWith ("linux", StringComparison.Ordinal)) {
+					// not supported by linux console.
+					// linux console echoes parameters.
+					terminal.SendResponse ("" + pars [0] + 'c');
+				} else if (name.StartsWith ("screen", StringComparison.Ordinal)) {
+					terminal.SendResponse ("\x1b[>83;40003;0c");
+				}
+			}
+		}
+
 		/// <summary>
 		/// CSI Ps n  Device Status Report (DSR).
 		///     Ps = 5  -> Status Report.  Result (``OK'') is
@@ -117,9 +273,9 @@ namespace XtermSharp {
 					break;
 				case 6:
 					// cursor position
-					var y = buffer.Y + 1 - (terminal.OriginMode ? buffer.ScrollTop : 0);
+					var y = Math.Max (1, buffer.Y + 1 - (terminal.OriginMode ? buffer.ScrollTop : 0));
 					// Need the max, because the cursor could be before the leftMargin
-					var x = Math.Max (1, buffer.X + 1 - (IsUsingMargins () ? buffer.MarginLeft : 0));
+					var x = Math.Max (1, buffer.X + 1 - (terminal.OriginMode ? buffer.MarginLeft : 0));
 					terminal.EmitData ($"\x1b[{y};{x}R");
 					break;
 				}
@@ -150,9 +306,32 @@ namespace XtermSharp {
 					// no dec locator/mouse
 					// this.handler(C0.ESC + '[?50n');
 					break;
+				case 55:
+					// Request locator status
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?53n");
+					break;
+				case 56:
+					// What kind of locator we have, we reply mouse, but perhaps on iOS we should respond something else
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?57;1n");
+					break;
+				case 62:
+					// Macro space report
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}0*{'{'}");
+					break;
+				case 63:
+					// Requests checksum of macros, we return 0
+					var id = pars.Length > 1 ? pars [1] : 0;
+					terminal.SendResponse ($"{terminal.ControlCodes.DCS}{id}!~0000{terminal.ControlCodes.ST}");
+					break;
+				case 75:
+					// Data integrity report, no issues:
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?70n");
+					break;
+				case 85:
+					// Multiple session status, we reply single session
+					terminal.SendResponse ($"{terminal.ControlCodes.CSI}?83n");
+					break;
 				}
-
-				// TODO: backport device status
 			}
 		}
 
@@ -167,6 +346,8 @@ namespace XtermSharp {
 
 			terminal.CursorHidden = false;
 			terminal.InsertMode = false;
+			terminal.OriginMode = false;
+
 			terminal.Wraparound = true;  // defaults: xterm - true, vt100 - false
 			terminal.ReverseWraparound = false;
 			terminal.ApplicationKeypad = false;
@@ -177,9 +358,6 @@ namespace XtermSharp {
 			terminal.Charset = null;
 			terminal.SetgLevel (0);
 
-			terminal.OriginMode = false;
-			terminal.InsertMode = false;
-			terminal.MarginMode = false;
 			savedOriginMode = false;
 			savedMarginMode = false;
 			savedWraparound = false;
@@ -513,6 +691,70 @@ namespace XtermSharp {
 				var line = buffer.Lines [row + buffer.YBase];
 				for (int col = rect.left; col <= rect.right; col++) {
 					line [col] = new CharData(terminal.CurAttr, ' ', 1, 32);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Copy Rectangular Area (DECCRA), VT400 and up.
+		/// CSI Pts ; Pls ; Pbs ; Prs ; Pps ; Ptd ; Pld ; Ppd $ v
+		///  Pts ; Pls ; Pbs ; Prs denotes the source rectangle.
+		///  Pps denotes the source page.
+		///  Ptd ; Pld denotes the target location.
+		///  Ppd denotes the target page.
+		/// </summary>
+		public void CsiCopyRectangularArea (int [] pars, string collect)
+		{
+			var buffer = terminal.Buffer;
+			if (collect == "$") {
+				var parArray = new int[8];
+				parArray [0] = (pars.Length > 1 && pars [0] != 0 ? pars [0] : 1); // Pts default 1
+				parArray [1] = (pars.Length > 2 && pars [1] != 0 ? pars [1] : 1); // Pls default 1
+				parArray [2] = (pars.Length > 3 && pars [2] != 0 ? pars [2] : buffer.Rows - 1); // Pbs default to last line of page
+				parArray [3] = (pars.Length > 4 && pars [3] != 0 ? pars [3] : buffer.Cols - 1); // Prs defaults to last column
+				parArray [4] = (pars.Length > 5 && pars [4] != 0 ? pars [4] : 1); // Pps page source = 1
+				parArray [5] = (pars.Length > 6 && pars [5] != 0 ? pars [5] : 1); // Ptd default is 1
+				parArray [6] = (pars.Length > 7 && pars [6] != 0 ? pars [6] : 1); // Pld default is 1
+				parArray [7] = (pars.Length > 8 && pars [7] != 0 ? pars [7] : 1); // Ppd default is 1
+
+				// We only support copying on the same page, and the page being 1
+				if (parArray [4] == parArray [7] && parArray [4] == 1) {
+					var rect = GetRectangleFromRequest (buffer, 0, parArray);
+					if (rect.top != 0 && rect.left != 0 && rect.bottom != 0 && rect.right != 0) {
+						var rowTarget = parArray [5] - 1;
+						var colTarget = parArray [6] - 1;
+
+						// Block size
+						var columns = rect.right - rect.left + 1;
+
+						var cright = Math.Min (buffer.Cols - 1, rect.left + Math.Min (columns, buffer.Cols - colTarget));
+
+						var lines = new List<List<CharData>> ();
+						for (int row = rect.top; row <= rect.bottom; row++) {
+							var line = buffer.Lines [row + buffer.YBase];
+							var lineCopy = new List<CharData> ();
+							for (int col = rect.left; col <= cright; col++) {
+								lineCopy.Add (line [col]);
+							}
+							lines.Add (lineCopy);
+						}
+
+						for (int row = 0; row <= rect.bottom - rect.top; row++) {
+							if (row + rowTarget >= buffer.Rows) {
+								break;
+							}
+
+							var line = buffer.Lines [row + rowTarget + buffer.YBase];
+							var lr = lines [row];
+							for (int col = 0; col <= cright - rect.left; col++) {
+								if (col >= buffer.Cols) {
+									break;
+								}
+
+								line [colTarget + col] = lr [col];
+							}
+						}
+					}
 				}
 			}
 		}
