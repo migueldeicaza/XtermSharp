@@ -105,8 +105,32 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('t', (pars, collect) => terminalCommands.SetWindowOptions (pars));
 			parser.SetCsiHandler ('u', (pars, collect) => terminalCommands.RestoreCursor ());
 			parser.SetCsiHandler ('y', (pars, collect) => terminalCommands.DECRQCRA (pars));
+			parser.SetCsiHandler ('z', (pars, collect) => {
+				switch (collect) {
+				case "$":
+					terminalCommands.CommandDECERA (pars);
+					break;
+				case "'":
+					// TODO: Enable Locator Reporting (DECELR)
+					// Enable Locator Reporting (DECELR).
+					// Valid values for the first parameter:
+					//   Ps = 0  ⇒  Locator disabled (default).
+					//   Ps = 1  ⇒  Locator enabled.
+					//   Ps = 2  ⇒  Locator enabled for one report, then disabled.
+					// The second parameter specifies the coordinate unit for locator
+					// reports.
+					// Valid values for the second parameter:
+					//   Pu = 0  or omitted ⇒  default to character cells.
+					//   Pu = 1  ⇐  device physical pixels.
+					//   Pu = 2  ⇐  character cells.
+					break;
+				default:
+					terminal.Error ("Unknown CSI code", collect, pars, "z");
+					break;
+				}
+			});
 
-			
+
 
 
 			// Execute Handler
@@ -928,7 +952,7 @@ namespace XtermSharp {
 				case 47: // normal screen buffer
 				case 1047: // normal screen buffer - clearing it first
 					   // Ensure the selection manager has the correct buffer
-					terminal.Buffers.ActivateNormalBuffer ();
+					terminal.Buffers.ActivateNormalBuffer (par == 1047);
 					if (par == 1049)
 						terminalCommands.RestoreCursor ();
 					terminal.Refresh (0, terminal.Rows - 1);

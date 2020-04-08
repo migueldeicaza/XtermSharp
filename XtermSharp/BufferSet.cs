@@ -39,10 +39,11 @@ namespace XtermSharp {
 		/// <summary>
 		/// Sets the normal Buffer of the BufferSet as its currently active Buffer
 		/// </summary>
-		public void ActivateNormalBuffer ()
+		public void ActivateNormalBuffer (bool clearAlt)
 		{
 			if (Active == Normal)
 				return;
+
 			Normal.X = Alt.X;
 			Normal.Y = Alt.Y;
 
@@ -50,11 +51,12 @@ namespace XtermSharp {
 			// buffer. This frees up memory since the alt buffer should always be new
 			// when activated.
 
-			Alt.Clear ();
+			if (clearAlt) {
+				Alt.Clear ();
+			}
 
 			Active = Normal;
-			if (Activated != null)
-				Activated (Normal, Alt);
+			Activated?.Invoke (Normal, Alt);
 		}
 
 		/// <summary>
