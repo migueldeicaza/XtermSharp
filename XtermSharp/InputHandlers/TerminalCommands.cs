@@ -168,7 +168,8 @@ namespace XtermSharp {
 			terminal.CursorHidden = false;
 			terminal.InsertMode = false;
 			terminal.Wraparound = true;  // defaults: xterm - true, vt100 - false
-			terminal.ApplicationKeypad = false; // ?
+			terminal.ReverseWraparound = false;
+			terminal.ApplicationKeypad = false;
 			terminal.SyncScrollArea ();
 			terminal.ApplicationCursor = false;
 			terminal.CurAttr = CharData.DefaultAttr;
@@ -176,47 +177,25 @@ namespace XtermSharp {
 			terminal.Charset = null;
 			terminal.SetgLevel (0);
 
-
-
-
-
-
-
 			terminal.OriginMode = false;
 			terminal.InsertMode = false;
 			terminal.MarginMode = false;
 			savedOriginMode = false;
 			savedMarginMode = false;
+			savedWraparound = false;
+			savedReverseWraparound = false;
 
-
-
-
-			//savedWraparound = false
-			//savedOriginMode = false
-			//savedMarginMode = false
-			//reverseWraparound = false
-			//savedReverseWraparound = false
-			//wraparound = true  // defaults: xterm - true, vt100 - false
-			//applicationKeypad = false
 			//syncScrollArea ()
 			//applicationCursor = false
-			//buffer.scrollTop = 0
-			//buffer.scrollBottom = rows - 1
-			//curAttr = CharData.defaultAttr
+			buffer.ScrollTop = 0;
+			buffer.ScrollBottom = buffer.Rows - 1;
 			buffer.SavedAttr = CharData.DefaultAttr;
 			buffer.SavedY = 0;
 			buffer.SavedX = 0;
 			buffer.MarginRight = buffer.Cols;
 			buffer.MarginLeft = 0;
 			terminal.Charset = null;
-			//setgLevel (0)
 			//conformance = .vt500
-			// MIGUEL TODO:
-			// TODO: audit any new variables, those in setup might be useful
-			//terminal.Buffer.ScrollTop = 0;
-			//terminal.Buffer.ScrollBottom = terminal.Rows - 1;
-			//terminal.Buffer.X = 0;
-			//terminal.Buffer.Y = 0;
 		}
 
 		public void SetMargins (int [] pars)
