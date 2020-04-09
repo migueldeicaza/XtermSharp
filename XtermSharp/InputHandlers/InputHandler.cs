@@ -56,7 +56,7 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('E', (pars, collect) => CursorNextLine (pars));
 			parser.SetCsiHandler ('F', (pars, collect) => CursorPrecedingLine (pars));
 			parser.SetCsiHandler ('G', (pars, collect) => terminalCommands.CursorCharAbsolute (pars));
-			parser.SetCsiHandler ('H', (pars, collect) => CursorPosition (pars));
+			parser.SetCsiHandler ('H', (pars, collect) => terminalCommands.CursorPosition (pars));
 			parser.SetCsiHandler ('I', (pars, collect) => CursorForwardTab (pars));
 			parser.SetCsiHandler ('J', (pars, collect) => EraseInDisplay (pars));
 			parser.SetCsiHandler ('K', (pars, collect) => EraseInLine (pars));
@@ -1515,31 +1515,6 @@ namespace XtermSharp {
 			var buffer = terminal.Buffer;
 			while (param-- != 0)
 				buffer.X = buffer.NextTabStop ();
-		}
-
-		// 
-		// CSI Ps ; Ps H
-		// Cursor Position [row;column] (default = [1,1]) (CUP).
-		// 
-		void CursorPosition (int [] pars)
-		{
-			int col, row;
-			switch (pars.Length) {
-			case 1:
-				row = pars [0] - 1;
-				col = 0;
-				break;
-			case 2:
-				row = pars [0] - 1;
-				col = pars [1] - 1;
-				break;
-			default:
-				col = 0;
-				row = 0;
-				break;
-			}
-
-			terminalCommands.SetCursor (Math.Min(Math.Max(col, 0), terminal.Cols-1), Math.Min(Math.Max(row, 0), terminal.Rows-1));
 		}
 
 		// 

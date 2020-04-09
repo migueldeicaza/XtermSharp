@@ -21,4 +21,10 @@
   <ItemGroup>
     <Compile Remove="Renderer.cs" />
   </ItemGroup>
+    
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute" Visible="False">
+      <_Parameter1>Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>    
 </Project>
