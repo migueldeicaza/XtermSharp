@@ -17,9 +17,9 @@ namespace XtermSharp.CsiCommandExtensions {
 			terminal.csiCUP (point.row, point.col);
 		}
 
-		public static void csiDECSTR(this Terminal terminal)
+		public static void csiDECRESET (this Terminal terminal, int mode)
 		{
-
+			terminal.csiDECRESET (mode, "?");
 		}
 	}
 }

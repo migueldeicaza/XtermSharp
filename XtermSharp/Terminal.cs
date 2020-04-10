@@ -934,6 +934,23 @@ namespace XtermSharp {
 
 		#endregion
 
+		/// <summary>
+		/// Performs a carriage return
+		/// </summary>
+		public void CarriageReturn ()
+		{
+			var buffer = Buffer;
+			if (MarginMode) {
+				if (buffer.X < buffer.MarginLeft) {
+					buffer.X = 0;
+				} else {
+					buffer.X = buffer.MarginLeft;
+				}
+			} else {
+				buffer.X = 0;
+			}
+		}
+
 		#region Text Manupulation
 		/// <summary>
 		/// Backspace handler (Control-h)

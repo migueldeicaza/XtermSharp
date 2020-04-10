@@ -5,6 +5,11 @@
 	/// </summary>
 	static class CsiCommandCodes {
 		/// <summary>
+		/// Origin Mode
+		/// </summary>
+		public const int DECOM = 6;
+
+		/// <summary>
 		/// Wraparound
 		/// </summary>
 		public const int DECAWM = 7;

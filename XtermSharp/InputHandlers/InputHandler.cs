@@ -159,7 +159,7 @@ namespace XtermSharp {
 			parser.SetExecuteHandler (10, terminal.LineFeed);
 			parser.SetExecuteHandler (11, terminal.LineFeedBasic);   // VT Vertical Tab - ignores auto-new-line behavior in ConvertEOL
 			parser.SetExecuteHandler (12, terminal.LineFeedBasic);
-			parser.SetExecuteHandler (13, CarriageReturn);
+			parser.SetExecuteHandler (13, terminal.CarriageReturn);
 			parser.SetExecuteHandler (8, terminal.Backspace);
 			parser.SetExecuteHandler (9, Tab);
 			parser.SetExecuteHandler (14, ShiftOut);
@@ -517,19 +517,6 @@ namespace XtermSharp {
 				terminal.EmitA11yTab (terminal.Buffer.X - originalX);
 		}
 
-		void CarriageReturn ()
-		{
-			var buffer = terminal.Buffer;
-			if (terminal.MarginMode) {
-				if (buffer.X < buffer.MarginLeft) {
-					buffer.X = 0;
-				} else {
-					buffer.X = buffer.MarginLeft;
-				}
-			} else {
-				buffer.X = 0;
-			}
-		}
 		// 
 		// Helper method to erase cells in a terminal row.
 		// The cell gets replaced with the eraseChar of the terminal.

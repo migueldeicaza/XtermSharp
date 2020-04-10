@@ -3,7 +3,7 @@ using Xunit;
 using XtermSharp.CommandExtensions;
 using XtermSharp.CsiCommandExtensions;
 
-namespace XtermSharp.Tests.CsiTests {
+namespace XtermSharp.Tests.EscTests {
 	/// <summary>
 	/// BS (Backspace) tests
 	/// </summary>
@@ -18,6 +18,7 @@ namespace XtermSharp.Tests.CsiTests {
 			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (2, 3);
 		}
+
 		[Fact]
 		public void BS_NoWrapByDefault ()
 		{

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using XtermSharp;
 using Xunit;
 
-namespace XtermSharp.Tests.CsiTests {
+namespace XtermSharp.Tests.EscTests {
 	static class Commands {
 		public static int [] ReadCSI (this IResponseReader reader, string final, string prefix = null)
 		{

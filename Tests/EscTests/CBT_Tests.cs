@@ -3,7 +3,7 @@ using Xunit;
 using XtermSharp.CommandExtensions;
 using XtermSharp.CsiCommandExtensions;
 
-namespace XtermSharp.Tests.CsiTests {
+namespace XtermSharp.Tests.EscTests {
 	/// <summary>
 	/// CBT (Backward Tab) tests
 	/// </summary>

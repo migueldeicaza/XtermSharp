@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using XtermSharp;
 using XtermSharp.CommandExtensions;
-using XtermSharp.Tests.CsiTests;
+using XtermSharp.Tests.EscTests;
 using Xunit;
 
 namespace XtermSharp.Tests {
