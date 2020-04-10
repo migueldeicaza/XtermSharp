@@ -27,6 +27,25 @@ namespace XtermSharp.CommandExtensions {
 		}
 
 		/// <summary>
+		/// DECSERA - Selective Erase Rectangular Area
+		/// CSI Pt ; Pl ; Pb ; Pr ; $ {
+		/// </summary>
+		public static void csiDECSERA (this Terminal terminal, params int [] pars)
+		{
+			var buffer = terminal.Buffer;
+			var rect = GetRectangleFromRequest (buffer, terminal.OriginMode, 0, pars);
+
+			if (rect.valid) {
+				for (int row = rect.top; row <= rect.bottom; row++) {
+					var line = buffer.Lines [row + buffer.YBase];
+					for (int col = rect.left; col <= rect.right; col++) {
+						line [col] = new CharData (terminal.CurAttr, ' ', 1, 32);
+					}
+				}
+			}
+		}
+
+		/// <summary>
 		/// Copy Rectangular Area (DECCRA), VT400 and up.
 		/// CSI Pts ; Pls ; Pbs ; Prs ; Pps ; Ptd ; Pld ; Ppd $ v
 		///  Pts ; Pls ; Pbs ; Prs denotes the source rectangle.
