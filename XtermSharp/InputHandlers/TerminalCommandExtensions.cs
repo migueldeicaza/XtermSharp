@@ -118,11 +118,8 @@ namespace XtermSharp.CommandExtensions {
 		///   dow) (DECSTBM).
 		// CSI ? Pm r
 		/// </summary>
-		public static void csiDECSTBM (this Terminal terminal, int [] pars, string collect)
+		public static void csiDECSTBM (this Terminal terminal, params int [] pars)
 		{
-			if (collect != "")
-				return;
-
 			var top = pars.Length > 0 ? Math.Max (pars [0] - 1, 0) : 0;
 			var bottom = pars.Length > 1 ? pars [1] : 0;
 

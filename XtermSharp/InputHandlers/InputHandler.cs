@@ -92,7 +92,11 @@ namespace XtermSharp {
 				}
 			});
 			parser.SetCsiHandler ('q', (pars, collect) => SetCursorStyle (pars, collect));
-			parser.SetCsiHandler ('r', (pars, collect) => terminal.csiDECSTBM (pars, collect));
+			parser.SetCsiHandler ('r', (pars, collect) => {
+				if (collect == "") {
+					terminal.csiDECSTBM (pars);
+				}
+			});
 			parser.SetCsiHandler ('s', (pars, collect) => {
 				// "CSI s" is overloaded, can mean save cursor, but also set the margins with DECSLRM
 				if (terminal.MarginMode) {
