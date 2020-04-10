@@ -105,7 +105,7 @@ namespace XtermSharp.Mac {
 				byte [] copy = new byte [(int)size];
 				Marshal.Copy (buffer, copy, 0, (int)size);
 
-#if DEBUG
+#if DEBUG_LOG_FILE
 				System.IO.File.WriteAllBytes ("/tmp/log-" + (debugFileIndex++), copy);
 #endif
 				SendOnData (copy);
