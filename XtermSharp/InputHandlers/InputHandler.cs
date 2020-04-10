@@ -139,6 +139,7 @@ namespace XtermSharp {
 					break;
 				}
 			});
+			parser.SetCsiHandler ('~', (pars, collect) => terminal.csiDECDC (pars));
 
 
 

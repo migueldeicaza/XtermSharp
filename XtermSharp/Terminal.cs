@@ -995,7 +995,7 @@ namespace XtermSharp {
 				}
 			}
 
-			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (buffer.X, charsToDelete, new CharData (EraseAttr ()));
+			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (buffer.X, charsToDelete, MarginMode ? buffer.MarginRight : buffer.Cols - 1, new CharData (EraseAttr ()));
 
 			UpdateRange (buffer.Y);
 		}
@@ -1013,7 +1013,32 @@ namespace XtermSharp {
 				line.InsertCells (buffer.X, columns, MarginMode ? buffer.MarginRight : buffer.Cols - 1, CharData.WhiteSpace);
 				line.IsWrapped = false;
 			}
+
+			UpdateRange (buffer.ScrollTop);
+			UpdateRange (buffer.ScrollBottom);
 		}
+
+		/// <summary>
+		/// Deletes columns
+		/// </summary>
+		public void DeleteColumn (int columns)
+		{
+			var buffer = Buffer;
+
+			if (buffer.Y > buffer.ScrollBottom || buffer.Y < buffer.ScrollTop)
+				return;
+
+			for (int row = buffer.ScrollTop; row < buffer.ScrollBottom; row++) {
+				var line = buffer.Lines [row + buffer.YBase];
+				line.DeleteCells (buffer.X, columns, MarginMode ? buffer.MarginRight : buffer.Cols - 1, CharData.Null);
+				line.IsWrapped = false;
+			}
+
+			UpdateRange (buffer.ScrollTop);
+			UpdateRange (buffer.ScrollBottom);
+		}
+
+
 
 		#endregion
 

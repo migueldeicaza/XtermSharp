@@ -144,6 +144,21 @@ namespace XtermSharp.CommandExtensions {
 		}
 
 		/// <summary>
+		/// CSI Ps ' ~
+		/// Delete Ps Column(s) (default = 1) (DECDC), VT420 and up.
+		///
+		/// @vt: #Y CSI DECDC "Delete Columns"  "CSI Ps ' ~"  "Delete `Ps` columns at cursor position."
+		/// DECDC deletes `Ps` times columns at the cursor position for all lines with the scroll margins,
+		/// moving content to the left. Blank columns are added at the right margin.
+		/// DECDC has no effect outside the scrolling margins.
+		/// </summary>
+		public static void csiDECDC (this Terminal terminal, params int [] pars)
+		{
+			var n = pars.Length > 0 ? Math.Max (pars [0], 1) : 1;
+			terminal.DeleteColumn (n);
+		}
+
+		/// <summary>
 		/// CSI Ps ; Ps ; Ps t - Various window manipulations and reports (xterm)
 		/// See https://invisible-island.net/xterm/ctlseqs/ctlseqs.html for a full
 		/// list of commans for this escape sequence
