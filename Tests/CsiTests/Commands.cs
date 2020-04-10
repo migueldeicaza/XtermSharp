@@ -5,30 +5,6 @@ using Xunit;
 
 namespace XtermSharp.Tests.CsiTests {
 	static class Commands {
-		/// <summary>
-		/// Move cursor to point (CursorPosition)
-		/// </summary>
-		public static void CUP (this TerminalCommands commander, int col, int row)
-		{
-			commander.CursorPosition (new int [] { row, col });
-		}
-
-		/// <summary>
-		/// Sets a mode
-		/// </summary>
-		public static void DECSET (this TerminalCommands commander, int mode)
-		{
-			// TODO:
-			//commander.
-		}
-
-		//public static (int col, int row) GetCursorPosition (TerminalCommands commander, IResponseReader reader)
-		//{
-		//	commander.DeviceStatus (new int [] { CsiCommandCodes.DeviceStatus }, "");
-		//	var result = reader.ReadCSI ("R");
-		//	return (result [1], result [0]);
-		//}
-
 		public static int [] ReadCSI (this IResponseReader reader, string final, string prefix = null)
 		{
 			var code = reader.ReadNext ();
@@ -85,6 +61,33 @@ namespace XtermSharp.Tests.CsiTests {
 			}
 
 			return pars.ToArray ();
+		}
+
+		public static string ReadDCS (this IResponseReader reader)
+		{
+			var cc = new ControlCodes ();
+
+			var code = reader.ReadNext ();
+			switch (code) {
+			case 27:
+				reader.ReadOrDie ((byte)'P');
+				break;
+			default:
+				throw new Exception ($"Expected DCS, found {code}");
+			}
+
+
+			var result = "";
+			while (!result.EndsWith (cc.ST) && !result.EndsWith ((char)(0x9c))) {
+				var c = reader.ReadNextChar ();
+				result += c;
+			}
+
+			if (result.EndsWith (cc.ST)) {
+				return result.Substring (0, result.Length - 2);
+			} else {
+				return result.Substring (0, result.Length - 1);
+			}
 		}
 
 		static char ReadNextChar (this IResponseReader reader)

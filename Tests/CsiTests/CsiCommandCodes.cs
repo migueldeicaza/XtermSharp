@@ -4,6 +4,20 @@
 	/// TODO: maybe move this to Xterm proper
 	/// </summary>
 	static class CsiCommandCodes {
-		public static readonly int DeviceStatus = 6;
+		/// <summary>
+		/// Wraparound
+		/// </summary>
+		public const int DECAWM = 7;
+		/// <summary>
+		/// ReverseWraparound
+		/// </summary>
+		public const int ReverseWraparound = 45;
+		/// <summary>
+		/// Margin Mode
+		/// </summary>
+		public const int DECLRMM = 69;
+
+
+		public const int DeviceStatus = 6;
 	}
 }

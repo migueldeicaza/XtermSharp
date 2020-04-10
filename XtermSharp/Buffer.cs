@@ -71,12 +71,12 @@ namespace XtermSharp {
 		/// <summary>
 		/// Gets or sets the left margin, 0 based
 		/// </summary>
-		public int MarginLeft { get; set; }
+		public int MarginLeft { get; private set; }
 
 		/// <summary>
 		/// Gets or sets the right margin, 0 based
 		/// </summary>
-		public int MarginRight { get; set; }
+		public int MarginRight { get; private set; }
 
 		public int YDisp, YBase;
 		public int X;
@@ -155,6 +155,36 @@ namespace XtermSharp {
 				var relativeY = absoluteY - YDisp;
 				return (relativeY >= 0 && relativeY < Terminal.Rows);
 			}
+		}
+
+		/// <summary>
+		/// Sets the left and right margins
+		/// </summary>
+		public void SetMargins (int left, int right)
+		{
+			left = Math.Min (left, right);
+			MarginLeft = left;
+			MarginRight = right;
+		}
+
+		/// <summary>
+		/// Saves the cursor position
+		/// </summary>
+		public void SaveCursor (int curAttr)
+		{
+			SavedX = X;
+			SavedY = Y;
+			SavedAttr = curAttr;
+		}
+
+		/// <summary>
+		/// Restores the cursor
+		/// </summary>
+		public int RestoreCursor ()
+		{
+			X = SavedX;
+			Y = SavedY;
+			return SavedAttr;
 		}
 
 		/// <summary>

@@ -1,18 +1,21 @@
-﻿using Xunit;
+﻿
+using Xunit;
+using XtermSharp.CommandExtensions;
+using XtermSharp.CsiCommandExtensions;
 
 namespace XtermSharp.Tests.CsiTests {
 	/// <summary>
 	/// BS (Backspace) tests
 	/// </summary>
-	public class BSTests : BaseTerminalTest {
+	public class BS_Tests : BaseTerminalTest {
 		[Fact]
 		public void BS_Basic ()
 		{
 			//esccmd.CUP(Point(3, 3))
 			//escio.Write(esc.BS)
 			//AssertEQ (GetCursorPosition(), Point(2, 3))
-			Commander.CUP (3, 3);
-			Commander.Backspace ();
+			Terminal.csiCUP ((3, 3));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (2, 3);
 		}
 		[Fact]
@@ -21,8 +24,8 @@ namespace XtermSharp.Tests.CsiTests {
 			//esccmd.CUP(Point(1, 3))
 			//escio.Write(esc.BS)
 			//AssertEQ(GetCursorPosition(), Point(1, 3))
-			Commander.CUP (1, 3);
-			Commander.Backspace ();
+			Terminal.csiCUP ((1, 3));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (1, 3);
 		}
 
@@ -35,11 +38,10 @@ namespace XtermSharp.Tests.CsiTests {
 			//escio.Write (esc.BS)
 			//size = GetScreenSize ()
 			//AssertEQ (GetCursorPosition (), Point (size.width (), 2))
-			// TODO: DECSET wrappers
-			Terminal.Wraparound = true;
-			Terminal.ReverseWraparound = true;
-			Commander.CUP (1, 3);
-			Commander.Backspace ();
+			Terminal.csiDECSET(CsiCommandCodes.DECAWM);
+			Terminal.csiDECSET (CsiCommandCodes.ReverseWraparound);
+			Terminal.csiCUP ((1, 3));
+			Terminal.Backspace ();
 			var sz = Terminal.GetScreenSize ();
 			Terminal.AssertCursorPosition (sz.cols, 2);
 		}
@@ -61,17 +63,16 @@ namespace XtermSharp.Tests.CsiTests {
 
 			// TODO: DECSET wrappers
 			Terminal.Wraparound = false;
-			Terminal.ReverseWraparound = true; // this test fails this because we're bypassing the setmode command
-			Terminal.ReverseWraparound = false;
+			Terminal.csiDECSET (CsiCommandCodes.ReverseWraparound);
 
-			Commander.CUP (1, 3);
-			Commander.Backspace ();
+			Terminal.csiCUP ((1, 3));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (1, 3);
 
 			Terminal.Wraparound = true;
 			Terminal.ReverseWraparound = false;
-			Commander.CUP (1, 3);
-			Commander.Backspace ();
+			Terminal.csiCUP ((1, 3));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (1, 3);
 		}
 
@@ -85,13 +86,12 @@ namespace XtermSharp.Tests.CsiTests {
 			//esccmd.CUP(Point(5, 3))
 			//escio.Write(esc.BS)
 			//AssertEQ(GetCursorPosition(), Point(10, 2))
-			Terminal.Wraparound = true;
-			Terminal.ReverseWraparound = true;
-			Terminal.MarginMode = true;
-			Terminal.Buffer.MarginLeft = 5 -1;
-			Terminal.Buffer.MarginRight = 10 - 1;
-			Commander.CUP (5, 3);
-			Commander.Backspace ();
+			Terminal.csiDECSET (CsiCommandCodes.DECAWM);
+			Terminal.csiDECSET (CsiCommandCodes.ReverseWraparound);
+			Terminal.csiDECSET (CsiCommandCodes.DECLRMM);
+			Terminal.csiDECSLRM (5, 10);
+			Terminal.csiCUP ((5, 3));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (10, 2);
 		}
 
@@ -108,13 +108,12 @@ namespace XtermSharp.Tests.CsiTests {
 			//escio.Write(esc.BS)
 			//AssertEQ(GetCursorPosition(), Point(10, 2))
 
-			Terminal.Wraparound = true;
-			Terminal.ReverseWraparound = true;
-			Terminal.MarginMode = true;
-			Terminal.Buffer.MarginLeft = 5 - 1;
-			Terminal.Buffer.MarginRight = 10 - 1;
-			Commander.CUP (1, 3);
-			Commander.Backspace ();
+			Terminal.csiDECSET (CsiCommandCodes.DECAWM);
+			Terminal.csiDECSET (CsiCommandCodes.ReverseWraparound);
+			Terminal.csiDECSET (CsiCommandCodes.DECLRMM);
+			Terminal.csiDECSLRM (5, 10);
+			Terminal.csiCUP ((1, 3));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (10, 2);
 		}
 
@@ -145,7 +144,7 @@ namespace XtermSharp.Tests.CsiTests {
 			//Terminal.MarginMode = true;
 			//Terminal.Buffer.MarginLeft = 5 - 1;
 			//Terminal.Buffer.MarginRight = 10 - 1;
-			//Commander.CUP (1, 2);
+			//Terminal.csiCUP (1, 2);
 			//Commander.Backspace ();
 			//Terminal.AssertCursorPosition (80, 5);
 		}
@@ -159,11 +158,10 @@ namespace XtermSharp.Tests.CsiTests {
 			//escio.Write(esc.BS)
 			//esccmd.DECRESET(esccmd.DECLRMM)
 			//AssertEQ(GetCursorPosition(), Point(5, 1))
-			Terminal.MarginMode = true;
-			Terminal.Buffer.MarginLeft = 5 - 1;
-			Terminal.Buffer.MarginRight = 10 - 1;
-			Commander.CUP (5, 1);
-			Commander.Backspace ();
+			Terminal.csiDECSET (CsiCommandCodes.DECLRMM);
+			Terminal.csiDECSLRM (5, 10);
+			Terminal.csiCUP ((5, 1));
+			Terminal.Backspace ();
 			Terminal.MarginMode = false;
 			Terminal.AssertCursorPosition (5, 1);
 		}
@@ -177,11 +175,10 @@ namespace XtermSharp.Tests.CsiTests {
 			//escio.Write(esc.BS)
 			//esccmd.DECRESET(esccmd.DECLRMM)
 			//AssertEQ(GetCursorPosition(), Point(3, 1))
-			Terminal.MarginMode = true;
-			Terminal.Buffer.MarginLeft = 5 - 1;
-			Terminal.Buffer.MarginRight = 10 - 1;
-			Commander.CUP (4, 1);
-			Commander.Backspace ();
+			Terminal.csiDECSET (CsiCommandCodes.DECLRMM);
+			Terminal.csiDECSLRM (5, 10);
+			Terminal.csiCUP ((4, 1));
+			Terminal.Backspace ();
 			Terminal.MarginMode = false;
 			Terminal.AssertCursorPosition (3, 1);
 		}
@@ -192,8 +189,8 @@ namespace XtermSharp.Tests.CsiTests {
 			//esccmd.CUP(Point(1, 1))
 			//escio.Write(esc.BS)
 			//AssertEQ(GetCursorPosition(), Point(1, 1))
-			Commander.CUP (1, 1);
-			Commander.Backspace ();
+			Terminal.csiCUP ((1, 1));
+			Terminal.Backspace ();
 			Terminal.AssertCursorPosition (1, 1);
 		}
 
@@ -207,13 +204,13 @@ namespace XtermSharp.Tests.CsiTests {
 			//escio.Write(esc.BS)
 			//escio.Write("X")
 			//AssertScreenCharsInRectEqual(Rect(size.width() - 1, 1, size.width(), 1), ["Xb"])
-			var sz = Terminal.GetScreenSize ();
-			Commander.CUP (sz.cols - 1, 1);
+			var size = Terminal.GetScreenSize ();
+			Terminal.csiCUP ((size.cols - 1, 1));
 			Terminal.Feed ("ab");
-			Commander.Backspace ();
+			Terminal.Backspace ();
 			Terminal.Feed ("X");
-			// TOOD: test handling for checksums
-			//Commander.DECRQCRA ();
+
+			AssertScreenCharsInRectEqual ((size.cols - 1, 1, size.cols, 1), "Xb");
 		}
 	}
 }

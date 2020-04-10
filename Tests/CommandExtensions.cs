@@ -1,4 +1,5 @@
 ﻿using Xunit;
+using XtermSharp.CommandExtensions;
 
 namespace XtermSharp.Tests {
 	static class CommandExtensions {
