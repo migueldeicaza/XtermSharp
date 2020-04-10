@@ -129,6 +129,16 @@ namespace XtermSharp {
 					break;
 				}
 			});
+			parser.SetCsiHandler ('}', (pars, collect) => {
+				switch (collect) {
+				case "'":
+					terminal.csiDECIC (pars);
+					break;
+				default:
+					terminal.Error ("Unknown CSI code", collect, pars, "}");
+					break;
+				}
+			});
 
 
 

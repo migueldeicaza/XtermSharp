@@ -999,6 +999,22 @@ namespace XtermSharp {
 
 			UpdateRange (buffer.Y);
 		}
+
+		/// <summary>
+		/// Inserts columns
+		/// </summary>
+		public void InsertColumn (int columns)
+		{
+			var buffer = Buffer;
+
+			for (int row = buffer.ScrollTop; row < buffer.ScrollBottom; row++) {
+				var line = buffer.Lines [row + buffer.YBase];
+				// TODO:is this the right filldata?
+				line.InsertCells (buffer.X, columns, MarginMode ? buffer.MarginRight : buffer.Cols - 1, CharData.WhiteSpace);
+				line.IsWrapped = false;
+			}
+		}
+
 		#endregion
 
 		/// <summary>

@@ -91,9 +91,9 @@ namespace XtermSharp.CommandExtensions {
 			terminal.DeleteChars (p);
 		}
 
-		//
-		//CSI Ps Z  Cursor Backward Tabulation Ps tab stops (default = 1) (CBT).
-		//
+		/// <summary>
+		/// CSI Ps Z  Cursor Backward Tabulation Ps tab stops (default = 1) (CBT).
+		/// </summary>
 		public static void csiCBT (this Terminal terminal, params int [] pars)
 		{
 			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
@@ -127,6 +127,20 @@ namespace XtermSharp.CommandExtensions {
 			var bottom = pars.Length > 1 ? pars [1] : 0;
 
 			terminal.SetScrollRegion (top, bottom);
+		}
+
+		/// <summary>
+		/// CSI # }   Pop video attributes from stack (XTPOPSGR), xterm.  Popping
+		///           restores the video-attributes which were saved using XTPUSHSGR
+		///           to their previous state.
+		///
+		/// CSI Pm ' }
+		///           Insert Ps Column(s) (default = 1) (DECIC), VT420 and up.
+		/// </summary>
+		public static void csiDECIC (this Terminal terminal, int[] pars)
+		{
+			var n = pars.Length > 0 ? Math.Max (pars [0], 1) : 1;
+			terminal.InsertColumn (n);
 		}
 
 		/// <summary>
