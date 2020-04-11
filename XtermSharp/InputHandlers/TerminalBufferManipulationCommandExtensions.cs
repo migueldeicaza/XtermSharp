@@ -46,6 +46,29 @@ namespace XtermSharp.CommandExtensions {
 		}
 
 		/// <summary>
+		/// CSI Pc ; Pt ; Pl ; Pb ; Pr $ x Fill Rectangular Area (DECFRA), VT420 and up.
+		/// </summary>
+		public static void csiDECFRA (this Terminal terminal, params int [] pars)
+		{
+			var buffer = terminal.Buffer;
+			var rect = GetRectangleFromRequest (buffer, terminal.OriginMode, 1, pars);
+
+			if (rect.valid) {
+				char fillChar = ' ';
+				if (pars.Length > 0) {
+					fillChar = (char)pars [0];
+				}
+
+				for (int row = rect.top; row <= rect.bottom; row++) {
+					var line = buffer.Lines [row + buffer.YBase];
+					for (int col = rect.left; col <= rect.right; col++) {
+						line [col] = new CharData (terminal.CurAttr, fillChar, 1, (int)fillChar);
+					}
+				}
+			}
+		}
+
+		/// <summary>
 		/// Copy Rectangular Area (DECCRA), VT400 and up.
 		/// CSI Pts ; Pls ; Pbs ; Prs ; Pps ; Ptd ; Pld ; Ppd $ v
 		///  Pts ; Pls ; Pbs ; Prs denotes the source rectangle.

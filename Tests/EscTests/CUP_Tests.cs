@@ -67,7 +67,6 @@ namespace XtermSharp.Tests.EscTests {
 			//position = GetCursorPosition()
 			//AssertEQ(position.x(), 2)
 			//AssertEQ(position.y(), 1)
-
 			Terminal.csiCUP ((6, 3));
 			Terminal.AssertCursorPosition (6, 3);
 
@@ -99,7 +98,6 @@ namespace XtermSharp.Tests.EscTests {
 			//position = GetCursorPosition()
 			//AssertEQ(position.x(), size.width())
 			//AssertEQ(position.y(), size.height())
-
 			var sz = Terminal.GetScreenSize ();
 			Terminal.csiCUP ((sz.cols + 10, sz.rows + 10));
 			Terminal.AssertCursorPosition (sz.cols, sz.rows);
@@ -143,8 +141,6 @@ namespace XtermSharp.Tests.EscTests {
 			//# Make sure there's an X at 5,6
 			//AssertScreenCharsInRectEqual(Rect(5, 6, 5, 6),
 			//                                ["X"])
-
-
 			Terminal.csiDECSTBM (6, 11);
 			Terminal.csiDECSET (CsiCommandCodes.DECLRMM);
 			Terminal.csiDECSLRM (5, 10);
