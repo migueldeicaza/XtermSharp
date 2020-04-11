@@ -134,7 +134,7 @@ namespace XtermSharp.CommandExtensions {
 					var y = buffer.Y + 1 - (terminal.OriginMode ? buffer.ScrollTop : 0);
 					// Need the max, because the cursor could be before the leftMargin
 					var x = Math.Max (1, buffer.X + 1 - (terminal.IsUsingMargins () ? buffer.MarginLeft : 0));
-					terminal.SendResponse ($"\x1b[?{y};{x}1R");
+					terminal.SendResponse ($"\x1b[?{y};{x};1R");
 					break;
 				case 15:
 					// Request printer status report, we respond "We are ready"
