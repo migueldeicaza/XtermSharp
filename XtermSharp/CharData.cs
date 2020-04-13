@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace XtermSharp {
 	// MIGUEL TODO:
-    	// The original code used Rune + Code, but it really makes no sense to keep those separate, excpt for null that has a
+	// The original code used Rune + Code, but it really makes no sense to keep those separate, excpt for null that has a
 	// zero-width thing for code 0.
 	[DebuggerDisplay("[CharData (Attr={Attribute},Rune={Rune},W={Width},Code={Code})]")]
 	public struct CharData {

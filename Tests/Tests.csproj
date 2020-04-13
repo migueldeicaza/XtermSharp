@@ -15,4 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\XtermSharp\XtermSharp.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="EscTests\" />
+  </ItemGroup>
 </Project>

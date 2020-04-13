@@ -5,78 +5,295 @@ using System.Text;
 namespace XtermSharp {
 
 	public class Terminal {
-		ITerminalDelegate terminalDelegate;
-
 		const int MINIMUM_COLS = 2;
 		const int MINIMUM_ROWS = 1;
 
-		BufferSet buffers;
-		InputHandler input;
-		bool applicationKeypad, applicationCursor;
-		bool cursorHidden;
-		bool originMode;
+		//static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();
+		readonly ITerminalDelegate terminalDelegate;
+		readonly ControlCodes controlCodes;
+		readonly List<string> titleStack;
+		readonly List<string> iconTitleStack;
+		readonly BufferSet buffers;
+		readonly InputHandler input;
+
+		BufferLine blankLine;
+
+		// modes
 		bool insertMode;
 		bool bracketedPasteMode;
+
+		// saved modes
+		bool savedMarginMode;
+		bool savedOriginMode;
+		bool savedWraparound;
+		bool savedReverseWraparound;
+
+		// unsorted
+		bool applicationKeypad, applicationCursor;
+		bool cursorHidden;
 		Dictionary<byte, string> charset;
 		int gcharset;
+		int gLevel;
+		int refreshStart = Int32.MaxValue;
+		int refreshEnd = -1;
+		bool userScrolling;
 
 		public Terminal (ITerminalDelegate terminalDelegate = null, TerminalOptions options = null)
 		{
 			this.terminalDelegate = terminalDelegate ?? new SimpleTerminalDelegate ();
+			controlCodes = new ControlCodes () { Send8bit = false };
+			titleStack = new List<string> ();
+			iconTitleStack = new List<string> ();
+			input = new InputHandler (this);
+
 			Options = options ?? new TerminalOptions ();
-			Setup ();
-		}
-
-		void Setup ()
-		{
-
 			Cols = Math.Max (Options.Cols, MINIMUM_COLS);
 			Rows = Math.Max (Options.Rows, MINIMUM_ROWS);
 
 			buffers = new BufferSet (this);
-			input = new InputHandler (this);
-			cursorHidden = false;
-
-			// modes
-			applicationKeypad = false;
-			applicationCursor = false;
-			originMode = false;
-			InsertMode = false;
-			Wraparound = true;
-			bracketedPasteMode = false;
-
-			// charset
-			charset = null;
-			gcharset = 0;
-			gLevel = 0;
-
-			CurAttr = CharData.DefaultAttr;
-
-			// TODO REST
+			Setup ();
 		}
 
+		/// <summary>
+		/// Gets the delegate for the terminal
+		/// </summary>
+		public ITerminalDelegate Delegate => terminalDelegate;
+
+		/// <summary>
+		/// Gets the control codes for the terminal
+		/// </summary>
+		public ControlCodes ControlCodes => controlCodes;
+
+		/// <summary>
+		/// Gets the current title of the terminal
+		/// </summary>
+		public string Title { get; private set; }
+
+		/// <summary>
+		/// Gets the current icon title of the terminal
+		/// </summary>
+		public string IconTitle { get; private set; }
+
+		/// <summary>
+		/// Gets the currently active buffer
+		/// </summary>
+		public Buffer Buffer => buffers.Active;
+
+		/// <summary>
+		/// Gets the BufferSet for the terminal
+		/// </summary>
+		public BufferSet Buffers => buffers;
+
+		/// <summary>
+		/// Gets the margin mode of the terminal
+		/// </summary>
+		public bool MarginMode { get; internal set; }
+
+		/// <summary>
+		/// Gets the origin mode of the terminal
+		/// </summary>
+		public bool OriginMode { get; internal set; }
+
+		/// <summary>
+		/// Gets the Wraparound mode of the terminal
+		/// </summary>
+		public bool Wraparound { get; internal set; }
+
+		/// <summary>
+		/// Gets the ReverseWraparound mode of the terminal
+		/// </summary>
+		public bool ReverseWraparound { get; internal set; }
+
+		/// <summary>
+		/// Gets the current mouse mode
+		/// </summary>
+		public MouseMode MouseMode { get; internal set; }
+
+		/// <summary>
+		/// Gets the current mouse protocol
+		/// </summary>
+		public MouseProtocolEncoding MouseProtocol { get; internal set; }
+
+		/// <summary>
+		/// Gets a value indicating whether the terminal can be resized to 132
+		/// </summary>
+		public bool Allow80To132 { get; internal set; }
+
+		public Dictionary<byte, string> Charset {
+			get => charset;
+			set {
+				charset = value;
+			}
+		}
+
+		public bool ApplicationCursor { get; internal set; }
+		public int SavedCols { get; internal set; }
+		public bool ApplicationKeypad { get; internal set; }
+
+		public bool SendFocus { get; internal set; }
+
+		public bool CursorHidden { get; internal set; }
+		public bool BracketedPasteMode { get; internal set; }
+
+		public TerminalOptions Options { get; private set; }
+		public int Cols { get; private set; }
+		public int Rows { get; private set; }
+		public bool InsertMode;
+		public int CurAttr;
+
+		/// <summary>
+		/// Provides a baseline set of environment variables that would be useful to run the terminal,
+		/// you can customzie these accordingly.
+		/// </summary>
+		public static string [] GetEnvironmentVariables (string termName = null)
+		{
+			var l = new List<string> ();
+			if (termName == null)
+				termName = "xterm-256color";
+
+			l.Add ("TERM=" + termName);
+
+			// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
+			l.Add ("LANG=en_US.UTF-8");
+			var env = Environment.GetEnvironmentVariables ();
+			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
+				if (env.Contains (x))
+					l.Add ($"{x}={env [x]}");
+			return l.ToArray ();
+		}
+
+		/// <summary>
+		/// Called by input handlers to set the title
+		/// </summary>
+		internal void SetTitle (string text)
+		{
+			Title = text;
+			terminalDelegate.SetTerminalTitle (this, text);
+		}
+
+		/// <summary>
+		/// Called by input handlers to push the current title onto the stack
+		/// </summary>
+		internal void PushTitle ()
+		{
+			titleStack.Insert (0, Title);
+		}
+
+		/// <summary>
+		/// Called by input handlers to pop and set the title to the last one on the stack
+		/// </summary>
+		internal void PopTitle ()
+		{
+			if (titleStack.Count > 0) {
+				Title = titleStack[0];
+				titleStack.RemoveAt (0);
+			}
+
+			terminalDelegate.SetTerminalTitle (this, Title);
+		}
+
+		/// <summary>
+		/// Called by input handlers to set the icon title
+		/// </summary>
+		internal void SetIconTitle (string text)
+		{
+			IconTitle = text;
+			terminalDelegate.SetTerminalIconTitle (this, text);
+		}
+
+		/// <summary>
+		/// Called by input handlers to push the current icon title onto the stack
+		/// </summary>
+		internal void PushIconTitle ()
+		{
+			iconTitleStack.Insert (0, IconTitle);
+		}
+
+		/// <summary>
+		/// Called by input handlers to pop and set the icon title to the last one on the stack
+		/// </summary>
+		internal void PopIconTitle ()
+		{
+			if (iconTitleStack.Count > 0) {
+				IconTitle = iconTitleStack [0];
+				iconTitleStack.RemoveAt (0);
+			}
+
+			terminalDelegate.SetTerminalIconTitle (this, IconTitle);
+		}
+
+		/// <summary>
+		/// Sends a response to a command
+		/// </summary>
 		public void SendResponse (string txt)
 		{
 			terminalDelegate.Send (Encoding.UTF8.GetBytes (txt));
 		}
 
+		/// <summary>
+		/// Sends a response to a command
+		/// </summary>
+		public void SendResponse (params object[] args)
+		{
+			if (args == null) {
+				return;
+			}
+
+			int len = args.Length;
+			for (int i = 0; i < args.Length; i++) {
+				if (args [i] is string s) {
+					len += s != null ? s.Length - 1: 0;
+				} else if (args [i] is byte [] ba) {
+					len += ba.Length - 1;
+				}
+			}
+
+			var buffer = new byte [len];
+
+			int bufferIndex = 0;
+			for (int i = 0; i < args.Length; i++) {
+				if (args[i] == null) {
+					buffer [bufferIndex] = 0;
+				} else if (args[i] is byte b) {
+					buffer [bufferIndex] = b;
+				} else if (args[i] is string s) {
+					if (s == null) {
+						buffer [bufferIndex] = 0;
+					} else {
+						foreach (var sb in Encoding.UTF8.GetBytes (s)) {
+							buffer [bufferIndex++] = sb;
+						}
+					}
+					bufferIndex--;
+				} else if (args[i] is byte[] ba) {
+					foreach (var bab in ba) {
+						buffer [bufferIndex++] = bab;
+					}
+					bufferIndex--;
+				} else {
+					Error ("Unsupported type in SendResponse", args[i].GetType());
+				}
+
+				bufferIndex++;
+			}
+
+			terminalDelegate.Send (buffer);
+		}
+
+		/// <summary>
+		/// Reports an error to the system log
+		/// </summary>
 		public void Error (string txt, params object [] args)
 		{
 			Report ("ERROR", txt, args);
 		}
 
-		public bool Debug { get; set; }
+		/// <summary>
+		/// Logs a message to the system log
+		/// </summary>
 		public void Log (string text, params object [] args)
 		{
 			Report ("LOG", text, args);
-		}
-
-		void Report (string prefix, string text, object [] args)
-		{
-			Console.WriteLine ($"{prefix}: {text}");
-			for (int i = 0; i < args.Length; i++)
-				Console.WriteLine ("    {0}: {1}", i, args [i]);
-
 		}
 
 		public void Feed (byte [] data, int len = -1)
@@ -94,81 +311,6 @@ namespace XtermSharp {
 			var bytes = Encoding.UTF8.GetBytes (text);
 			Feed (bytes, bytes.Length);
 		}
-
-		public Dictionary<byte, string> Charset {
-			get => charset;
-			set {
-				charset = value;
-			}
-		}
-
-		public Buffer Buffer => buffers.Active;
-		public BufferSet Buffers => buffers;
-
-		public bool ApplicationCursor { get; internal set; }
-		public int SavedCols { get; internal set; }
-		public bool ApplicationKeypad { get; internal set; }
-
-		internal bool X10Mouse { get; set; }
-		internal bool UtfMouse { get; set; }
-		internal bool Vt200Mouse { get; set; }
-
-		public bool SendFocus { get; internal set; }
-		public bool OriginMode { get; internal set; }
-
-
-		/// <summary>
-		/// If MouseEvents is set, then we are supposed to send some kind of mouse events, which
-		/// are determined by the boolean flags below.  Additionally, a "style" is encoded in
-		/// SgrMouse, UrxvtMouse which alter the responses.
-		/// </summary>
-		/// <value><c>true</c> if mouse events; otherwise, <c>false</c>.</value>
-		public bool MouseEvents { get; internal set; }
-
-		/// <summary>
-		/// If MouseEvents is set, then this value should be probed to determine whether a UI front-end needs to send the MouseRelease event.
-		/// </summary>
-		/// <value><c>true</c> if the UI is expected to send a mouse release event when the button is released.</value>
-		public bool MouseSendsRelease { get; internal set; }
-
-		/// <summary>
-		/// If MosueEvents is set, and this is set, then all motion events should be sent, regardless of the state of the mouse buttons. (Xterm flag 1003)
-		/// </summary>
-		/// <value><c>true</c> if mouse sends all motion; otherwise, <c>false</c>.</value>
-		public bool MouseSendsAllMotion { get; internal set; }
-
-		// Should sent motion events when a button is pressed (1002)
-		/// <summary>
-		/// If MouseEvents is set, then motion events should be sent when the mouse button is held down (Xterm flag 1002)
-		/// </summary>
-		/// <value><c>true</c> if mouse sends motion when pressed; otherwise, <c>false</c>.</value>
-		public bool MouseSendsMotionWhenPressed { get; internal set; }
-
-
-		/// <summary>
-		/// If MouseEvents is set, this determines whether the UI layer should send Wheel events.
-		/// </summary>
-		/// <value><c>true</c> if mouse sends wheel; otherwise, <c>false</c>.</value>
-		public bool MouseSendsWheel { get; internal set; }
-
-		// Whether control/meta/shift modifiers are encoded
-		internal bool MouseSendsModifiers = false;
-		internal bool SgrMouse;
-		internal bool UrxvtMouse;
-
-		public bool CursorHidden { get; internal set; }
-		public bool BracketedPasteMode { get; internal set; }
-
-		public TerminalOptions Options { get; private set; }
-		public int Cols { get; private set; }
-		public int Rows { get; private set; }
-		public bool Wraparound;
-		public bool InsertMode;
-		public int CurAttr;
-		int gLevel;
-		int refreshStart = Int32.MaxValue;
-		int refreshEnd = -1;
-		bool userScrolling;
 
 		internal void UpdateRange (int y)
 		{
@@ -230,7 +372,6 @@ namespace XtermSharp {
 				buffer.X--;
 		}
 
-		BufferLine blankLine;
 		internal void Scroll (bool isWrapped = false)
 		{
 			var buffer = Buffer;
@@ -277,7 +418,11 @@ namespace XtermSharp {
 				// scrollTop is non-zero which means no line will be going to the
 				// scrollback, instead we can just shift them in-place.
 				var scrollRegionHeight = bottomRow - topRow + 1/*as it's zero-based*/;
-				buffer.Lines.ShiftElements (topRow + 1, scrollRegionHeight - 1, -1);
+
+				if (scrollRegionHeight > 1) {
+					buffer.Lines.ShiftElements (topRow + 1, scrollRegionHeight - 1, -1);
+				}
+
 				buffer.Lines [bottomRow] = new BufferLine (newLine);
 			}
 
@@ -430,66 +575,36 @@ namespace XtermSharp {
 			terminalDelegate.ShowCursor (this);
 		}
 
-		internal void SetX10MouseStyle ()
+		/// <summary>
+		/// Encodes button and position to characters
+		/// </summary>
+		void EncodeMouseUtf (List<byte> data, int ch)
 		{
-			X10Mouse = true;
-			MouseEvents = true;
-
-			MouseSendsRelease = false;
-			MouseSendsAllMotion = false;
-			MouseSendsWheel = false;
-			MouseSendsModifiers = false;
-		}
-
-		internal void SetVT200MouseStyle ()
-		{
-			Vt200Mouse = true;
-			MouseEvents = true;
-
-			MouseSendsRelease = true;
-			MouseSendsAllMotion = false;
-			MouseSendsWheel = true;
-			MouseSendsModifiers = false;
-		}
-
-		// Encode button and position to characters
-		void Encode (List<byte> data, int ch)
-		{
-			if (UtfMouse) {
-				if (ch == 2047) {
-					data.Add (0);
-					return;
-				}
-				if (ch < 127) {
-					data.Add ((byte)ch);
-				} else {
-					if (ch > 2047) 
-						ch = 2047;
-					data.Add ((byte)(0xC0 | (ch >> 6)));
-					data.Add ((byte)(0x80 | (ch & 0x3F)));
-				}
+			if (ch == 2047) {
+				data.Add (0);
+				return;
+			}
+			if (ch < 127) {
+				data.Add ((byte)ch);
 			} else {
-				if (ch == 255) {
-					data.Add (0);
-					return;
-				}
-				if (ch > 127) 
-					ch = 127;
-				data.Add ((byte) ch);
+				if (ch > 2047) 
+					ch = 2047;
+				data.Add ((byte)(0xC0 | (ch >> 6)));
+				data.Add ((byte)(0x80 | (ch & 0x3F)));
 			}
 		}
 
 		/// <summary>
-		/// Encodes the button.
+		/// Encodes the mouse button.
 		/// </summary>
-		/// <returns>The button.</returns>
+		/// <returns>The mouse button.</returns>
 		/// <param name="button">Button (0, 1, 2 for left, middle, right) and 4 for wheel up, and 5 for wheel down.</param>
 		/// <param name="release">If set to <c>true</c> release.</param>
 		/// <param name="wheelUp">If set to <c>true</c> wheel up.</param>
 		/// <param name="shift">If set to <c>true</c> shift.</param>
 		/// <param name="meta">If set to <c>true</c> meta.</param>
 		/// <param name="control">If set to <c>true</c> control.</param>
-		public int EncodeButton (int button, bool release, bool shift, bool meta, bool control)
+		public int EncodeMouseButton (int button, bool release, bool shift, bool meta, bool control)
 		{
 			int value;
 
@@ -517,7 +632,8 @@ namespace XtermSharp {
 					break;
 				}
 			}
-			if (MouseSendsModifiers) {
+
+			if (MouseMode.SendsModifiers()) {
 				if (shift)
 					value |= 4;
 				if (meta)
@@ -536,34 +652,33 @@ namespace XtermSharp {
 		/// <param name="y">The y coordinate.</param>
 		public void SendEvent (int buttonFlags, int x, int y)
 		{
-			// TODO
-			// Handle X10 Mouse,
-			// Urxvt Mouse
-			// SgrMouse
-			if (SgrMouse) {
+			switch (MouseProtocol) {
+			case MouseProtocolEncoding.X10:
+				SendResponse (ControlCodes.CSI, "M", (byte)(buttonFlags + 32), (byte)Math.Min (255, (32 + x + 1)), (byte)Math.Min (255, (32 + y + 1)));
+				break;
+			case MouseProtocolEncoding.SGR:
 				var bflags = ((buttonFlags & 3) == 3) ? (buttonFlags & ~3) : buttonFlags;
-				var sres = "\x1b[<" + bflags + ";" + (x+1) + ";" + (y+1) + (((buttonFlags & 3) == 3) ? 'm' : 'M');
-				terminalDelegate.Send (Encoding.UTF8.GetBytes (sres));
-				return;
+				var m = ((buttonFlags & 3) == 3) ? "m" : "M";
+				SendResponse (ControlCodes.CSI, $"<{bflags};{x+1};{y+1}{m}");
+				break;
+			case MouseProtocolEncoding.URXVT:
+				SendResponse (ControlCodes.CSI, $"{buttonFlags+32};{x+1};{y+1}M");
+				break;
+			case MouseProtocolEncoding.UTF8:
+				var utf8 = new List<byte> () { 0x4d /* M */ };
+				EncodeMouseUtf (utf8, ch: buttonFlags+32);
+				EncodeMouseUtf (utf8, ch: x+33);
+				EncodeMouseUtf (utf8, ch: y+33);
+				SendResponse (ControlCodes.CSI, utf8.ToArray());
+				break;
 			}
-			if (Vt200Mouse) {
-
-			}
-			var res = new List<byte> () { 0x1b, (byte)'[', (byte)'M' };
-			Encode (res, buttonFlags+32);
-			Encode (res, x+33);
-			Encode (res, y+33);
-			terminalDelegate.Send (res.ToArray ());
-
 		}
 
-		public void SendMotion (int buttonFlags, int x, int y)
+		public void SendMouseMotion (int buttonFlags, int x, int y)
 		{
 			SendEvent (buttonFlags + 32, x, y);
 
 		}
-
-		static Dictionary<int, int> matchColorCache = new Dictionary<int, int> ();
 
 		public int MatchColor (int r1, int g1, int b1)
 		{
@@ -581,16 +696,6 @@ namespace XtermSharp {
 		/// <param name="style"></param>
 		public void SetCursorStyle (CursorStyle style)
 		{
-		}
-
-		string TerminalTitle { get; set; }
-		/// <summary>
-		/// Override to set the current terminal title
-		/// </summary>
-		internal void SetTitle (string text)
-		{
-			TerminalTitle = text;
-			terminalDelegate.SetTerminalTitle (this, text);
 		}
 
 		internal void ReverseIndex ()
@@ -612,26 +717,446 @@ namespace XtermSharp {
 		}
 
 
+		#region Cursor Commands
 		/// <summary>
-		/// Provides a baseline set of environment variables that would be useful to run the terminal,
-		/// you can customzie these accordingly.
+		/// Sets the location of the cursor (zero based)
 		/// </summary>
-		/// <returns></returns>
-		public static string [] GetEnvironmentVariables (string termName = null)
+		public void SetCursor (int col, int row)
 		{
-			var l = new List<string> ();
-			if (termName == null)
-				termName = "xterm-256color";
+			var buffer = Buffer;
 
-			l.Add ("TERM=" + termName);
+			// make sure we stay within the boundaries
+			col = Math.Min (Math.Max (col, 0), buffer.Cols - 1);
+			row = Math.Min (Math.Max (row, 0), buffer.Rows - 1);
 
-			// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
-			l.Add ("LANG=en_US.UTF-8");
-			var env = Environment.GetEnvironmentVariables ();
-			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
-				if (env.Contains (x))
-					l.Add ($"{x}={env [x]}");
-			return l.ToArray ();
+			if (OriginMode) {
+				buffer.X = col + (IsUsingMargins () ? buffer.MarginLeft : 0);
+				buffer.Y = buffer.ScrollTop + row;
+			} else {
+				buffer.X = col;
+				buffer.Y = row;
+			}
+		}
+		/// <summary>
+		// Moves the cursor up by rows
+		/// </summary>
+		public void CursorUp (int rows)
+		{
+			var buffer = Buffer;
+			var top = buffer.ScrollTop;
+
+			if (buffer.Y < top) {
+				top = 0;
+			}
+
+			if (buffer.Y - rows < top)
+				buffer.Y = top;
+			else
+				buffer.Y -= rows;
+		}
+
+		/// <summary>
+		// Moves the cursor down by rows
+		/// </summary>
+		public void CursorDown (int rows)
+		{
+			var buffer = Buffer;
+			var bottom = buffer.ScrollBottom;
+
+			// When the cursor starts below the scroll region, CUD moves it down to the
+			// bottom of the screen.
+			if (buffer.Y > bottom) {
+				bottom = buffer.Rows - 1;
+			}
+
+			var newY = buffer.Y + rows;
+
+			if (newY >= bottom)
+				buffer.Y = bottom;
+			else
+				buffer.Y = newY;
+
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= Cols)
+				buffer.X--;
+		}
+
+		/// <summary>
+		// Moves the cursor forward by cols
+		/// </summary>
+		public void CursorForward (int cols)
+		{
+			var buffer = Buffer;
+			var right = MarginMode ? buffer.MarginRight : buffer.Cols - 1;
+
+			if (buffer.X > right) {
+				right = buffer.Cols - 1;
+			}
+
+			buffer.X += cols;
+			if (buffer.X > right) {
+				buffer.X = right;
+			}
+		}
+
+		/// <summary>
+		// Moves the cursor forward by cols
+		/// </summary>
+		public void CursorBackward (int cols)
+		{
+			var buffer = Buffer;
+
+			// What is our left margin - depending on the settings.
+			var left = MarginMode ? buffer.MarginLeft : 0;
+
+			// If the cursor is positioned before the margin, we can go backwards to the first column
+			if (buffer.X < left) {
+				left = 0;
+			}
+			buffer.X -= cols;
+
+			if (buffer.X < left) {
+				buffer.X = left;
+			}
+		}
+
+		/// <summary>
+		/// Performs a backwards tab
+		/// </summary>
+		public void CursorBackwardTab (int tabs)
+		{
+			var buffer = Buffer;
+			while (tabs-- != 0) {
+				buffer.X = buffer.PreviousTabStop ();
+			}
+		}
+
+		/// <summary>
+		/// Moves the cursor to the given column
+		/// </summary>
+		public void CursorCharAbsolute (int col)
+		{
+			var buffer = Buffer;
+			buffer.X = (IsUsingMargins () ? buffer.MarginLeft : 0) + Math.Min (col - 1, buffer.Cols - 1);
+		}
+
+		/// <summary>
+		/// Performs a linefeed
+		/// </summary>
+		public void LineFeed ()
+		{
+			var buffer = Buffer;
+			if (Options.ConvertEol) {
+				buffer.X = MarginMode ? buffer.MarginLeft : 0;
+			}
+
+			LineFeedBasic ();
+		}
+
+		/// <summary>
+		/// Performs a basic linefeed
+		/// </summary>
+		public void LineFeedBasic ()
+		{
+			var buffer = Buffer;
+			var by = buffer.Y;
+
+			if (by == buffer.ScrollBottom) {
+				Scroll (isWrapped: false);
+			} else if (by == buffer.Rows - 1) {
+			} else {
+				buffer.Y = by + 1;
+			}
+
+			// If the end of the line is hit, prevent this action from wrapping around to the next line.
+			if (buffer.X >= buffer.Cols) {
+				buffer.X -= 1;
+			}
+
+			// This event is emitted whenever the terminal outputs a LF or NL.
+			EmitLineFeed ();
+		}
+
+		/// <summary>
+		/// Moves cursor to first position on next line.
+		/// </summary>
+		public void NextLine ()
+		{
+			var buffer = Buffer;
+			buffer.X = IsUsingMargins () ? buffer.MarginLeft : 0;
+			Index ();
+		}
+
+		/// <summary>
+		/// Save cursor (ANSI.SYS).
+		/// </summary>
+		public void SaveCursor ()
+		{
+			var buffer = Buffer;
+			buffer.SaveCursor (CurAttr);
+		}
+
+		/// <summary>
+		/// Restores the cursor and modes
+		/// </summary>
+		public void RestoreCursor ()
+		{
+			var buffer = Buffer;
+			CurAttr = buffer.RestoreCursor();
+			MarginMode = savedMarginMode;
+			OriginMode = savedOriginMode;
+			Wraparound = savedWraparound;
+			ReverseWraparound = savedReverseWraparound;
+		}
+
+		/// <summary>
+		/// Restrict cursor to viewport size / scroll margin (origin mode)
+		/// - Parameter limitCols: by default it is true, but the reverseWraparound mechanism in Backspace needs `x` to go beyond.
+		/// </summary>
+		public void RestrictCursor (bool limitCols = true)
+		{
+			var buffer = Buffer;
+			buffer.X = Math.Min (buffer.Cols - (limitCols ? 1 : 0), Math.Max (0, buffer.X));
+			buffer.Y = OriginMode
+				? Math.Min (buffer.ScrollBottom, Math.Max (buffer.ScrollTop, buffer.Y))
+				: Math.Min (buffer.Rows - 1, Math.Max (0, buffer.Y));
+
+			UpdateRange (buffer.Y);
+		}
+
+		/// <summary>
+		/// Returns true if the terminal is using margins in origin mode
+		/// </summary>
+		internal bool IsUsingMargins ()
+		{
+			return OriginMode && MarginMode;
+		}
+
+		#endregion
+
+		/// <summary>
+		/// Performs a carriage return
+		/// </summary>
+		public void CarriageReturn ()
+		{
+			var buffer = Buffer;
+			if (MarginMode) {
+				if (buffer.X < buffer.MarginLeft) {
+					buffer.X = 0;
+				} else {
+					buffer.X = buffer.MarginLeft;
+				}
+			} else {
+				buffer.X = 0;
+			}
+		}
+
+		#region Text Manupulation
+		/// <summary>
+		/// Backspace handler (Control-h)
+		/// </summary>
+		public void Backspace ()
+		{
+			var buffer = Buffer;
+
+			RestrictCursor (!ReverseWraparound);
+
+			int left = MarginMode ? buffer.MarginLeft : 0;
+			int right = MarginMode ? buffer.MarginRight : buffer.Cols - 1;
+
+			if (buffer.X > left) {
+				buffer.X--;
+			} else if (ReverseWraparound) {
+				if (buffer.X <= left) {
+					if (buffer.Y > buffer.ScrollTop && buffer.Y <= buffer.ScrollBottom && (buffer.Lines [buffer.Y + buffer.YBase].IsWrapped || MarginMode)) {
+						if (!MarginMode) {
+							buffer.Lines [buffer.Y + buffer.YBase].IsWrapped = false;
+						}
+
+						buffer.Y--;
+						buffer.X = right;
+						// TODO: find actual last cell based on width used
+					} else if (buffer.Y == buffer.ScrollTop) {
+						buffer.X = right;
+						buffer.Y = buffer.ScrollBottom;
+					} else if (buffer.Y > 0) {
+						buffer.X = right;
+						buffer.Y--;
+					}
+				}
+			} else {
+				if (buffer.X < left) {
+					// This compensates for the scenario where backspace is supposed to move one step
+					// backwards if the "x" position is behind the left margin.
+					// Test BS_MovesLeftWhenLeftOfLeftMargin
+					buffer.X--;
+				} else if (buffer.X > left) {
+					// If we have not reached the limit, we can go back, otherwise stop at the margin
+					// Test BS_StopsAtLeftMargin
+					buffer.X--;
+
+				}
+			}
+		}
+
+		/// <summary>
+		/// Deletes charstoDelete chars from the cursor position to the right margin
+		/// </summary>
+		public void DeleteChars (int charsToDelete)
+		{
+			var buffer = Buffer;
+
+			if (MarginMode) {
+				if (buffer.X + charsToDelete > buffer.MarginRight) {
+					charsToDelete = buffer.MarginRight - buffer.X;
+				}
+			}
+
+			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (buffer.X, charsToDelete, MarginMode ? buffer.MarginRight : buffer.Cols - 1, new CharData (EraseAttr ()));
+
+			UpdateRange (buffer.Y);
+		}
+
+		/// <summary>
+		/// Inserts columns
+		/// </summary>
+		public void InsertColumn (int columns)
+		{
+			var buffer = Buffer;
+
+			for (int row = buffer.ScrollTop; row < buffer.ScrollBottom; row++) {
+				var line = buffer.Lines [row + buffer.YBase];
+				// TODO:is this the right filldata?
+				line.InsertCells (buffer.X, columns, MarginMode ? buffer.MarginRight : buffer.Cols - 1, CharData.WhiteSpace);
+				line.IsWrapped = false;
+			}
+
+			UpdateRange (buffer.ScrollTop);
+			UpdateRange (buffer.ScrollBottom);
+		}
+
+		/// <summary>
+		/// Deletes columns
+		/// </summary>
+		public void DeleteColumn (int columns)
+		{
+			var buffer = Buffer;
+
+			if (buffer.Y > buffer.ScrollBottom || buffer.Y < buffer.ScrollTop)
+				return;
+
+			for (int row = buffer.ScrollTop; row < buffer.ScrollBottom; row++) {
+				var line = buffer.Lines [row + buffer.YBase];
+				line.DeleteCells (buffer.X, columns, MarginMode ? buffer.MarginRight : buffer.Cols - 1, CharData.Null);
+				line.IsWrapped = false;
+			}
+
+			UpdateRange (buffer.ScrollTop);
+			UpdateRange (buffer.ScrollBottom);
+		}
+
+
+
+		#endregion
+
+		/// <summary>
+		/// Sets the scroll region
+		/// </summary>
+		public void SetScrollRegion (int top, int bottom)
+		{
+			var buffer = Buffer;
+
+			if (bottom == 0)
+				bottom = buffer.Rows;
+			bottom = Math.Min (bottom, buffer.Rows);
+
+			// normalize (make zero based)
+			bottom--;
+
+			// only set the scroll region if top < bottom
+			if (top < bottom) {
+				buffer.ScrollBottom = bottom;
+				buffer.ScrollTop = top;
+			}
+
+			SetCursor (0, 0);
+		}
+
+
+		/// <summary>
+		/// Performs a soft reset
+		/// </summary>
+		public void SoftReset ()
+		{
+			var buffer = Buffer;
+
+			CursorHidden = false;
+			InsertMode = false;
+			OriginMode = false;
+
+			Wraparound = true;  // defaults: xterm - true, vt100 - false
+			ReverseWraparound = false;
+			ApplicationKeypad = false;
+			SyncScrollArea ();
+			ApplicationCursor = false;
+			CurAttr = CharData.DefaultAttr;
+
+			Charset = null;
+			SetgLevel (0);
+
+			savedOriginMode = false;
+			savedMarginMode = false;
+			savedWraparound = false;
+			savedReverseWraparound = false;
+
+			buffer.ScrollTop = 0;
+			buffer.ScrollBottom = buffer.Rows - 1;
+			buffer.SavedAttr = CharData.DefaultAttr;
+			buffer.SavedY = 0;
+			buffer.SavedX = 0;
+			buffer.SetMargins (0, buffer.Cols - 1);
+			//conformance = .vt500
+		}
+
+
+		/// <summary>
+		/// Reports a message to the system log
+		/// </summary>
+		void Report (string prefix, string text, object [] args)
+		{
+			Console.WriteLine ($"{prefix}: {text}");
+			for (int i = 0; i < args.Length; i++)
+				Console.WriteLine ("    {0}: {1}", i, args [i]);
+		}
+
+		/// <summary>
+		/// Sets up the terminals initial state
+		/// </summary>
+		void Setup ()
+		{
+			cursorHidden = false;
+
+			// modes
+			applicationKeypad = false;
+			applicationCursor = false;
+			OriginMode = false;
+			MarginMode = false;
+			InsertMode = false;
+			Wraparound = true;
+			bracketedPasteMode = false;
+
+			// charset
+			charset = null;
+			gcharset = 0;
+			gLevel = 0;
+
+			CurAttr = CharData.DefaultAttr;
+
+			MouseMode = MouseMode.Off;
+			MouseProtocol = MouseProtocolEncoding.X10;
+
+			Allow80To132 = false;
+			// TODO REST
 		}
 	}
 }

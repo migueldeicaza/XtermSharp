@@ -13,6 +13,7 @@
   <ItemGroup>
     <Folder Include="Utils\" />
     <Folder Include="Renderer\" />
+    <Folder Include="InputHandlers\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="NStack.Core" Version="0.12.0" />
@@ -20,4 +21,10 @@
   <ItemGroup>
     <Compile Remove="Renderer.cs" />
   </ItemGroup>
+    
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute" Visible="False">
+      <_Parameter1>Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>    
 </Project>

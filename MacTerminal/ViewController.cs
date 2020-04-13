@@ -35,7 +35,7 @@ namespace MacTerminal {
 
 		private void TerminalControl_TitleChanged (string obj)
 		{
-			View.Window.Title = obj;
+			View.Window.Title = obj ?? string.Empty;
 		}
 
 		public override void ViewDidLayout ()

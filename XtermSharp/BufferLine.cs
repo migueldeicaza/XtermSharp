@@ -62,9 +62,9 @@ namespace XtermSharp {
 			}
 		}
 
-		public void InsertCells (int pos, int n, CharData fillCharData)
+		public void InsertCells (int pos, int n, int rightMargin, CharData fillCharData)
 		{
-			var len = Length;
+			var len = Math.Min (rightMargin + 1, Length);
 			pos = pos % len;
 			if (n < len - pos) {
 				for (var i = len - pos - n - 1; i >= 0; --i)
@@ -77,9 +77,9 @@ namespace XtermSharp {
 			}
 		}
 
-		public void DeleteCells (int pos, int n, CharData fillCharData)
+		public void DeleteCells (int pos, int n, int rightMargin, CharData fillCharData)
 		{
-			var len = Length;
+			var len = Math.Min(rightMargin + 1, Length);
 			pos %= len;
 			if (n < len - pos) {
 				for (var i = 0; i < len - pos - n; ++i)

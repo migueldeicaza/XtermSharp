@@ -638,9 +638,39 @@ namespace XtermSharp.Mac {
 				// Sends the control sequence
 				var ch = theEvent.CharactersIgnoringModifiers;
 				if (ch.Length == 1) {
-					var d = Char.ToUpper (ch [0]);
-					if (d >= 'A' && d <= 'Z')
-						Send (new byte [] { (byte)(d - 'A' + 1) });
+					var d = ch [0];
+
+					byte value;
+					switch (d) {
+					case char c when c >= 'A' && c <= 'Z':
+						value = (byte)(d - 'A' + 1);
+						break;
+					case char c when c >= 'a' && c <= 'z':
+						value = (byte)(d - 'a' + 1);
+						break;
+					case ' ':
+						value = 0;
+						break;
+					case '\\':
+						value = 0x1c;
+						break;
+					case '_':
+						value = 0x1f;
+						break;
+					case ']':
+						value = 0x1d;
+						break;
+					case '[':
+						value = 0x1b;
+						break;
+					case '^':
+						value = 0x1e;
+						break;
+					default:
+						return;
+					}
+
+					Send (new byte [] { value });
 					return;
 				} 
 			} else if (eventFlags.HasFlag (NSEventModifierMask.FunctionKeyMask)) {
@@ -1162,17 +1192,31 @@ namespace XtermSharp.Mac {
 				TitleChanged (this, title);
 		}
 
+		void ITerminalDelegate.SetTerminalIconTitle (XtermSharp.Terminal source, string title)
+		{
+		}
+
 		void ITerminalDelegate.SizeChanged (Terminal source)
 		{
 		}
 
-#endregion
+		string ITerminalDelegate.WindowCommand (XtermSharp.Terminal source, WindowManipulationCommand command, params int [] args)
+		{
+			return null;
+		}
+
+		bool ITerminalDelegate.IsProcessTrusted ()
+		{
+			return true;
+		}
+
+		#endregion
 
 		void ComputeMouseEvent (NSEvent theEvent, bool down, out int buttonFlags)
 		{
 			var flags = theEvent.ModifierFlags;
 
-			buttonFlags = terminal.EncodeButton (
+			buttonFlags = terminal.EncodeMouseButton (
 				(int)theEvent.ButtonNumber, release: false,
 				shift: flags.HasFlag (NSEventModifierMask.ShiftKeyMask),
 				meta: flags.HasFlag (NSEventModifierMask.AlternateKeyMask),
@@ -1195,7 +1239,7 @@ namespace XtermSharp.Mac {
 
 		public override void MouseDown (NSEvent theEvent)
 		{
-			if (terminal.MouseEvents) {
+			if (terminal.MouseMode.SendButtonPress()) {
 				SharedMouseEvent (theEvent, down: true);
 				base.MouseDown (theEvent);
 				return;
@@ -1213,10 +1257,8 @@ namespace XtermSharp.Mac {
 		{
 			autoScrollTimer.Enabled = false;
 
-			if (terminal.MouseEvents) {
-				if (terminal.MouseSendsRelease)
-					SharedMouseEvent (theEvent, down: false);
-
+			if (terminal.MouseMode.SendButtonRelease()) {
+				SharedMouseEvent (theEvent, down: false);
 				base.MouseUp (theEvent);
 				return;
 			}
@@ -1272,13 +1314,14 @@ namespace XtermSharp.Mac {
 		{
 			CalculateMouseHit (theEvent, true, out var col, out var row);
 
-			if (terminal.MouseEvents) {
-				if (terminal.MouseSendsAllMotion || terminal.MouseSendsMotionWhenPressed) {
-					ComputeMouseEvent (theEvent, true, out var buttonFlags);
-					terminal.SendMotion (buttonFlags, col, row);
-				}
-
+			if (terminal.MouseMode.SendMotionEvent()) {
+				ComputeMouseEvent (theEvent, true, out var buttonFlags);
+				terminal.SendMouseMotion (buttonFlags, col, row);
 				base.MouseDragged (theEvent);
+				return;
+			}
+
+			if (terminal.MouseMode != MouseMode.Off) {
 				return;
 			}
 
@@ -1300,6 +1343,16 @@ namespace XtermSharp.Mac {
 			}
 
 			base.MouseDragged (theEvent);
+		}
+
+		public override void MouseMoved (NSEvent theEvent)
+		{
+			if (terminal.MouseMode.SendMotionEvent ()) {
+				CalculateMouseHit (theEvent, true, out var col, out var row);
+				ComputeMouseEvent (theEvent, true, out var buttonFlags);
+				terminal.SendMouseMotion (buttonFlags, col, row);
+				return;
+			}
 		}
 
 		public override void ScrollWheel (NSEvent theEvent)

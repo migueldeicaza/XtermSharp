@@ -10,6 +10,74 @@ namespace XtermSharp {
 	[DebuggerDisplay ("({X},{Y}) YD={YDisp}:YB={YBase} Scroll={ScrollBottom,ScrollTop}")]
 	public class Buffer {
 		CircularList<BufferLine> lines;
+		int scrollTop;
+		int scrollBottom;
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="T:XtermSharp.Buffer"/> class.
+		/// </summary>
+		/// <param name="terminal">The terminal the Buffer will belong to.</param>
+		/// <param name="hasScrollback">Whether the buffer should respect the scrollback of the terminal.</param>
+		public Buffer (Terminal terminal, bool hasScrollback = true)
+		{
+			rows = terminal.Rows;
+			cols = terminal.Cols;
+			MarginLeft = 0;
+			MarginRight = cols - 1;
+			Terminal = terminal;
+			this.hasScrollback = hasScrollback;
+			Clear ();
+		}
+
+		/// <summary>
+		/// Gets the number of columns of the buffer
+		/// </summary>
+		public int Cols => cols;
+
+		/// <summary>
+		/// Gets the number of rows of the buffer
+		/// </summary>
+		public int Rows => rows;
+
+		/// <summary>
+		/// Gets or sets the top scrolling region in the buffer when Origin Mode is turned on
+		/// </summary>
+		public int ScrollTop {
+			get {
+				return scrollTop;
+			}
+			set {
+				if(value >= 0) {
+					scrollTop = value;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Gets or sets the top scrolling region in the buffer when Origin Mode is turned on
+		/// </summary>
+		public int ScrollBottom {
+			get {
+				return scrollBottom;
+			}
+			set {
+				if (value < 0)
+					throw new ArgumentException ("Scroll bottom cannot be less than zero", nameof(ScrollBottom));
+
+				scrollBottom = value;
+			}
+		}
+
+		/// <summary>
+		/// Gets or sets the left margin, 0 based
+		/// </summary>
+		public int MarginLeft { get; private set; }
+
+		/// <summary>
+		/// Gets or sets the right margin, 0 based
+		/// </summary>
+		public int MarginRight { get; private set; }
+
 		public int YDisp, YBase;
 		public int X;
 		int y;
@@ -17,21 +85,9 @@ namespace XtermSharp {
 			get => y;
 			set {
 				if (value < 0 || value > Terminal.Rows - 1)
-					throw new Exception ();
+					throw new ArgumentException ("Y cannot be outside the bounds of the terminal rows", nameof(Y));
 				else
 					y = value;
-			}
-		}
-		public int ScrollBottom;
-		int st;
-		public int ScrollTop {
-			get {
-				return st;
-			}
-			set {
-				if (value < 0)
-					throw new Exception ();
-				st = value;
 			}
 		}
 		BitArray tabStops;
@@ -45,20 +101,6 @@ namespace XtermSharp {
 		/// </summary>
 		/// <value><c>true</c> if has scrollback; otherwise, <c>false</c>.</value>
 		public bool HasScrollback => hasScrollback && lines.MaxLength > Terminal.Rows;
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="T:XtermSharp.Buffer"/> class.
-		/// </summary>
-		/// <param name="terminal">The terminal the Buffer will belong to.</param>
-		/// <param name="hasScrollback">Whether the buffer should respect the scrollback of the terminal.</param>
-		public Buffer (Terminal terminal, bool hasScrollback = true)
-		{
-			rows = terminal.Rows;
-			cols = terminal.Cols;
-			Terminal = terminal;
-			this.hasScrollback = hasScrollback;
-			Clear ();
-		}
 
 		public CircularList<BufferLine> Lines => lines;
 
@@ -113,6 +155,36 @@ namespace XtermSharp {
 				var relativeY = absoluteY - YDisp;
 				return (relativeY >= 0 && relativeY < Terminal.Rows);
 			}
+		}
+
+		/// <summary>
+		/// Sets the left and right margins
+		/// </summary>
+		public void SetMargins (int left, int right)
+		{
+			left = Math.Min (left, right);
+			MarginLeft = left;
+			MarginRight = right;
+		}
+
+		/// <summary>
+		/// Saves the cursor position
+		/// </summary>
+		public void SaveCursor (int curAttr)
+		{
+			SavedX = X;
+			SavedY = Y;
+			SavedAttr = curAttr;
+		}
+
+		/// <summary>
+		/// Restores the cursor
+		/// </summary>
+		public int RestoreCursor ()
+		{
+			X = SavedX;
+			Y = SavedY;
+			return SavedAttr;
 		}
 
 		/// <summary>
@@ -236,6 +308,10 @@ namespace XtermSharp {
 
 			rows = newRows;
 			cols = newCols;
+			if (MarginRight > newCols - 1)
+				MarginRight = newCols - 1;
+			if (MarginLeft > MarginRight)
+				MarginLeft = MarginRight;
 		}
 
 		/// <summary>
@@ -309,7 +385,8 @@ namespace XtermSharp {
 				index = X;
 			while (index > 0 && !tabStops [--index])
 				;
-			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
+
+			return index >= Cols ? Cols - 1 : index;
 		}
 
 		/// <summary>
@@ -319,16 +396,21 @@ namespace XtermSharp {
 		/// <param name="index">The position to move the cursor one tab stop forward.</param>
 		public int NextTabStop (int index = -1)
 		{
+			// Users marginMode because apparently for tabs, there is no need to have originMode set
+			var limit = Terminal.MarginMode ? MarginRight : (Cols - 1);
 			if (index == -1)
 				index = X;
+
 			do {
 				index++;
-				if (index >= Terminal.Cols)
+				if (index > limit)
 					break;
+
 				if (tabStops [index])
 					break;
-			} while (index < Terminal.Cols);
-			return index >= Terminal.Cols ? Terminal.Cols - 1 : index;
+			} while (index < limit);
+
+			return index >= limit ? limit : index;
 		}
 
 		void Reflow (int newCols, int newRows)
