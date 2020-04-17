@@ -1018,6 +1018,52 @@ namespace XtermSharp {
 		}
 
 		/// <summary>
+		/// Deletes lines
+		/// </summary>
+		public void DeleteLines (int rowsToDelete)
+		{
+			RestrictCursor ();
+			var buffer = Buffer;
+			var row = buffer.Y + buffer.YBase;
+
+			int j;
+			j = buffer.Rows - 1 - buffer.ScrollBottom;
+			j = buffer.Rows - 1 + buffer.YBase - j;
+
+			var eraseAttr = EraseAttr ();
+
+			if (MarginMode) {
+				if (buffer.X >= buffer.MarginLeft && buffer.X <= buffer.MarginRight) {
+					var columnCount = buffer.MarginRight - buffer.MarginLeft + 1;
+					var rowCount = buffer.ScrollBottom - buffer.ScrollTop;
+					while (rowsToDelete-- > 0) {
+						for (int i = 0; i < rowCount; i++) {
+							var src = buffer.Lines [row + i + 1];
+							var dst = buffer.Lines [row + i];
+
+							if (src != null) {
+								dst.CopyFrom (src, buffer.MarginLeft, buffer.MarginLeft, columnCount);
+							}
+						}
+
+						var last = buffer.Lines [row + rowCount];
+						last?.Fill (new CharData (eraseAttr), atCol: buffer.MarginLeft, len: columnCount);
+					}
+				}
+			} else {
+				if (buffer.Y >= buffer.ScrollTop && buffer.Y <= buffer.ScrollBottom) {
+					while (rowsToDelete-- > 0) {
+						buffer.Lines.Splice (row, 1);
+						buffer.Lines.Splice (j, 0, buffer.GetBlankLine (eraseAttr));
+					}
+				}
+			}
+
+			UpdateRange (buffer.Y);
+			UpdateRange (buffer.ScrollBottom);
+		}
+
+		/// <summary>
 		/// Inserts columns
 		/// </summary>
 		public void InsertColumn (int columns)
