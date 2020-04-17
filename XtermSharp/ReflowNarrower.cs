@@ -162,6 +162,12 @@ namespace XtermSharp {
 					if (!nextToInsert.IsNull && nextToInsert.Start > originalLineIndex + countInsertedSoFar) {
 						// Insert extra lines here, adjusting i as needed
 						for (int nextI = nextToInsert.Lines.Length - 1; nextI >= 0; nextI--) {
+							if (i < 0) {
+								// if we reflow and the content has to be scrolled back past the beginning
+								// of the buffer then we end up loosing those lines
+								break;
+							}
+
 							Buffer.Lines [i--] = nextToInsert.Lines [nextI];
 						}
 
