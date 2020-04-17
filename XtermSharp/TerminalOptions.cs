@@ -10,8 +10,8 @@ namespace XtermSharp {
 		public string TermName;
 		public CursorStyle CursorStyle;
 		public bool ScreenReaderMode;
-		public int? Scrollback { get; }
-		public int? TabStopWidth { get; }
+		public int? Scrollback { get; set; }
+		public int? TabStopWidth { get; set; }
 
 		public TerminalOptions ()
 		{
