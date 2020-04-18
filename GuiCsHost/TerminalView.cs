@@ -263,7 +263,7 @@ namespace GuiCsHost {
 
 		public override bool MouseEvent (MouseEvent mouseEvent)
 		{
-			if (terminal.MouseEvents) {
+			if (terminal.MouseMode.SendMotionEvent()) {
 				var f = mouseEvent.Flags;
 				int button = -1;
 				if (f.HasFlag (MouseFlags.Button1Clicked))
@@ -274,10 +274,10 @@ namespace GuiCsHost {
 					button = 2;
 
 				if  (button != -1){
-					var e = terminal.EncodeButton (button, release: false, shift: false, meta: false, control: false);
+					var e = terminal.EncodeMouseButton (button, release: false, shift: false, meta: false, control: false);
 					terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
-					if (terminal.MouseSendsRelease) {
-						e = terminal.EncodeButton (button, release: true, shift: false, meta: false, control: false);
+					if (terminal.MouseMode.SendButtonRelease()) {
+						e = terminal.EncodeMouseButton (button, release: true, shift: false, meta: false, control: false);
 						terminal.SendEvent (e, mouseEvent.X, mouseEvent.Y);
 					}
 					return true;
@@ -323,6 +323,11 @@ namespace GuiCsHost {
 		public string WindowCommand (XtermSharp.Terminal source, WindowManipulationCommand command, params int [] args)
 		{
 			return null;
+		}
+
+		bool ITerminalDelegate.IsProcessTrusted ()
+		{
+			return true;
 		}
 
 		public override void PositionCursor ()

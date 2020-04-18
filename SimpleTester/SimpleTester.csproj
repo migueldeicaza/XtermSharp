@@ -28,9 +28,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="NStack">
-      <HintPath>..\packages\NStack.Core.0.11.0\lib\netstandard1.5\NStack.dll</HintPath>
-    </Reference>
+    <PackageReference Include="NStack.Core" Version="0.12.0" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
