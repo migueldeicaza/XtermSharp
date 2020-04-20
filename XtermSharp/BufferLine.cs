@@ -124,11 +124,23 @@ namespace XtermSharp {
 			}
 		}
 
+		/// <summary>
+		/// Fills the line with fillCharData values
+		/// </summary>
 		public void Fill (CharData fillCharData)
 		{
 			var len = Length;
 			for (int i = 0; i < len; i++)
 				data [i] = fillCharData;
+		}
+
+		/// <summary>
+		/// Fills the line with len fillCharData values from the given atCol
+		/// </summary>
+		public void Fill (CharData fillCharData, int atCol, int len)
+		{
+			for (int i = 0; i < len; i++)
+				data [atCol + i] = fillCharData;
 		}
 
 		public void CopyFrom (BufferLine line)
@@ -139,6 +151,14 @@ namespace XtermSharp {
 			line.data.CopyTo (data, 0);
 
 			IsWrapped = line.IsWrapped;
+		}
+
+		/// <summary>
+		/// Copies a subrange the given source line into the current line
+		/// </summary>
+		public void CopyFrom (BufferLine source, int sourceCol, int destCol, int len)
+		{
+			Array.Copy (source.data, sourceCol, data, destCol, len);
 		}
 
 		public int GetTrimmedLength ()

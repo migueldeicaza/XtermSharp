@@ -82,6 +82,19 @@ namespace XtermSharp.CommandExtensions {
 		}
 
 		/// <summary>
+		/// Deletes lines
+		/// </summary>
+		/// <remarks>
+		// CSI Ps M
+		// Delete Ps Line(s) (default = 1) (DL).
+		/// </remarks>
+		public static void csiDL (this Terminal terminal, params int [] pars)
+		{
+			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
+			terminal.DeleteLines (p);
+		}
+
+		/// <summary>
 		/// CSI Ps P
 		/// Delete Ps Character(s) (default = 1) (DCH).
 		/// </summary>

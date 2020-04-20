@@ -60,7 +60,7 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('J', (pars, collect) => EraseInDisplay (pars));
 			parser.SetCsiHandler ('K', (pars, collect) => EraseInLine (pars));
 			parser.SetCsiHandler ('L', (pars, collect) => InsertLines (pars));
-			parser.SetCsiHandler ('M', (pars, collect) => DeleteLines (pars));
+			parser.SetCsiHandler ('M', (pars, collect) => terminal.csiDL (pars));
 			parser.SetCsiHandler ('P', (pars, collect) => terminal.csiDCH (pars));
 			parser.SetCsiHandler ('S', (pars, collect) => ScrollUp (pars));
 			parser.SetCsiHandler ('T', (pars, collect) => ScrollDown (pars));
@@ -993,32 +993,6 @@ namespace XtermSharp {
 			// this.maxRange();
 			terminal.UpdateRange (buffer.ScrollTop);
 			terminal.UpdateRange (buffer.ScrollBottom);
-		}
-
-		// 
-		// CSI Ps M
-		// Delete Ps Line(s) (default = 1) (DL).
-		// 
-		void DeleteLines (int [] pars)
-		{
-			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
-			var buffer = terminal.Buffer;
-			var row = buffer.Y + buffer.YBase;
-			int j;
-			j = terminal.Rows - 1 - buffer.ScrollBottom;
-			j = terminal.Rows - 1 + buffer.YBase - j;
-			var eraseAttr = terminal.EraseAttr ();
-			while (p-- != 0) {
-				// test: echo -e '\e[44m\e[1M\e[0m'
-				// blankLine(true) - xterm/linux behavior
-				buffer.Lines.Splice (row, 1);
-				buffer.Lines.Splice (j, 0, buffer.GetBlankLine (eraseAttr));
-			}
-
-			// this.maxRange();
-			terminal.UpdateRange (buffer.Y);
-			terminal.UpdateRange (buffer.ScrollBottom);
-
 		}
 
 		// 
