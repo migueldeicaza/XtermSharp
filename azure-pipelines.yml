@@ -2,8 +2,12 @@ jobs:
 
 - job: macOS
   pool:
-    vmImage: 'macOS-10.14'
+    vmImage: 'macOS-10.15'
   steps:
+  - task: UseDotNet@2
+    inputs:
+      version: '3.1.x'
+  
   - script: |
       /bin/bash -c "sudo $AGENT_HOMEDIRECTORY/scripts/select-xamarin-sdk.sh 5_16_0_0"
       SYMLINK=5_16_0_0
