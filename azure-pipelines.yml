@@ -18,7 +18,7 @@ jobs:
 
   - template: templates/steps.yml  # Template reference
   - script: |
-      msbuild MacTerminal/MacTerminal.csproj
+      /Library/Frameworks/Mono.framework/Version/Current/Commands/msbuild MacTerminal/MacTerminal.csproj
     displayName: Build managed code and Mac Library
   - script: |
       cd helper
