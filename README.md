@@ -2,7 +2,7 @@
 XtermSharp
 ----------
 
-![Build Status](https://github.com/migueldeicaza/XtermSharp/workflows/build-and-test/badge.svg)
+![Build Status](https://github.com/migueldeicaza/XtermSharp/workflows/CI/badge.svg)
 [![Build Status](https://migueldeicaza.visualstudio.com/XtermSharp/_apis/build/status/XtermSharp-Mac-CI?branchName=master)](https://migueldeicaza.visualstudio.com/XtermSharp/_build/latest?definitionId=9&branchName=master)
 
 <img width="45%" alt="XtermSharpGui" src="https://user-images.githubusercontent.com/36863/54497310-80eda980-48cf-11e9-84c2-14ddc054a4b6.png"><img width="45%" alt="XtermSharpMac" src="https://user-images.githubusercontent.com/36863/54497311-80eda980-48cf-11e9-9695-d7425e43262d.png">
