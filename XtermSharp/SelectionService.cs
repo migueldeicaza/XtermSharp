@@ -170,7 +170,7 @@ namespace XtermSharp {
 
 			// ensure the bounds are inside the terminal.
 			row = Math.Max (row, 0);
-			col = Math.Max (Math.Min (col, terminal.Buffer.Cols), 0);
+			col = Math.Max (Math.Min (col, terminal.Buffer.Cols - 1), 0);
 
 			row += buffer.YDisp;
 
