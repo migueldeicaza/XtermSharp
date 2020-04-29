@@ -124,6 +124,9 @@ namespace XtermSharp {
 				return CharData.Null;
 			}
 
+			if (col >= bufferRow.Length || col < 0)
+				return CharData.Null;
+
 			return bufferRow [col];
 		}
 
