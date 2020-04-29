@@ -166,8 +166,13 @@ namespace XtermSharp {
 		/// </summary>
 		public void SelectWordOrExpression(int col, int row)
 		{
-			row += terminal.Buffer.YDisp;
 			var buffer = terminal.Buffer;
+
+			// ensure the bounds are inside the terminal.
+			row = Math.Max (row, 0);
+			col = Math.Max (Math.Min (col, terminal.Buffer.Cols), 0);
+
+			row += buffer.YDisp;
 
 			Func<CharData, bool> isLetterOrChar = (cd) => {
 				if (cd.IsNullChar ())
