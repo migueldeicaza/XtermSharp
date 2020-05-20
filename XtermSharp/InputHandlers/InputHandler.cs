@@ -669,13 +669,13 @@ namespace XtermSharp {
 				return;
 			}
 
-			var l = pars.Length;
+			var parCount = pars.Length;
 			var flags = (FLAGS)(terminal.CurAttr >> 18);
 			var fg = (terminal.CurAttr >> 9) & 0x1ff;
 			var bg = terminal.CurAttr & 0x1ff;
 			var def = CharData.DefaultAttr;
 
-			for (var i = 0; i < l; i++) {
+			for (var i = 0; i < parCount; i++) {
 				int p = pars [i];
 				if (p >= 30 && p <= 37) {
 					// fg color 8
@@ -748,36 +748,62 @@ namespace XtermSharp {
 					// reset bg
 					bg = CharData.DefaultAttr & 0x1ff;
 				} else if (p == 38) {
-					// fg color 256
-					if (pars [i + 1] == 2) {
-						i += 2;
-						fg = terminal.MatchColor (
-							pars [i] & 0xff,
-							pars [i + 1] & 0xff,
-							pars [i + 2] & 0xff);
-						if (fg == -1)
-							fg = 0x1ff;
-						i += 2;
-					} else if (pars [i + 1] == 5) {
-						i += 2;
-						p = pars [i] & 0xff;
-						fg = p;
+					if (i + 1 < parCount) {
+						// fg color 256
+						if (pars [i + 1] == 2) {
+							// Well this is a problem, if there are 3 arguments, expect R/G/B, if there are
+							// more than 3, skip the first that would be the colorspace
+							if (i + 5 < parCount) {
+								i += 1;
+							}
+							if (i + 4 < parCount) {
+								fg = terminal.MatchColor (
+									pars [i + 2] & 0xff,
+									pars [i + 3] & 0xff,
+									pars [i + 4] & 0xff);
+								if (fg == -1)
+									fg = 0x1ff;
+							}
+							// Given the historical disagreement that was caused by an ambiguous spec,
+							// we eat all the remaining parameters.
+							i = parCount;
+						} else if (pars [i + 1] == 5) {
+							if (i + 2 < parCount) {
+								p = pars [i + 2] & 0xff;
+								fg = p;
+								i += 1;
+							}
+							i += 1;
+						}
 					}
 				} else if (p == 48) {
-					// bg color 256
-					if (pars [i + 1] == 2) {
-						i += 2;
-						bg = terminal.MatchColor (
-							pars [i] & 0xff,
-							pars [i + 1] & 0xff,
-							pars [i + 2] & 0xff);
-						if (bg == -1)
-							bg = 0x1ff;
-						i += 2;
-					} else if (pars [i + 1] == 5) {
-						i += 2;
-						p = pars [i] & 0xff;
-						bg = p;
+					if (i + 1 < parCount) {
+						// bg color 256
+						if (pars [i + 1] == 2) {
+							// Well this is a problem, if there are 3 arguments, expect R/G/B, if there are
+							// more than 3, skip the first that would be the colorspace
+							if (i + 5 < parCount) {
+								i += 1;
+							}
+							if (i + 4 < parCount) {
+								bg = terminal.MatchColor (
+									pars [i + 2] & 0xff,
+									pars [i + 3] & 0xff,
+									pars [i + 4] & 0xff);
+								if (bg == -1)
+									bg = 0x1ff;
+							}
+							// Given the historical disagreement that was caused by an ambiguous spec,
+							// we eat all the remaining parameters.
+							i = parCount;
+						} else if (pars [i + 1] == 5) {
+							if (i + 2 < parCount) {
+								p = pars [i + 2] & 0xff;
+								bg = p;
+								i += 1;
+							}
+							i += 1;
+						}
 					}
 				} else if (p == 100) {
 					// reset fg/bg
