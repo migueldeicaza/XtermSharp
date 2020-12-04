@@ -84,10 +84,7 @@ namespace XtermSharp {
 		public int Y {
 			get => y;
 			set {
-				if (value < 0 || value > Terminal.Rows - 1)
-					throw new ArgumentException ("Y cannot be outside the bounds of the terminal rows", nameof(Y));
-				else
-					y = value;
+				y = value;
 			}
 		}
 		BitArray tabStops;
