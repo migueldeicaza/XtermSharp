@@ -106,8 +106,8 @@ namespace XtermSharp.CommandExtensions {
 		public static void csiDECSLRM (this Terminal terminal, params int [] pars)
 		{
 			var buffer = terminal.Buffer;
-			var left = (pars.Length > 0 ? pars [0] : 1) - 1;
-			var right = (pars.Length > 1 ? pars [1] : buffer.Cols) - 1;
+			var left = Math.Max (0, (pars.Length > 0 ? pars [0] : 1) - 1);
+			var right = Math.Max (0, (pars.Length > 1 ? pars [1] : buffer.Cols) - 1);
 
 			buffer.SetMargins (left, right);
 		}
