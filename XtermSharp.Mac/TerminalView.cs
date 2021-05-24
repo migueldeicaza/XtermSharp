@@ -410,7 +410,7 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
-			caret.Pos = new System.Drawing.Point (terminal.Buffer.X, terminal.Buffer.Y - terminal.Buffer.YDisp + terminal.Buffer.YBase);
+			caret.Pos = new Point (terminal.Buffer.X, terminal.Buffer.Y - terminal.Buffer.YDisp + terminal.Buffer.YBase);
 		}
 
 		void UpdateDisplay ()
