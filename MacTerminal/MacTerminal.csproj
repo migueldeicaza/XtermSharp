@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0-macos</TargetFramework>
     <OutputType>Exe</OutputType>
-    <RuntimeIdentifier>osx-x64</RuntimeIdentifier>
+    <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
     <UseMonoRuntime>false</UseMonoRuntime>
     <LinkMode>SdkOnly</LinkMode>
 
