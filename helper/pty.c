@@ -15,7 +15,7 @@ fork_and_exec (const char *name, char *const args[], char *const env[], int *mas
 
 	if (pid == 0) {
 		execve (name, args, env);
-		exit (1);
+		_exit (1);
 	}
 	return pid;
 }
