@@ -12,7 +12,7 @@ namespace XtermSharp {
 
 	public class Pty {
 		[DllImport ("util")]
-		extern static int forkpty (out int master, IntPtr dataReturn, IntPtr termios, ref UnixWindowSize WinSz);
+		extern static int forkpty (ref int master, IntPtr dataReturn, IntPtr termios, ref UnixWindowSize WinSz);
 
 		[DllImport ("libc")]
 		extern static int execv (string process, string [] args);
@@ -21,7 +21,7 @@ namespace XtermSharp {
 		extern static int execve (string process, string [] args, string [] env);
 
 		[DllImport ("libpty.dylib", EntryPoint="fork_and_exec")]
-		extern static unsafe int HeavyFork (string process, byte** args, byte** env, out int master, UnixWindowSize winSize);
+		extern static unsafe int HeavyFork (string process, byte** args, byte** env, ref int master, ref UnixWindowSize winSize);
 
 		static bool HeavyDuty = true;
 		/// <summary>
@@ -33,12 +33,12 @@ namespace XtermSharp {
 		/// <param name="master">The file descriptor connected to the input and output of the child process</param>
 		/// <param name="winSize">Desired window size</param>
 		/// <returns></returns>
-		public static int ForkAndExec (string programName, string [] args, string [] env, out int master, UnixWindowSize winSize)
+		public static int ForkAndExec (string programName, string [] args, string [] env, ref int master, UnixWindowSize winSize)
 		{
 			if (HeavyDuty) {
-				return DoHeavyFork (programName, args, env, out  master, winSize);
+				return DoHeavyFork (programName, args, env, ref  master, ref winSize);
 			} else {
-				var pid = forkpty (out master, IntPtr.Zero, IntPtr.Zero, ref winSize);
+				var pid = forkpty (ref master, IntPtr.Zero, IntPtr.Zero, ref winSize);
 				if (pid < 0)
 					throw new Exception ("Could not create Pty");
 
@@ -50,14 +50,14 @@ namespace XtermSharp {
 		}
 
 
-		static unsafe int DoHeavyFork (string programName, string [] args, string [] env, out int master, UnixWindowSize winSize)
+		static unsafe int DoHeavyFork (string programName, string [] args, string [] env, ref int master, ref UnixWindowSize winSize)
 		{
 			byte** argvPtr = null, envpPtr = null;
 			int result = -1;
 			try {
 				AllocNullTerminatedArray (args, ref argvPtr);
 				AllocNullTerminatedArray (env, ref envpPtr);
-				result = HeavyFork (programName, argvPtr, envpPtr, out master, winSize);
+				result = HeavyFork (programName, argvPtr, envpPtr, ref master, ref winSize);
 				return result == 0 ? 0 : Marshal.GetLastWin32Error ();
 			} finally {
 				FreeArray (argvPtr, args.Length);
@@ -111,7 +111,10 @@ namespace XtermSharp {
 		}
 
 		[DllImport ("libc", SetLastError = true)]
-		extern static int ioctl (int fd, long cmd, ref UnixWindowSize WinSz);
+		extern static int ioctl (int fd, ulong cmd, ref UnixWindowSize WinSz);
+
+		[DllImport ("libpty.dylib", EntryPoint = "set_window_size")]
+		extern static unsafe int set_window_size (int master, ref UnixWindowSize winSize);
 
 		/// <summary>
 		/// Sends a request to the pseudo terminal to set the size to the specified one
@@ -121,8 +124,7 @@ namespace XtermSharp {
 		/// <returns></returns>
 		public static int SetWinSize (int fd, ref UnixWindowSize winSize)
 		{
-			const long MAC_TIOCSWINSZ = 0x80087467;
-			var r = ioctl (fd, MAC_TIOCSWINSZ, ref winSize);
+			var r = set_window_size (fd, ref winSize);
 			if (r == -1) {
 				var lastErr = Marshal.GetLastWin32Error ();
 				Console.WriteLine (lastErr);
