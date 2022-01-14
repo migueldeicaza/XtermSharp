@@ -1,4 +1,4 @@
-all: libtpy.dylib
+all: libpty.dylib
 
 ifeq ($(OS),Windows_NT)
     UNAME := Windows
