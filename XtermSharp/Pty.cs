@@ -20,7 +20,7 @@ namespace XtermSharp {
 		[DllImport ("libc")]
 		extern static int execve (string process, string [] args, string [] env);
 
-		[DllImport ("libpty.dylib", EntryPoint="fork_and_exec")]
+		[DllImport ("libpty.dylib", SetLastError = true, EntryPoint="fork_and_exec")]
 		extern static unsafe int HeavyFork (string process, byte** args, byte** env, ref int master, ref UnixWindowSize winSize);
 
 		static bool HeavyDuty = true;
