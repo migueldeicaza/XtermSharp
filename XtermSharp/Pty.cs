@@ -53,11 +53,18 @@ namespace XtermSharp {
 		static unsafe int DoHeavyFork (string programName, string [] args, string [] env, ref int master, ref UnixWindowSize winSize)
 		{
 			byte** argvPtr = null, envpPtr = null;
-			int result = -1;
+			int result;
 			try {
 				AllocNullTerminatedArray (args, ref argvPtr);
 				AllocNullTerminatedArray (env, ref envpPtr);
-				return HeavyFork (programName, argvPtr, envpPtr, ref master, ref winSize);
+				result = HeavyFork (programName, argvPtr, envpPtr, ref master, ref winSize);
+
+				if (result < 0)
+                {
+					throw new ArgumentException($"Invalid PID. Last error { Marshal.GetLastWin32Error() }");
+                }
+
+				return result;
 			} finally {
 				FreeArray (argvPtr, args.Length);
 				FreeArray (envpPtr, env.Length);
