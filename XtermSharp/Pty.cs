@@ -57,8 +57,7 @@ namespace XtermSharp {
 			try {
 				AllocNullTerminatedArray (args, ref argvPtr);
 				AllocNullTerminatedArray (env, ref envpPtr);
-				result = HeavyFork (programName, argvPtr, envpPtr, ref master, ref winSize);
-				return result == 0 ? 0 : Marshal.GetLastWin32Error ();
+				return HeavyFork (programName, argvPtr, envpPtr, ref master, ref winSize);
 			} finally {
 				FreeArray (argvPtr, args.Length);
 				FreeArray (envpPtr, env.Length);
