@@ -156,7 +156,7 @@ namespace XtermSharp {
 			// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
 			l.Add ("LANG=en_US.UTF-8");
 			var env = Environment.GetEnvironmentVariables ();
-			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
+			foreach (var x in new [] { "LOGNAME", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
 				if (env.Contains (x))
 					l.Add ($"{x}={env [x]}");
 			return l.ToArray ();
