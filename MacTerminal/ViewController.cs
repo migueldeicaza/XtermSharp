@@ -5,6 +5,7 @@
 using System;
 using AppKit;
 using Foundation;
+using ObjCRuntime;
 using XtermSharp.Mac;
 
 namespace MacTerminal {
@@ -12,7 +13,7 @@ namespace MacTerminal {
 		ProcessTerminalView terminalControl;
 		LocalProcess process;
 
-		public ViewController (IntPtr handle) : base (handle)
+		public ViewController (NativeHandle handle) : base (handle)
 		{
 		}
 
