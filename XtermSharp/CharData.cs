@@ -27,7 +27,11 @@ namespace XtermSharp {
 		public static CharData RightParenthesis = new CharData (DefaultAttr, ')', 1, 41);
 		public static CharData Period = new CharData (DefaultAttr, '.', 1, 46);
 
-		public CharData (int attribute, Rune rune, int width, int code)
+		public CharData (int attribute, char rune, int width) : this(attribute, rune, width, rune)
+		{ 
+		}
+
+		public CharData (int attribute, char rune, int width, int code)
 		{
 			Attribute = attribute;
 			Rune = rune;

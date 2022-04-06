@@ -985,7 +985,7 @@ namespace XtermSharp {
 					}
 				}
 			} else {
-				if (buffer.X < left) {
+				if (buffer.X < left && buffer.X > 0) {
 					// This compensates for the scenario where backspace is supposed to move one step
 					// backwards if the "x" position is behind the left margin.
 					// Test BS_MovesLeftWhenLeftOfLeftMargin
