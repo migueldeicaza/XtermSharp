@@ -45,7 +45,7 @@ namespace XtermSharp {
 		   * from real empty cells.
 		   * */
 		   // TODO: not sue this is completely right
-		public bool HasContent (int index) => data [index].Code != 0 || data [index].Attribute != CharData.DefaultAttr;
+		public bool HasContent (int index) => !data [index].IsNullChar() || data [index].Attribute != CharData.DefaultAttr;
 
 		public bool HasAnyContent()
 		{
@@ -164,7 +164,7 @@ namespace XtermSharp {
 		public int GetTrimmedLength ()
 		{
 			for (int i = data.Length - 1; i >= 0; --i)
-				if (data [i].Code != 0) {
+				if (!data [i].IsNullChar()) {
 					int width = 0;
 					for (int j = 0; j <= i; j++)
 						width += data [i].Width;
