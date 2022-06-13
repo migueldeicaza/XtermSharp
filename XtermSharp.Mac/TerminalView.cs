@@ -445,8 +445,8 @@ namespace XtermSharp.Mac {
 
 			if (notifyAccessibility) {
 				accessibility.Invalidate ();
-				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
-				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+				NSAccessibility.PostNotification (this, NSView.ValueChangedNotification);
+				NSAccessibility.PostNotification (this, NSView.SelectedTextChangedNotification);
 			}
 		}
 
@@ -1419,7 +1419,7 @@ namespace XtermSharp.Mac {
 			}
 
 			accessibility.Invalidate ();
-			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+			NSAccessibility.PostNotification (this, NSView.SelectedTextChangedNotification);
 		}
 
 		void SelectSearchResult(SearchSnapshot.SearchResult searchResult)
