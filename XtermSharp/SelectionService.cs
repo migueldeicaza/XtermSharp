@@ -283,7 +283,7 @@ namespace XtermSharp {
 
 			// get the first line
 			BufferLine bufferLine = buffer.Lines [start.Y];
-			if (bufferLine.HasAnyContent ()) {
+			if (bufferLine != null &&  bufferLine.HasAnyContent ()) {
 				str = TranslateBufferLineToString (buffer, start.Y, start.X, start.Y < end.Y ? -1 : end.X);
 
 				var fragment = new LineFragment (str, start.Y, start.X);
@@ -334,7 +334,7 @@ namespace XtermSharp {
 			// get the last row
 			if (end.Y != start.Y) {
 				bufferLine = buffer.Lines [end.Y];
-				if (bufferLine.HasAnyContent ()) {
+				if (bufferLine != null && bufferLine.HasAnyContent ()) {
 					addBlanks ();
 
 					isWrapped = bufferLine?.IsWrapped ?? false;
