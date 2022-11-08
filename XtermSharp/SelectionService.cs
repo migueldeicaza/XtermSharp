@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Text;
 
 namespace XtermSharp {
@@ -166,8 +165,13 @@ namespace XtermSharp {
 		/// </summary>
 		public void SelectWordOrExpression(int col, int row)
 		{
-			row += terminal.Buffer.YDisp;
 			var buffer = terminal.Buffer;
+
+			// ensure the bounds are inside the terminal.
+			row = Math.Max (row, 0);
+			col = Math.Max (Math.Min (col, terminal.Buffer.Cols - 1), 0);
+
+			row += buffer.YDisp;
 
 			Func<CharData, bool> isLetterOrChar = (cd) => {
 				if (cd.IsNullChar ())
@@ -279,7 +283,7 @@ namespace XtermSharp {
 
 			// get the first line
 			BufferLine bufferLine = buffer.Lines [start.Y];
-			if (bufferLine.HasAnyContent ()) {
+			if (bufferLine != null &&  bufferLine.HasAnyContent ()) {
 				str = TranslateBufferLineToString (buffer, start.Y, start.X, start.Y < end.Y ? -1 : end.X);
 
 				var fragment = new LineFragment (str, start.Y, start.X);
@@ -330,7 +334,7 @@ namespace XtermSharp {
 			// get the last row
 			if (end.Y != start.Y) {
 				bufferLine = buffer.Lines [end.Y];
-				if (bufferLine.HasAnyContent ()) {
+				if (bufferLine != null && bufferLine.HasAnyContent ()) {
 					addBlanks ();
 
 					isWrapped = bufferLine?.IsWrapped ?? false;

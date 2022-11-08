@@ -156,7 +156,7 @@ namespace XtermSharp {
 			// Without this, tools like "vi" produce sequences that are not UTF-8 friendly
 			l.Add ("LANG=en_US.UTF-8");
 			var env = Environment.GetEnvironmentVariables ();
-			foreach (var x in new [] { "LOGNAME", "USER", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
+			foreach (var x in new [] { "LOGNAME", "DISPLAY", "LC_TYPE", "USER", "HOME", "PATH" })
 				if (env.Contains (x))
 					l.Add ($"{x}={env [x]}");
 			return l.ToArray ();
@@ -985,7 +985,7 @@ namespace XtermSharp {
 					}
 				}
 			} else {
-				if (buffer.X < left) {
+				if (buffer.X < left && buffer.X > 0) {
 					// This compensates for the scenario where backspace is supposed to move one step
 					// backwards if the "x" position is behind the left margin.
 					// Test BS_MovesLeftWhenLeftOfLeftMargin
@@ -1015,6 +1015,52 @@ namespace XtermSharp {
 			buffer.Lines [buffer.Y + buffer.YBase].DeleteCells (buffer.X, charsToDelete, MarginMode ? buffer.MarginRight : buffer.Cols - 1, new CharData (EraseAttr ()));
 
 			UpdateRange (buffer.Y);
+		}
+
+		/// <summary>
+		/// Deletes lines
+		/// </summary>
+		public void DeleteLines (int rowsToDelete)
+		{
+			RestrictCursor ();
+			var buffer = Buffer;
+			var row = buffer.Y + buffer.YBase;
+
+			int j;
+			j = buffer.Rows - 1 - buffer.ScrollBottom;
+			j = buffer.Rows - 1 + buffer.YBase - j;
+
+			var eraseAttr = EraseAttr ();
+
+			if (MarginMode) {
+				if (buffer.X >= buffer.MarginLeft && buffer.X <= buffer.MarginRight) {
+					var columnCount = buffer.MarginRight - buffer.MarginLeft + 1;
+					var rowCount = buffer.ScrollBottom - buffer.ScrollTop;
+					while (rowsToDelete-- > 0) {
+						for (int i = 0; i < rowCount; i++) {
+							var src = buffer.Lines [row + i + 1];
+							var dst = buffer.Lines [row + i];
+
+							if (src != null) {
+								dst.CopyFrom (src, buffer.MarginLeft, buffer.MarginLeft, columnCount);
+							}
+						}
+
+						var last = buffer.Lines [row + rowCount];
+						last?.Fill (new CharData (eraseAttr), atCol: buffer.MarginLeft, len: columnCount);
+					}
+				}
+			} else {
+				if (buffer.Y >= buffer.ScrollTop && buffer.Y <= buffer.ScrollBottom) {
+					while (rowsToDelete-- > 0) {
+						buffer.Lines.Splice (row, 1);
+						buffer.Lines.Splice (j, 0, buffer.GetBlankLine (eraseAttr));
+					}
+				}
+			}
+
+			UpdateRange (buffer.Y);
+			UpdateRange (buffer.ScrollBottom);
 		}
 
 		/// <summary>

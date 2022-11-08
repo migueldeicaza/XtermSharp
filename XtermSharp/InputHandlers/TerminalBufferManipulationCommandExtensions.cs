@@ -171,7 +171,7 @@ namespace XtermSharp.CommandExtensions {
 						//for (scalar in ch.unicodeScalars) {
 						//	checksum += scalar.value;
 						//}
-						checksum += cd.Code == 0 ? 32 : cd.Code;
+						checksum += cd.IsNullChar() ? 32 : cd.Code;
 					}
 				}
 

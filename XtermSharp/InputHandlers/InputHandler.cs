@@ -60,7 +60,7 @@ namespace XtermSharp {
 			parser.SetCsiHandler ('J', (pars, collect) => EraseInDisplay (pars));
 			parser.SetCsiHandler ('K', (pars, collect) => EraseInLine (pars));
 			parser.SetCsiHandler ('L', (pars, collect) => InsertLines (pars));
-			parser.SetCsiHandler ('M', (pars, collect) => DeleteLines (pars));
+			parser.SetCsiHandler ('M', (pars, collect) => terminal.csiDL (pars));
 			parser.SetCsiHandler ('P', (pars, collect) => terminal.csiDCH (pars));
 			parser.SetCsiHandler ('S', (pars, collect) => ScrollUp (pars));
 			parser.SetCsiHandler ('T', (pars, collect) => ScrollDown (pars));
@@ -669,13 +669,13 @@ namespace XtermSharp {
 				return;
 			}
 
-			var l = pars.Length;
+			var parCount = pars.Length;
 			var flags = (FLAGS)(terminal.CurAttr >> 18);
 			var fg = (terminal.CurAttr >> 9) & 0x1ff;
 			var bg = terminal.CurAttr & 0x1ff;
 			var def = CharData.DefaultAttr;
 
-			for (var i = 0; i < l; i++) {
+			for (var i = 0; i < parCount; i++) {
 				int p = pars [i];
 				if (p >= 30 && p <= 37) {
 					// fg color 8
@@ -748,36 +748,62 @@ namespace XtermSharp {
 					// reset bg
 					bg = CharData.DefaultAttr & 0x1ff;
 				} else if (p == 38) {
-					// fg color 256
-					if (pars [i + 1] == 2) {
-						i += 2;
-						fg = terminal.MatchColor (
-							pars [i] & 0xff,
-							pars [i + 1] & 0xff,
-							pars [i + 2] & 0xff);
-						if (fg == -1)
-							fg = 0x1ff;
-						i += 2;
-					} else if (pars [i + 1] == 5) {
-						i += 2;
-						p = pars [i] & 0xff;
-						fg = p;
+					if (i + 1 < parCount) {
+						// fg color 256
+						if (pars [i + 1] == 2) {
+							// Well this is a problem, if there are 3 arguments, expect R/G/B, if there are
+							// more than 3, skip the first that would be the colorspace
+							if (i + 5 < parCount) {
+								i += 1;
+							}
+							if (i + 4 < parCount) {
+								fg = terminal.MatchColor (
+									pars [i + 2] & 0xff,
+									pars [i + 3] & 0xff,
+									pars [i + 4] & 0xff);
+								if (fg == -1)
+									fg = 0x1ff;
+							}
+							// Given the historical disagreement that was caused by an ambiguous spec,
+							// we eat all the remaining parameters.
+							i = parCount;
+						} else if (pars [i + 1] == 5) {
+							if (i + 2 < parCount) {
+								p = pars [i + 2] & 0xff;
+								fg = p;
+								i += 1;
+							}
+							i += 1;
+						}
 					}
 				} else if (p == 48) {
-					// bg color 256
-					if (pars [i + 1] == 2) {
-						i += 2;
-						bg = terminal.MatchColor (
-							pars [i] & 0xff,
-							pars [i + 1] & 0xff,
-							pars [i + 2] & 0xff);
-						if (bg == -1)
-							bg = 0x1ff;
-						i += 2;
-					} else if (pars [i + 1] == 5) {
-						i += 2;
-						p = pars [i] & 0xff;
-						bg = p;
+					if (i + 1 < parCount) {
+						// bg color 256
+						if (pars [i + 1] == 2) {
+							// Well this is a problem, if there are 3 arguments, expect R/G/B, if there are
+							// more than 3, skip the first that would be the colorspace
+							if (i + 5 < parCount) {
+								i += 1;
+							}
+							if (i + 4 < parCount) {
+								bg = terminal.MatchColor (
+									pars [i + 2] & 0xff,
+									pars [i + 3] & 0xff,
+									pars [i + 4] & 0xff);
+								if (bg == -1)
+									bg = 0x1ff;
+							}
+							// Given the historical disagreement that was caused by an ambiguous spec,
+							// we eat all the remaining parameters.
+							i = parCount;
+						} else if (pars [i + 1] == 5) {
+							if (i + 2 < parCount) {
+								p = pars [i + 2] & 0xff;
+								bg = p;
+								i += 1;
+							}
+							i += 1;
+						}
 					}
 				} else if (p == 100) {
 					// reset fg/bg
@@ -996,32 +1022,6 @@ namespace XtermSharp {
 		}
 
 		// 
-		// CSI Ps M
-		// Delete Ps Line(s) (default = 1) (DL).
-		// 
-		void DeleteLines (int [] pars)
-		{
-			var p = Math.Max (pars.Length == 0 ? 1 : pars [0], 1);
-			var buffer = terminal.Buffer;
-			var row = buffer.Y + buffer.YBase;
-			int j;
-			j = terminal.Rows - 1 - buffer.ScrollBottom;
-			j = terminal.Rows - 1 + buffer.YBase - j;
-			var eraseAttr = terminal.EraseAttr ();
-			while (p-- != 0) {
-				// test: echo -e '\e[44m\e[1M\e[0m'
-				// blankLine(true) - xterm/linux behavior
-				buffer.Lines.Splice (row, 1);
-				buffer.Lines.Splice (j, 0, buffer.GetBlankLine (eraseAttr));
-			}
-
-			// this.maxRange();
-			terminal.UpdateRange (buffer.Y);
-			terminal.UpdateRange (buffer.ScrollBottom);
-
-		}
-
-		// 
 		// CSI Ps K  Erase in Line (EL).
 		//     Ps = 0  -> Erase to Right (default).
 		//     Ps = 1  -> Erase to Left.
@@ -1200,56 +1200,75 @@ namespace XtermSharp {
 			var curAttr = terminal.CurAttr;
 			var bufferRow = buffer.Lines [buffer.Y + buffer.YBase];
 
-
 			terminal.UpdateRange (buffer.Y);
 
-			while (readingBuffer.HasNext ()) {
-				int code;
-				byte bufferValue = readingBuffer.GetNext ();
-				var n = RuneExt.ExpectedSizeFromFirstByte (bufferValue);
-				if (n == -1) {
-					// Invalid UTF-8 sequence, client sent us some junk, happens if we run with the wrong locale set
-					// for example if LANG=en
-					code = (int)((uint)bufferValue);
-				} else if (n == 1) {
-					code = bufferValue;
-				} else {
-					var bytesRemaining = readingBuffer.BytesLeft ();
-					if (readingBuffer.BytesLeft () >= (n - 1)) {
-						var x = new byte [n];
-						x [0] = bufferValue;
-						for (int j = 1; j < n; j++)
-							x [j] = readingBuffer.GetNext ();
-
-						(var r, var size) = Rune.DecodeRune (x);
-						code = (int)(uint)r;
-					} else {
-						readingBuffer.Putback (bufferValue);
-						return;
+			while (readingBuffer.HasNext()) {
+				var ch = ' ';
+				var chWidth = 0;
+				int code = 32;
+				byte bufferValue = readingBuffer.GetNext();
+				var n = RuneExt.ExpectedSizeFromFirstByte(bufferValue);
+				if (n == -1 || n == 1) {
+					var chSet = false;
+					if (bufferValue < 127 && charset != null) {
+						var str = charset[bufferValue];
+						if (!string.IsNullOrEmpty(str)) {
+							ch = str[0];
+							// Every single mapping in the charset only takes one slot
+							chWidth = 1;
+							chSet = true;
+						}
 					}
+
+					if (!chSet) {
+						(var rune, var size) = Rune.DecodeRune(new byte[] { bufferValue });
+						chWidth = size;
+						ch = rune.ToString()[0];
+					}
+
 				}
+				// Invalid UTF-8 sequence, client sent us some junk, happens if we run with the wrong locale set
+				// for example if LANG=en
+				else if (readingBuffer.BytesLeft() >= (n - 1)) {
+					var bytes = new byte[n];
+					bytes[0] = bufferValue;
+					for (int j = 1; j < n; j++)
+						bytes[j] = readingBuffer.GetNext();
 
-				// MIGUEL-TODO: I suspect this needs to be a stirng in C# to cope with Grapheme clusters
-				var ch = code;
+					string s = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+					if (s.Length > 0) {
+						ch = s[0];
+					}
+					else {
+						ch = ' ';
+					}
 
-				// calculate print space
-				// expensive call, therefore we save width in line buffer
+					// Now the challenge is that we have a character, not a rune, and we want to compute
+					// the width of it.
+					if (s.Length == 1) {
+						chWidth = RuneHelper.ConsoleWidth(s[0]);
+					}
+					else {
+						chWidth = 0;
 
-				// TODO: This is wrong, we only have one byte at this point, we do not have a full rune.
-				// The correct fix includes the upper parser tracking the "pending" data across invocations
-				// until a valid UTF-8 string comes in, and *then* we can call this method
-				// var chWidth = Rune.ColumnWidth ((Rune)code);
+						foreach (var scalar in s) {
+							chWidth = Math.Max(chWidth, RuneHelper.ConsoleWidth(scalar));
+						}
+					}
 
-				// 1 until we get a fixed NStack
-				var chWidth = 1;
+				}
+				else {
+					readingBuffer.Putback(bufferValue);
+					return;
+				}
 
 				// get charset replacement character
 				// charset are only defined for ASCII, therefore we only
 				// search for an replacement char if code < 127
-				if (code < 127 && charset != null) {
+				if (bufferValue < 127 && charset != null) {
 
 					// MIGUEL-FIXME - this is broken for dutch cahrset that returns two letters "ij", need to figure out what to do
-					if (charset.TryGetValue ((byte)code, out var str)) {
+					if (charset.TryGetValue (bufferValue, out var str)) {
 						ch = str [0];
 						code = ch;
 					}
@@ -1336,7 +1355,7 @@ namespace XtermSharp {
 				}
 
 				// write current char to buffer and advance cursor
-				var charData = new CharData (curAttr, (uint)code, chWidth, ch);
+				var charData = new CharData (curAttr, ch, chWidth);
 				bufferRow [buffer.X++] = charData;
 
 				// fullwidth char - also set next cell to placeholder stub and advance cursor

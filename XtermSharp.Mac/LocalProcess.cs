@@ -28,7 +28,7 @@ namespace XtermSharp.Mac {
 		/// <summary>
 		/// Launches the shell
 		/// </summary>
-		public virtual void Start (string shellPath = "/bin/bash", string [] args = null, string [] env = null)
+		public virtual void Start (string shellPath = "/bin/zsh", string [] args = null, string [] env = null)
 		{
 			OnStart ();
 
@@ -36,7 +36,7 @@ namespace XtermSharp.Mac {
 			shellArgs [0] = shellPath;
 			args?.CopyTo (shellArgs, 1);
 
-			ProcessId = Pty.ForkAndExec (shellPath, shellArgs, env ?? Terminal.GetEnvironmentVariables (), out shellFileDescriptor, initialSize);
+			ProcessId = Pty.ForkAndExec (shellPath, shellArgs, env ?? Terminal.GetEnvironmentVariables (), ref shellFileDescriptor, initialSize);
 			DispatchIO.Read (shellFileDescriptor, (nuint)readBuffer.Length, DispatchQueue.CurrentQueue, ChildProcessRead);
 		}
 

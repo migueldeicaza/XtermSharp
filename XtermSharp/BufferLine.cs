@@ -45,7 +45,7 @@ namespace XtermSharp {
 		   * from real empty cells.
 		   * */
 		   // TODO: not sue this is completely right
-		public bool HasContent (int index) => data [index].Code != 0 || data [index].Attribute != CharData.DefaultAttr;
+		public bool HasContent (int index) => !data [index].IsNullChar() || data [index].Attribute != CharData.DefaultAttr;
 
 		public bool HasAnyContent()
 		{
@@ -124,11 +124,23 @@ namespace XtermSharp {
 			}
 		}
 
+		/// <summary>
+		/// Fills the line with fillCharData values
+		/// </summary>
 		public void Fill (CharData fillCharData)
 		{
 			var len = Length;
 			for (int i = 0; i < len; i++)
 				data [i] = fillCharData;
+		}
+
+		/// <summary>
+		/// Fills the line with len fillCharData values from the given atCol
+		/// </summary>
+		public void Fill (CharData fillCharData, int atCol, int len)
+		{
+			for (int i = 0; i < len; i++)
+				data [atCol + i] = fillCharData;
 		}
 
 		public void CopyFrom (BufferLine line)
@@ -141,10 +153,18 @@ namespace XtermSharp {
 			IsWrapped = line.IsWrapped;
 		}
 
+		/// <summary>
+		/// Copies a subrange the given source line into the current line
+		/// </summary>
+		public void CopyFrom (BufferLine source, int sourceCol, int destCol, int len)
+		{
+			Array.Copy (source.data, sourceCol, data, destCol, len);
+		}
+
 		public int GetTrimmedLength ()
 		{
 			for (int i = data.Length - 1; i >= 0; --i)
-				if (data [i].Code != 0) {
+				if (!data [i].IsNullChar()) {
 					int width = 0;
 					for (int j = 0; j <= i; j++)
 						width += data [i].Width;

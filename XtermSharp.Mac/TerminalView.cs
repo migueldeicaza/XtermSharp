@@ -410,7 +410,7 @@ namespace XtermSharp.Mac {
 
 		void UpdateCursorPosition ()
 		{
-			caret.Pos = new System.Drawing.Point (terminal.Buffer.X, terminal.Buffer.Y - terminal.Buffer.YDisp + terminal.Buffer.YBase);
+			caret.Pos = new Point (terminal.Buffer.X, terminal.Buffer.Y - terminal.Buffer.YDisp + terminal.Buffer.YBase);
 		}
 
 		void UpdateDisplay ()
@@ -445,8 +445,8 @@ namespace XtermSharp.Mac {
 
 			if (notifyAccessibility) {
 				accessibility.Invalidate ();
-				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.ValueChangedNotification);
-				NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+				NSAccessibility.PostNotification (this, NSView.ValueChangedNotification);
+				NSAccessibility.PostNotification (this, NSView.SelectedTextChangedNotification);
 			}
 		}
 
@@ -1419,7 +1419,7 @@ namespace XtermSharp.Mac {
 			}
 
 			accessibility.Invalidate ();
-			NSAccessibility.PostNotification (this, NSAccessibilityNotifications.SelectedTextChangedNotification);
+			NSAccessibility.PostNotification (this, NSView.SelectedTextChangedNotification);
 		}
 
 		void SelectSearchResult(SearchSnapshot.SearchResult searchResult)
